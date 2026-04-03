@@ -1,0 +1,22 @@
+{
+  "name": "D Perfume House - Vendedor",
+  "short_name": "DPH Seller",
+  "description": "App de ventas para vendedores de D Perfume House",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#130F07",
+  "theme_color": "#130F07",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/dp-logo-full.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["shopping", "business"],
+  "lang": "es",
+  "dir": "ltr"
+}

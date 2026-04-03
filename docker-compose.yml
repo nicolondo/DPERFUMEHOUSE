@@ -1,0 +1,20 @@
+services:
+  # Postgres is now on Neon (cloud) — no local container needed.
+  # Connection string in apps/api/.env → DATABASE_URL
+
+  redis:
+    image: redis:7-alpine
+    container_name: dperfumehouse-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  redis_data:

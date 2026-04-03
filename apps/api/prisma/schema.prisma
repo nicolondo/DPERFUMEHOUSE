@@ -1,0 +1,581 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  SELLER_L1
+  SELLER_L2
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING_PAYMENT
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  ONLINE
+  CASH
+}
+
+enum PaymentLinkStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum ProductRequestStatus {
+  PENDING
+  NOTIFIED
+  FULFILLED
+  CANCELLED
+}
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  PAID
+  REVERSED
+}
+
+enum ShipmentStatus {
+  QUOTED
+  LABEL_CREATED
+  PICKUP_SCHEDULED
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum MonthlyCommissionBonusStatus {
+  POSTED
+  FAILED
+  SKIPPED_NO_DELTA
+  SKIPPED_DISABLED
+}
+
+enum LeadStatus {
+  SENT
+  RESPONDED
+  APPOINTMENT
+  VISITED
+  CONVERTED
+}
+
+enum LeadMode {
+  PERSONAL
+  PUBLIC
+}
+
+model User {
+  id                   String       @id @default(uuid()) @db.Uuid
+  email                String       @unique
+  passwordHash         String       @map("password_hash")
+  name                 String
+  phone                String?
+  phoneCode            String?      @default("+57") @map("phone_code")
+  googleId             String?      @unique @map("google_id")
+  role                 UserRole     @default(SELLER_L1)
+  parentId             String?      @map("parent_id") @db.Uuid
+  parent               User?        @relation("UserHierarchy", fields: [parentId], references: [id])
+  children             User[]       @relation("UserHierarchy")
+  commissionRate       Decimal      @default(0.10) @map("commission_rate") @db.Decimal(5, 4)
+  commissionRateL2     Decimal      @default(0.05) @map("commission_rate_l2") @db.Decimal(5, 4)
+  commissionScaleEnabled Boolean    @default(false) @map("commission_scale_enabled")
+  commissionScaleUseGlobal Boolean  @default(true) @map("commission_scale_use_global")
+  commissionScaleOverride Json?     @map("commission_scale_override")
+  bankName             String?      @map("bank_name")
+  bankAccountType      String?      @map("bank_account_type")
+  bankAccountNumber    String?      @map("bank_account_number")
+  bankAccountHolder    String?      @map("bank_account_holder")
+  bankCertificateUrl   String?      @map("bank_certificate_url")
+  usdtWalletTrc20      String?      @map("usdt_wallet_trc20")
+  canManageSellers     Boolean      @default(false) @map("can_manage_sellers")
+  sellerCode           String?      @unique @map("seller_code")
+  gender               String?
+  odooCompanyId        Int?         @map("odoo_company_id")
+  isActive             Boolean      @default(true) @map("is_active")
+  pendingApproval      Boolean      @default(false) @map("pending_approval")
+  refreshToken         String?      @map("refresh_token")
+  resetToken           String?      @map("reset_token")
+  resetTokenExpiry     DateTime?    @map("reset_token_expiry")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+
+  customers            Customer[]
+  orders               Order[]
+  commissions          Commission[]
+  monthlyCommissionBonuses MonthlyCommissionBonus[]
+  sellerPayouts        SellerPayout[]
+  productRequests      ProductRequest[]
+  allowedCategories    UserAllowedCategory[]
+  leads                Lead[]
+
+  @@index([parentId])
+  @@index([role])
+  @@index([email])
+  @@map("users")
+}
+
+model UserAllowedCategory {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryName  String   @map("category_name")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, categoryName])
+  @@index([userId])
+  @@index([categoryName])
+  @@map("user_allowed_categories")
+}
+
+model Customer {
+  id              String           @id @default(uuid()) @db.Uuid
+  name            String
+  email           String?
+  phone           String?
+  phoneCode       String?          @default("+57") @map("phone_code")
+  documentId      String?          @map("document_id")
+  documentType    String?          @map("document_type")
+  documentNumber  String?          @map("document_number")
+  notes           String?
+  odooPartnerId   Int?             @map("odoo_partner_id")
+  sellerId        String           @map("seller_id") @db.Uuid
+  seller          User             @relation(fields: [sellerId], references: [id])
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  addresses       CustomerAddress[]
+  orders          Order[]
+  leads           Lead[]
+
+  @@unique([email, sellerId])
+  @@unique([phone, sellerId])
+  @@index([sellerId])
+  @@map("customers")
+}
+
+model CustomerAddress {
+  id          String    @id @default(uuid()) @db.Uuid
+  customerId  String    @map("customer_id") @db.Uuid
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  label       String?
+  street      String
+  detail      String?
+  phone       String?
+  phoneCode   String?    @default("+57") @map("phone_code")
+  notes       String?
+  city        String
+  state       String?
+  zip         String?
+  country     String    @default("CO")
+  isDefault   Boolean   @default(false) @map("is_default")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  orders      Order[]
+
+  @@index([customerId])
+  @@map("customer_addresses")
+}
+
+model ProductVariant {
+  id              String         @id @default(uuid()) @db.Uuid
+  odooProductId   Int            @unique @map("odoo_product_id")
+  odooTemplateId  Int?           @map("odoo_template_id")
+  name            String
+  sku             String?
+  barcode         String?
+  price           Decimal        @db.Decimal(12, 2)
+  compareAtPrice  Decimal?       @map("compare_at_price") @db.Decimal(12, 2)
+  stock           Int            @default(0)
+  categoryName    String?        @map("category_name")
+  attributes      Json           @default("{}")
+  isBlocked       Boolean        @default(false) @map("is_blocked")
+  isActive        Boolean        @default(true) @map("is_active")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  images           ProductImage[]
+  orderItems       OrderItem[]
+  productRequests  ProductRequest[]
+  fragranceProfile FragranceProfile?
+
+  @@index([odooTemplateId])
+  @@index([categoryName])
+  @@index([sku])
+  @@index([isActive, isBlocked])
+  @@map("product_variants")
+}
+
+model ProductImage {
+  id           String         @id @default(uuid()) @db.Uuid
+  variantId    String         @map("variant_id") @db.Uuid
+  variant      ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  url          String
+  thumbnailUrl String?        @map("thumbnail_url")
+  sortOrder    Int            @default(0) @map("sort_order")
+  isPrimary    Boolean        @default(false) @map("is_primary")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  @@index([variantId])
+  @@map("product_images")
+}
+
+model Order {
+  id               String        @id @default(uuid()) @db.Uuid
+  orderNumber      String        @unique @map("order_number")
+  status           OrderStatus   @default(DRAFT)
+  sellerId         String        @map("seller_id") @db.Uuid
+  seller           User          @relation(fields: [sellerId], references: [id])
+  customerId       String        @map("customer_id") @db.Uuid
+  customer         Customer      @relation(fields: [customerId], references: [id])
+  addressId        String?       @map("address_id") @db.Uuid
+  address          CustomerAddress? @relation(fields: [addressId], references: [id])
+  subtotal         Decimal       @db.Decimal(12, 2)
+  tax              Decimal       @default(0) @db.Decimal(12, 2)
+  shipping         Decimal       @default(0) @db.Decimal(12, 2)
+  total            Decimal       @db.Decimal(12, 2)
+  notes            String?
+  paymentMethod    PaymentMethod @default(ONLINE) @map("payment_method")
+  paymentStatus    PaymentStatus @default(PENDING) @map("payment_status")
+  odooSaleOrderId  Int?          @map("odoo_sale_order_id")
+  odooDeliveryId   Int?          @map("odoo_delivery_id")
+  odooInvoiceId    Int?          @map("odoo_invoice_id")
+  odooInvoiceName  String?       @map("odoo_invoice_name")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  items            OrderItem[]
+  paymentLink      PaymentLink?
+  commissions      Commission[]
+  shipment         Shipment?
+  convertedLead    Lead?
+
+  @@index([sellerId])
+  @@index([customerId])
+  @@index([status])
+  @@index([orderNumber])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String         @id @default(uuid()) @db.Uuid
+  orderId    String         @map("order_id") @db.Uuid
+  order      Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId  String         @map("variant_id") @db.Uuid
+  variant    ProductVariant @relation(fields: [variantId], references: [id])
+  quantity   Int
+  unitPrice  Decimal        @map("unit_price") @db.Decimal(12, 2)
+  total      Decimal        @db.Decimal(12, 2)
+
+  @@index([orderId])
+  @@index([variantId])
+  @@map("order_items")
+}
+
+model PaymentLink {
+  id          String            @id @default(uuid()) @db.Uuid
+  orderId     String            @unique @map("order_id") @db.Uuid
+  order       Order             @relation(fields: [orderId], references: [id])
+  externalId  String?           @map("external_id")
+  url         String?
+  amount      Decimal           @db.Decimal(12, 2)
+  currency    String            @default("COP")
+  provider    String            @default("myxspend")
+  expiresAt   DateTime?         @map("expires_at")
+  status      PaymentLinkStatus @default(PENDING)
+  metadata    Json?
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  events      PaymentEvent[]
+
+  @@index([externalId])
+  @@index([status])
+  @@map("payment_links")
+}
+
+model PaymentEvent {
+  id             String      @id @default(uuid()) @db.Uuid
+  paymentLinkId  String      @map("payment_link_id") @db.Uuid
+  paymentLink    PaymentLink @relation(fields: [paymentLinkId], references: [id], onDelete: Cascade)
+  eventType      String      @map("event_type")
+  status         String
+  amount         Decimal?    @db.Decimal(12, 2)
+  currency       String?
+  rawPayload     Json        @map("raw_payload")
+  processedAt    DateTime?   @map("processed_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  @@index([paymentLinkId])
+  @@index([eventType])
+  @@map("payment_events")
+}
+
+model ProductRequest {
+  id         String               @id @default(uuid()) @db.Uuid
+  sellerId   String               @map("seller_id") @db.Uuid
+  seller     User                 @relation(fields: [sellerId], references: [id])
+  variantId  String               @map("variant_id") @db.Uuid
+  variant    ProductVariant       @relation(fields: [variantId], references: [id])
+  quantity   Int
+  status     ProductRequestStatus @default(PENDING)
+  notes      String?
+  createdAt  DateTime             @default(now()) @map("created_at")
+  updatedAt  DateTime             @updatedAt @map("updated_at")
+
+  @@index([sellerId])
+  @@index([status])
+  @@map("product_requests")
+}
+
+model Commission {
+  id          String           @id @default(uuid()) @db.Uuid
+  orderId     String           @map("order_id") @db.Uuid
+  order       Order            @relation(fields: [orderId], references: [id])
+  userId      String           @map("user_id") @db.Uuid
+  user        User             @relation(fields: [userId], references: [id])
+  payoutId    String?          @map("payout_id") @db.Uuid
+  payout      SellerPayout?    @relation(fields: [payoutId], references: [id])
+  level       Int
+  rate        Decimal          @db.Decimal(5, 4)
+  baseAmount  Decimal          @map("base_amount") @db.Decimal(12, 2)
+  amount      Decimal          @db.Decimal(12, 2)
+  status      CommissionStatus @default(PENDING)
+  paidAt      DateTime?        @map("paid_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@index([payoutId])
+  @@map("commissions")
+}
+
+model MonthlyCommissionBonus {
+  id            String                       @id @default(uuid()) @db.Uuid
+  sellerId      String                       @map("seller_id") @db.Uuid
+  seller        User                         @relation(fields: [sellerId], references: [id])
+  year          Int
+  month         Int
+  salesBase     Decimal                      @map("sales_base") @db.Decimal(12, 2)
+  baseRate      Decimal                      @map("base_rate") @db.Decimal(5, 4)
+  tierRate      Decimal                      @map("tier_rate") @db.Decimal(5, 4)
+  deltaRate     Decimal                      @map("delta_rate") @db.Decimal(5, 4)
+  bonusAmount   Decimal                      @map("bonus_amount") @db.Decimal(12, 2)
+  scaleSource   String                       @map("scale_source")
+  scaleSnapshot Json?                        @map("scale_snapshot")
+  status        MonthlyCommissionBonusStatus @default(POSTED)
+  odooMoveId    Int?                         @map("odoo_move_id")
+  odooMoveName  String?                      @map("odoo_move_name")
+  errorMessage  String?                      @map("error_message")
+  processedAt   DateTime                     @map("processed_at")
+  createdAt     DateTime                     @default(now()) @map("created_at")
+  updatedAt     DateTime                     @updatedAt @map("updated_at")
+
+  @@unique([sellerId, year, month])
+  @@index([year, month])
+  @@index([status])
+  @@map("monthly_commission_bonuses")
+}
+
+model SellerPayout {
+  id           String       @id @default(uuid()) @db.Uuid
+  userId       String       @map("user_id") @db.Uuid
+  user         User         @relation(fields: [userId], references: [id])
+  amount       Decimal      @db.Decimal(12, 2)
+  method       String
+  reference    String?
+  status       PayoutStatus @default(PENDING)
+  odooMoveId   Int?         @map("odoo_move_id")
+  odooMoveName String?      @map("odoo_move_name")
+  processedAt  DateTime?    @map("processed_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  commissions  Commission[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("seller_payouts")
+}
+
+model AppSetting {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  value       String
+  isSecret    Boolean  @default(false) @map("is_secret")
+  group       String   @default("general")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([group])
+  @@index([key])
+  @@map("app_settings")
+}
+
+model SyncLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  type       String   // "sync-products" | "sync-stock"
+  status     String   @default("running") // "running" | "completed" | "failed"
+  result     Json?    // { created, updated, deactivated, errors } or { updated, errors }
+  error      String?
+  startedAt  DateTime @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  duration   Int?     // seconds
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([type])
+  @@index([createdAt])
+  @@map("sync_logs")
+}
+
+model Shipment {
+  id                  String         @id @default(uuid()) @db.Uuid
+  orderId             String         @unique @map("order_id") @db.Uuid
+  order               Order          @relation(fields: [orderId], references: [id])
+  carrier             String?
+  service             String?
+  trackingNumber      String?        @map("tracking_number")
+  trackUrl            String?        @map("track_url")
+  labelUrl            String?        @map("label_url")
+  enviaShipmentId     Int?           @map("envia_shipment_id")
+  totalPrice          Decimal?       @map("total_price") @db.Decimal(12, 2)
+  currency            String?        @default("COP")
+  status              ShipmentStatus @default(QUOTED)
+  pickupConfirmation  String?        @map("pickup_confirmation")
+  enviaRawResponse    Json?          @map("envia_raw_response")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  events              ShipmentEvent[]
+
+  @@index([trackingNumber])
+  @@index([status])
+  @@map("shipments")
+}
+
+model ShipmentEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  shipmentId  String   @map("shipment_id") @db.Uuid
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  timestamp   DateTime
+  location    String?
+  description String
+  status      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([shipmentId])
+  @@map("shipment_events")
+}
+
+model FragranceProfile {
+  id                    String         @id @default(uuid()) @db.Uuid
+  productVariantId      String         @unique @map("product_variant_id") @db.Uuid
+  productVariant        ProductVariant @relation(fields: [productVariantId], references: [id])
+  familiaOlfativa       String         @map("familia_olfativa")
+  subfamilia            String?
+  intensidad            String         @default("media") // baja|media|alta
+  contextoIdeal         String?        @map("contexto_ideal") // diario|nocturno|casual|versátil
+  climaIdeal            String?        @map("clima_ideal") // frío|templado|cálido|universal
+  perfilPersonalidad    String?        @map("perfil_personalidad") // clásico|moderno|atrevido|relajado
+  notasDestacadas       String?        @map("notas_destacadas") // salida/corazón/fondo
+  descripcionDetallada  String?        @map("descripcion_detallada")
+  duracionEstimada      String?        @map("duracion_estimada")
+  tagsNegativos         String[]       @default([]) @map("tags_negativos")
+  frasePositionamiento  String?        @map("frase_positionamiento")
+  genero                String         @default("unisex") // masculino|femenino|unisex
+  equivalencia          String?
+  notasAdicionales      String?        @map("notas_adicionales")
+  presentaciones        Json           @default("[]") // [{ml, precio}]
+  completionScore       Int?           @map("completion_score")
+  lastEnrichedAt        DateTime?      @map("last_enriched_at")
+  isActive              Boolean        @default(true) @map("is_active")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+
+  @@index([familiaOlfativa])
+  @@index([genero])
+  @@index([isActive])
+  @@map("fragrance_profiles")
+}
+
+model Lead {
+  id                   String      @id @default(uuid()) @db.Uuid
+  sellerId             String      @map("seller_id") @db.Uuid
+  seller               User        @relation(fields: [sellerId], references: [id])
+  customerId           String?     @map("customer_id") @db.Uuid
+  customer             Customer?   @relation(fields: [customerId], references: [id])
+  sellerCode           String      @map("seller_code")
+  mode                 LeadMode    @default(PUBLIC)
+  status               LeadStatus  @default(SENT)
+  clientName           String?     @map("client_name")
+  clientEmail          String?     @map("client_email")
+  clientPhone          String?     @map("client_phone")
+  clientCity           String?     @map("client_city")
+  answers              Json?
+  aiAnalysis           Json?       @map("ai_analysis")
+  recommendations      Json?
+  sellerScript         Json?       @map("seller_script")
+  budgetRange          String?     @map("budget_range")
+  isForGift            Boolean     @default(false) @map("is_for_gift")
+  giftRecipient        String?     @map("gift_recipient")
+  appointmentDate      DateTime?   @map("appointment_date")
+  appointmentTime      String?     @map("appointment_time")
+  appointmentLocation  String?     @map("appointment_location")
+  appointmentNotes     String?     @map("appointment_notes")
+  convertedOrderId     String?     @unique @map("converted_order_id") @db.Uuid
+  convertedOrder       Order?      @relation(fields: [convertedOrderId], references: [id])
+  questionnaireUrl     String?     @map("questionnaire_url")
+  respondedAt          DateTime?   @map("responded_at")
+  appointmentAt        DateTime?   @map("appointment_at")
+  visitedAt            DateTime?   @map("visited_at")
+  convertedAt          DateTime?   @map("converted_at")
+  emailSentAt          DateTime?   @map("email_sent_at")
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  @@index([sellerId])
+  @@index([customerId])
+  @@index([sellerCode])
+  @@index([status])
+  @@index([mode])
+  @@index([createdAt])
+  @@map("leads")
+}
