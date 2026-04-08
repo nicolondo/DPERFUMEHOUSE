@@ -870,9 +870,10 @@ export class OdooService {
     }
 
     // 6. Register payment via wizard — active_ids must be in 'context' key
+    // Do NOT pass amount — let Odoo derive it from the invoice's amount_residual
+    // to avoid partial payment if there's any rounding/tax difference
     const payCtx = { active_model: 'account.move', active_ids: [invoiceId], active_id: invoiceId };
     const wizardPayData: Record<string, any> = {
-      amount,
       payment_date: new Date().toISOString().slice(0, 10),
     };
     if (journalId) wizardPayData.journal_id = journalId;
