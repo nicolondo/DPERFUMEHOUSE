@@ -720,10 +720,12 @@ export class OdooService {
         'sale.order',
         'search_read',
         [[['id', '=', saleOrderId]]],
-        { fields: ['state', 'company_id', 'invoice_ids'], limit: 1 },
+        { fields: ['state', 'company_id', 'invoice_ids', 'partner_id', 'name'], limit: 1 },
       );
       const soState = soData0?.[0]?.state;
       const companyId: number = soData0?.[0]?.company_id?.[0];
+      const partnerId: number = soData0?.[0]?.partner_id?.[0];
+      const soName: string = soData0?.[0]?.name ?? `SO-${saleOrderId}`;
       const existingInvoiceIds: number[] = soData0?.[0]?.invoice_ids ?? [];
 
       if (soState === 'draft' || soState === 'sent') {
@@ -775,88 +777,54 @@ export class OdooService {
         }
       }
 
-      const soCtx = { active_ids: [saleOrderId], active_model: 'sale.order', active_id: saleOrderId };
-
-      // 2. Create invoice via wizard — active_ids must be in 'context' key
-      const wizardInvId = await this.execute(
-        'sale.advance.payment.inv',
-        'create',
-        [{ advance_payment_method: 'percentage', amount: 100 }],
-        { context: soCtx },
-      );
-
-      // create_invoices returns an action dict that may contain None values (can't serialize via XML-RPC)
-      // We wrap it in try/catch because the invoice IS created even when serialization fails
-      try {
-        await this.execute(
-          'sale.advance.payment.inv',
-          'create_invoices',
-          [[Array.isArray(wizardInvId) ? wizardInvId[0] : wizardInvId]],
-          { context: soCtx },
-        );
-      } catch (e) {
-        if (!e.message?.includes('cannot marshal None')) {
-          throw e;
-        }
-        this.logger.warn(`create_invoices returned unserializable result (expected) — continuing`);
-      }
-
-      // 3. Find the created invoice (newly added ones vs what existed before)
-      const soData = await this.execute(
-        'sale.order',
+      // 2. Get SO lines to create a proper invoice (not an advance/down payment)
+      const soLines = await this.execute(
+        'sale.order.line',
         'search_read',
-        [[['id', '=', saleOrderId]]],
-        { fields: ['invoice_ids'], limit: 1 },
+        [[['order_id', '=', saleOrderId], ['display_type', '=', false]]],
+        { fields: ['id', 'product_id', 'product_uom', 'product_uom_qty', 'price_unit', 'name', 'tax_id', 'discount'] },
       );
 
-      const invoiceIds: number[] = soData?.[0]?.invoice_ids ?? [];
-      const newInvoiceIds = invoiceIds.filter((id) => !existingInvoiceIds.includes(id));
-      const lookupIds = newInvoiceIds.length > 0 ? newInvoiceIds : invoiceIds;
-
-      if (lookupIds.length === 0) {
-        throw new Error(`No invoice found after creation for SO ${saleOrderId}`);
+      if (!soLines || soLines.length === 0) {
+        throw new Error(`No invoiceable lines found on SO ${saleOrderId}`);
       }
 
-      // Get the most recently created draft invoice
-      const draftInvoices = await this.execute(
+      const invoiceLineVals = soLines.map((line: any) => [
+        0, 0,
+        {
+          product_id: line.product_id?.[0] ?? false,
+          product_uom_id: line.product_uom?.[0] ?? false,
+          quantity: line.product_uom_qty,
+          price_unit: line.price_unit,
+          name: line.name,
+          tax_ids: [[6, 0, Array.isArray(line.tax_id) ? line.tax_id : []]],
+          discount: line.discount || 0,
+          sale_line_ids: [[4, line.id]],
+        },
+      ]);
+
+      // 3. Create invoice directly from SO lines (proper invoice, not anticipo)
+      const invoiceId: number = await this.execute(
         'account.move',
-        'search_read',
-        [[['id', 'in', lookupIds], ['state', '=', 'draft']]],
-        { fields: ['id', 'name'], order: 'id desc', limit: 1 },
+        'create',
+        [{
+          move_type: 'out_invoice',
+          partner_id: partnerId,
+          invoice_origin: soName,
+          company_id: companyId,
+          invoice_line_ids: invoiceLineVals,
+        }],
       );
-
-      if (draftInvoices.length === 0) {
-        // Invoice may already be posted — find most recent
-        const postedInvoices = await this.execute(
-          'account.move',
-          'search_read',
-          [[['id', 'in', lookupIds], ['state', '=', 'posted'], ['payment_state', '!=', 'paid']]],
-          { fields: ['id', 'name'], order: 'id desc', limit: 1 },
-        );
-        if (postedInvoices.length === 0) {
-          throw new Error(`No actionable invoice found for SO ${saleOrderId}`);
-        }
-        const invoiceId = postedInvoices[0].id;
-        const invoiceName = postedInvoices[0].name || `INV-${invoiceId}`;
-        return await this.registerPaymentOnInvoice(invoiceId, invoiceName, amount, companyId, saleOrderId, journalName, journalType);
-      }
-
-      const invoiceId = draftInvoices[0].id;
-      this.logger.log(`Created invoice ${invoiceId} for SO ${saleOrderId}`);
+      this.logger.log(`Created invoice ${invoiceId} directly from SO lines for SO ${saleOrderId}`);
 
       // 4. Post (validate) the invoice: draft → posted
       await this.execute('account.move', 'action_post', [[invoiceId]]);
       this.logger.log(`Posted invoice ${invoiceId}`);
 
       // Read the real sequence name after posting (draft invoices have name="/")
-      const postedInvoice = await this.execute(
-        'account.move',
-        'read',
-        [[invoiceId]],
-        { fields: ['name'] },
-      );
-      const invoiceName = (postedInvoice?.[0]?.name && postedInvoice[0].name !== '/') 
-        ? postedInvoice[0].name 
+      const postedInvoice = await this.execute('account.move', 'read', [[invoiceId]], { fields: ['name'] });
+      const invoiceName = (postedInvoice?.[0]?.name && postedInvoice[0].name !== '/')
+        ? postedInvoice[0].name
         : `INV-${invoiceId}`;
 
       return await this.registerPaymentOnInvoice(invoiceId, invoiceName, amount, companyId, saleOrderId, journalName, journalType);
