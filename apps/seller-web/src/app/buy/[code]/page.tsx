@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
 interface ProductLink {
   id: string;
@@ -33,6 +34,28 @@ interface ProductLink {
   };
 }
 
+// Load Google Maps script once
+function useGoogleMaps() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !MAPS_KEY) return;
+    if ((window as any).google?.maps?.places) { setReady(true); return; }
+    const existing = document.getElementById('gm-script');
+    if (existing) {
+      existing.addEventListener('load', () => setReady(true));
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = 'gm-script';
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places&language=es&region=CO`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setReady(true);
+    document.head.appendChild(script);
+  }, []);
+  return ready;
+}
+
 export default function BuyPage() {
   const params = useParams<{ code: string }>();
   const router = useRouter();
@@ -51,6 +74,32 @@ export default function BuyPage() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [detail, setDetail] = useState('');
+
+  // Google Maps
+  const mapsReady = useGoogleMaps();
+  const streetInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!mapsReady || !streetInputRef.current || autocompleteRef.current) return;
+    const ac = new (window as any).google.maps.places.Autocomplete(streetInputRef.current, {
+      componentRestrictions: { country: 'co' },
+      fields: ['address_components', 'formatted_address'],
+      types: ['address'],
+    });
+    autocompleteRef.current = ac;
+    ac.addListener('place_changed', () => {
+      const place = ac.getPlace();
+      if (!place?.address_components) return;
+      const get = (type: string) =>
+        place.address_components.find((c: any) => c.types.includes(type))?.long_name || '';
+      const streetNum = get('street_number');
+      const route = get('route');
+      setStreet(route ? (streetNum ? `${route} #${streetNum}` : route) : place.formatted_address || '');
+      setCity(get('locality') || get('administrative_area_level_2'));
+      setState(get('administrative_area_level_1'));
+    });
+  }, [mapsReady]);
 
   useEffect(() => {
     fetch(`${API_URL}/seller-product-links/public/${params.code}`)
@@ -150,14 +199,11 @@ export default function BuyPage() {
 
   return (
     <div className="min-h-dvh bg-[#0c0a06]">
-      {/* Header */}
+      {/* Header — logo centered, seller name below */}
       <div className="sticky top-0 z-10 bg-[#0c0a06]/95 backdrop-blur-xl border-b border-[#d3a86f]/10 px-4 py-3">
-        <div className="max-w-lg mx-auto flex items-center gap-3">
-          <img src="/icons/logo-final.svg" alt="D Perfume House" className="w-8 h-8" />
-          <div>
-            <p className="text-sm font-semibold text-white">D Perfume House</p>
-            <p className="text-xs text-white/40">Vendedor: {link.seller.name}</p>
-          </div>
+        <div className="max-w-lg mx-auto flex flex-col items-center gap-1">
+          <img src="/icons/logo-final.svg" alt="D Perfume House" className="w-10 h-10" />
+          <p className="text-xs text-white/40">Vendedor: {link.seller.name}</p>
         </div>
       </div>
 
@@ -282,7 +328,8 @@ export default function BuyPage() {
                   />
                   <input
                     type="email"
-                    placeholder="Email (opcional)"
+                    placeholder="Email *"
+                    required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
@@ -292,14 +339,19 @@ export default function BuyPage() {
                 {/* Address */}
                 <div className="space-y-3">
                   <h3 className="text-sm font-medium text-white/70">Dirección de envío</h3>
-                  <input
-                    type="text"
-                    placeholder="Dirección *"
-                    required
-                    value={street}
-                    onChange={(e) => setStreet(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
-                  />
+                  {/* Street with Google Maps Autocomplete */}
+                  <div className="relative">
+                    <input
+                      ref={streetInputRef}
+                      type="text"
+                      placeholder="Dirección *"
+                      required
+                      value={street}
+                      onChange={(e) => setStreet(e.target.value)}
+                      autoComplete="off"
+                      className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <input
                       type="text"
@@ -354,22 +406,6 @@ export default function BuyPage() {
             </>
           )}
 
-          {/* WhatsApp contact */}
-          {link.seller.phone && (
-            <a
-              href={`https://wa.me/${(link.seller.phoneCode || '+57').replace('+', '')}${link.seller.phone}?text=${encodeURIComponent(`Hola, estoy interesado en ${variant.name}`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-green-600/20 text-green-400 text-sm font-medium hover:bg-green-600/30 transition-colors"
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
-                <path d="M12 0C5.373 0 0 5.373 0 12c0 2.13.556 4.13 1.53 5.87L.06 23.694l5.95-1.56A11.93 11.93 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75c-1.875 0-3.63-.497-5.148-1.363l-.37-.218-3.83 1.004 1.022-3.735-.24-.38A9.715 9.715 0 012.25 12 9.75 9.75 0 0112 2.25 9.75 9.75 0 0121.75 12 9.75 9.75 0 0112 21.75z" />
-              </svg>
-              Contactar vendedor por WhatsApp
-            </a>
-          )}
-
           {/* Footer */}
           <div className="text-center pt-4 pb-8">
             <p className="text-xs text-white/20">D Perfume House · Perfumería Artesanal Árabe</p>
@@ -379,3 +415,4 @@ export default function BuyPage() {
     </div>
   );
 }
+
