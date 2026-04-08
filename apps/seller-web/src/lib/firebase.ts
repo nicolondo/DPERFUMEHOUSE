@@ -2,16 +2,16 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getMessaging, getToken, onMessage, isSupported, Messaging } from 'firebase/messaging';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyB9iiR1qE4-p7R5g0Ui_sF2HPkYW89OurY',
-  authDomain: 'dperfumehouse.firebaseapp.com',
-  projectId: 'dperfumehouse',
-  storageBucket: 'dperfumehouse.firebasestorage.app',
-  messagingSenderId: '733287910276',
-  appId: '1:733287910276:web:2212c0ae5b7354b9f42bd1',
-  measurementId: 'G-0CG9WM6ZMH',
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || '',
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '',
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '',
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || '',
 };
 
-const VAPID_KEY = 'BBCizJDogtYNQWsA8yRSNPr869mqrLAD7tPTpNhzjb3zaQxE_Rrqz9hGbUE1M1GK9AHV4oPDm765FP8OZtlrZCk';
+const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || '';
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
