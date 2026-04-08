@@ -846,7 +846,7 @@ export class OdooService {
     journalName: string,
     journalType: 'cash' | 'bank' = 'cash',
   ): Promise<{ invoiceId: number; invoiceName: string; paymentId: number }> {
-    // 5. Find journal matching the SO's company
+    // Find journal matching the SO's company
     const domain: any[] = [['type', '=', journalType]];
     if (companyId) domain.push(['company_id', '=', companyId]);
 
@@ -854,54 +854,116 @@ export class OdooService {
       'account.journal',
       'search_read',
       [domain],
-      { fields: ['id', 'name'], limit: 5 },
+      { fields: ['id', 'name', 'default_account_id', 'company_id'], limit: 5 },
     );
 
-    // Try to find by name first, otherwise use first available
     let journalId: number | undefined;
+    let bankAccountId: number | undefined;
     const named = cashJournals.find((j: any) =>
       j.name.toLowerCase().includes(journalName.toLowerCase()),
     );
-    if (named) {
-      journalId = named.id;
-    } else if (cashJournals.length > 0) {
-      journalId = cashJournals[0].id;
-      this.logger.log(`Using cash journal: ${cashJournals[0].name} (${journalId})`);
+    const chosenJournal = named ?? cashJournals[0];
+    if (chosenJournal) {
+      journalId = chosenJournal.id;
+      bankAccountId = chosenJournal.default_account_id?.[0];
+      this.logger.log(`Using journal: ${chosenJournal.name} (${journalId}), bank account: ${bankAccountId}`);
     }
 
-    // 6. Register payment via wizard — active_ids must be in 'context' key
-    // Do NOT pass amount — let Odoo derive it from the invoice's amount_residual
-    // to avoid partial payment if there's any rounding/tax difference
-    const payCtx = { active_model: 'account.move', active_ids: [invoiceId], active_id: invoiceId };
-    const wizardPayData: Record<string, any> = {
-      payment_date: new Date().toISOString().slice(0, 10),
-    };
-    if (journalId) wizardPayData.journal_id = journalId;
+    if (!journalId || !bankAccountId) {
+      throw new Error(`No suitable journal found for payment on SO ${saleOrderId}`);
+    }
 
-    const wizardPayId = await this.execute(
-      'account.payment.register',
+    // Get company currency
+    const companyData = await this.execute(
+      'res.company',
+      'read',
+      [[companyId]],
+      { fields: ['currency_id'] },
+    );
+    const currencyId: number = companyData?.[0]?.currency_id?.[0];
+
+    // Get invoice receivable line (accounts receivable) — this is what we reconcile
+    const invoiceLines = await this.execute(
+      'account.move.line',
+      'search_read',
+      [[['move_id', '=', invoiceId], ['account_type', '=', 'asset_receivable'], ['reconciled', '=', false]]],
+      { fields: ['id', 'account_id', 'amount_residual'] },
+    );
+
+    if (invoiceLines.length === 0) {
+      this.logger.warn(`No unreconciled receivable line found on invoice ${invoiceId} — may already be paid`);
+      return { invoiceId, invoiceName, paymentId: 0 };
+    }
+
+    const receivableLineId: number = invoiceLines[0].id;
+    const amountToPay: number = Math.abs(invoiceLines[0].amount_residual);
+
+    // Create payment journal entry directly: DR Bank, CR Customers(617)
+    // This is the reliable approach — account.payment.register creates payments in 'in_process'
+    // without a move_id in this Odoo instance, so we create the journal entry directly.
+    const today = new Date().toISOString().slice(0, 10);
+    const payMoveId: number = await this.execute(
+      'account.move',
       'create',
-      [wizardPayData],
-      { context: payCtx },
+      [{
+        move_type: 'entry',
+        journal_id: journalId,
+        date: today,
+        ref: `Payment - ${invoiceName} - SO ${saleOrderId}`,
+        company_id: companyId,
+        line_ids: [
+          [0, 0, {
+            account_id: bankAccountId,
+            debit: amountToPay,
+            credit: 0,
+            name: `${journalName} - ${invoiceName}`,
+            ...(currencyId ? { currency_id: currencyId, amount_currency: amountToPay } : {}),
+          }],
+          [0, 0, {
+            account_id: invoiceLines[0].account_id?.[0] ?? invoiceLines[0].account_id,
+            debit: 0,
+            credit: amountToPay,
+            name: `${journalName} - ${invoiceName}`,
+            ...(currencyId ? { currency_id: currencyId, amount_currency: -amountToPay } : {}),
+          }],
+        ],
+      }],
+    );
+    this.logger.log(`Created payment journal entry ${payMoveId} for invoice ${invoiceName}`);
+
+    // Post the journal entry
+    await this.execute('account.move', 'action_post', [[payMoveId]]);
+    this.logger.log(`Posted payment entry ${payMoveId}`);
+
+    // Get the receivable (Customers) credit line on the payment entry to reconcile
+    const payLines = await this.execute(
+      'account.move.line',
+      'search_read',
+      [[['move_id', '=', payMoveId], ['credit', '>', 0]]],
+      { fields: ['id', 'account_id', 'credit'] },
     );
 
-    const payResult = await this.execute(
-      'account.payment.register',
-      'action_create_payments',
-      [[Array.isArray(wizardPayId) ? wizardPayId[0] : wizardPayId]],
-      { context: payCtx },
-    );
+    if (payLines.length === 0) {
+      throw new Error(`Could not find credit line on payment move ${payMoveId}`);
+    }
 
-    const paymentId =
-      payResult && typeof payResult === 'object' && payResult.res_id
-        ? payResult.res_id
-        : 0;
+    // Reconcile invoice receivable line with payment credit line
+    try {
+      await this.execute(
+        'account.move.line',
+        'reconcile',
+        [[receivableLineId, payLines[0].id]],
+        {},
+      );
+    } catch (e) {
+      // reconcile() returns None which causes marshal error — this is expected
+      if (!e.message?.includes('cannot marshal None')) {
+        throw e;
+      }
+    }
+    this.logger.log(`Reconciled invoice ${invoiceName} with payment entry ${payMoveId}`);
 
-    this.logger.log(
-      `Payment registered for invoice ${invoiceName} on SO ${saleOrderId} (amount: ${amount})`,
-    );
-
-    return { invoiceId, invoiceName, paymentId };
+    return { invoiceId, invoiceName, paymentId: payMoveId };
   }
 
   async getPricelists(companyId?: number): Promise<{ id: number; name: string }[]> {
