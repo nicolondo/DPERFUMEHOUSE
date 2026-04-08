@@ -231,8 +231,18 @@ export class SellerProductLinksService {
           phone: dto.phone,
           email: dto.email || null,
           sellerId,
+          ...(dto.legalIdType ? { documentType: dto.legalIdType } : {}),
+          ...(dto.legalId ? { documentNumber: dto.legalId } : {}),
         },
       });
+    } else if (dto.legalId && dto.legalIdType) {
+      // Update document info if not already set
+      if (!customer.documentNumber) {
+        await this.prisma.customer.update({
+          where: { id: customer.id },
+          data: { documentType: dto.legalIdType, documentNumber: dto.legalId },
+        });
+      }
     }
 
     // Create address

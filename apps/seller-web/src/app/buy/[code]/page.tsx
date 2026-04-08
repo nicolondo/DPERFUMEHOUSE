@@ -1,10 +1,61 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+
+declare global {
+  interface Window { WidgetCheckout: any; }
+}
+
+// ──────────────────────────────────────────────
+// Country phone codes
+// ──────────────────────────────────────────────
+const PHONE_CODES = [
+  { code: '+57', country: 'Colombia', flag: '🇨🇴' },
+  { code: '+1', country: 'Estados Unidos', flag: '🇺🇸' },
+  { code: '+34', country: 'España', flag: '🇪🇸' },
+  { code: '+52', country: 'México', flag: '🇲🇽' },
+  { code: '+54', country: 'Argentina', flag: '🇦🇷' },
+  { code: '+56', country: 'Chile', flag: '🇨🇱' },
+  { code: '+51', country: 'Perú', flag: '🇵🇪' },
+  { code: '+58', country: 'Venezuela', flag: '🇻🇪' },
+  { code: '+593', country: 'Ecuador', flag: '🇪🇨' },
+  { code: '+591', country: 'Bolivia', flag: '🇧🇴' },
+  { code: '+595', country: 'Paraguay', flag: '🇵🇾' },
+  { code: '+598', country: 'Uruguay', flag: '🇺🇾' },
+  { code: '+55', country: 'Brasil', flag: '🇧🇷' },
+  { code: '+507', country: 'Panamá', flag: '🇵🇦' },
+  { code: '+506', country: 'Costa Rica', flag: '🇨🇷' },
+  { code: '+503', country: 'El Salvador', flag: '🇸🇻' },
+  { code: '+502', country: 'Guatemala', flag: '🇬🇹' },
+  { code: '+504', country: 'Honduras', flag: '🇭🇳' },
+  { code: '+505', country: 'Nicaragua', flag: '🇳🇮' },
+  { code: '+53', country: 'Cuba', flag: '🇨🇺' },
+  { code: '+44', country: 'Reino Unido', flag: '🇬🇧' },
+  { code: '+33', country: 'Francia', flag: '🇫🇷' },
+  { code: '+49', country: 'Alemania', flag: '🇩🇪' },
+  { code: '+39', country: 'Italia', flag: '🇮🇹' },
+  { code: '+351', country: 'Portugal', flag: '🇵🇹' },
+  { code: '+81', country: 'Japón', flag: '🇯🇵' },
+  { code: '+86', country: 'China', flag: '🇨🇳' },
+  { code: '+7', country: 'Rusia', flag: '🇷🇺' },
+  { code: '+61', country: 'Australia', flag: '🇦🇺' },
+  { code: '+64', country: 'Nueva Zelanda', flag: '🇳🇿' },
+];
+
+// ID document types (Wompi Colombia)
+const ID_TYPES = [
+  { value: 'CC', label: 'CC · Cédula de Ciudadanía' },
+  { value: 'CE', label: 'CE · Cédula de Extranjería' },
+  { value: 'NIT', label: 'NIT' },
+  { value: 'TI', label: 'TI · Tarjeta de Identidad' },
+  { value: 'PP', label: 'PP · Pasaporte' },
+];
+
+type PhoneCode = typeof PHONE_CODES[0];
 
 interface ProductLink {
   id: string;
@@ -34,7 +85,9 @@ interface ProductLink {
   };
 }
 
+// ──────────────────────────────────────────────
 // Load Google Maps script once
+// ──────────────────────────────────────────────
 function useGoogleMaps() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -56,6 +109,88 @@ function useGoogleMaps() {
   return ready;
 }
 
+// ──────────────────────────────────────────────
+// Phone country code dropdown with search
+// ──────────────────────────────────────────────
+function PhoneCodeDropdown({ value, onChange }: { value: PhoneCode; onChange: (c: PhoneCode) => void }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  const filtered = PHONE_CODES.filter(
+    (c) =>
+      c.country.toLowerCase().includes(search.toLowerCase()) ||
+      c.code.includes(search),
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative flex-shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 h-full px-3 py-2.5 rounded-l-xl bg-[#1a1610] border border-r-0 border-[#d3a86f]/15 text-sm hover:bg-[#d3a86f]/10 transition-colors"
+      >
+        <span className="text-base leading-none">{value.flag}</span>
+        <span className="text-white/60 font-mono text-xs">{value.code}</span>
+        <svg className="w-3 h-3 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 z-50 mt-1 w-64 rounded-xl bg-[#1a1610] border border-[#d3a86f]/20 shadow-2xl overflow-hidden">
+          <div className="p-2 border-b border-white/5">
+            <input
+              type="text"
+              placeholder="Buscar país..."
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-lg bg-white/5 text-white text-sm placeholder:text-white/25 focus:outline-none"
+            />
+          </div>
+          <div className="max-h-52 overflow-y-auto">
+            {filtered.length === 0 && (
+              <p className="px-3 py-3 text-white/30 text-sm text-center">Sin resultados</p>
+            )}
+            {filtered.map((c) => (
+              <button
+                key={`${c.code}-${c.country}`}
+                type="button"
+                onClick={() => { onChange(c); setOpen(false); setSearch(''); }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-[#d3a86f]/10 transition-colors ${
+                  value.code === c.code && value.country === c.country
+                    ? 'bg-[#d3a86f]/10 text-[#d3a86f]'
+                    : 'text-white/70'
+                }`}
+              >
+                <span className="text-base leading-none">{c.flag}</span>
+                <span className="flex-1 truncate text-left">{c.country}</span>
+                <span className="text-white/40 text-xs font-mono">{c.code}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Main page
+// ──────────────────────────────────────────────
 export default function BuyPage() {
   const params = useParams<{ code: string }>();
   const router = useRouter();
@@ -68,18 +203,40 @@ export default function BuyPage() {
   // Form state
   const [quantity, setQuantity] = useState(1);
   const [name, setName] = useState('');
+  const [phoneCode, setPhoneCode] = useState<PhoneCode>(PHONE_CODES[0]); // Colombia default
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [idType, setIdType] = useState('CC');
+  const [idNumber, setIdNumber] = useState('');
   const [street, setStreet] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [detail, setDetail] = useState('');
+
+  // Wompi widget
+  const [wompiLoaded, setWompiLoaded] = useState(false);
 
   // Google Maps
   const mapsReady = useGoogleMaps();
   const streetInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<any>(null);
 
+  // Load Wompi widget script on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.WidgetCheckout) { setWompiLoaded(true); return; }
+    if (document.querySelector('script[src*="widget.js"]')) {
+      const s = document.querySelector<HTMLScriptElement>('script[src*="widget.js"]');
+      s?.addEventListener('load', () => setWompiLoaded(true));
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.wompi.co/widget.js';
+    script.async = true;
+    script.onload = () => setWompiLoaded(true);
+    document.head.appendChild(script);
+  }, []);
+
+  // Google Maps autocomplete — restrict to Colombia
   useEffect(() => {
     if (!mapsReady || !streetInputRef.current || autocompleteRef.current) return;
     const ac = new (window as any).google.maps.places.Autocomplete(streetInputRef.current, {
@@ -118,30 +275,34 @@ export default function BuyPage() {
 
   const formatPrice = (price: string | number) =>
     new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(
-      typeof price === 'string' ? parseFloat(price) : price
+      typeof price === 'string' ? parseFloat(price) : price,
     );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!link) return;
-
     setSubmitting(true);
     setSubmitError('');
 
     try {
+      const fullPhone = `${phoneCode.code}${phone}`;
+
+      // Step 1: Create the order
       const res = await fetch(`${API_URL}/seller-product-links/public/${params.code}/purchase`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
-          phone,
-          email: email || undefined,
+          phone: fullPhone,
+          email,
           quantity,
           street,
           city,
           state: state || undefined,
           detail: detail || undefined,
-          addressPhone: phone,
+          addressPhone: fullPhone,
+          legalIdType: idType,
+          legalId: idNumber || undefined,
         }),
       });
 
@@ -152,14 +313,51 @@ export default function BuyPage() {
 
       const data = await res.json();
       const result = data.data || data;
+      const orderId = result.orderId;
+      if (!orderId) throw new Error('No se pudo crear el pedido');
 
-      // Redirect to payment page
-      if (result.orderId) {
-        router.push(`/pay/${result.orderId}`);
-      }
+      // Step 2: Fetch Wompi widget config (signature + keys from backend)
+      const configRes = await fetch(`${API_URL}/payments/widget-config/${orderId}`);
+      if (!configRes.ok) throw new Error('Error al preparar el pago');
+      const configData = await configRes.json();
+      const wConf = configData.data || configData;
+
+      // Step 3: Open Wompi widget pre-filled with all form data
+      if (!window.WidgetCheckout) throw new Error('Widget de pago no disponible. Intenta recargar la página.');
+
+      const checkoutConfig: any = {
+        currency: wConf.currency,
+        amountInCents: wConf.amountInCents,
+        reference: wConf.reference,
+        publicKey: wConf.publicKey,
+        signature: { integrity: wConf.signature },
+        redirectUrl: wConf.redirectUrl,
+        customerData: {
+          fullName: name,
+          email: email,
+          phoneNumber: phone.replace(/\D/g, ''),
+          phoneNumberPrefix: phoneCode.code,
+          ...(idNumber ? { legalId: idNumber, legalIdType: idType } : {}),
+        },
+        shippingAddress: {
+          addressLine1: street,
+          country: 'CO',
+          city: city,
+          region: state || city,
+          phoneNumber: phone.replace(/\D/g, ''),
+          ...(detail ? { addressLine2: detail } : {}),
+        },
+      };
+
+      setSubmitting(false);
+
+      new window.WidgetCheckout(checkoutConfig).open((widgetResult: any) => {
+        if (widgetResult?.transaction?.status === 'APPROVED') {
+          router.push(`/pay/${orderId}?payment=done`);
+        }
+      });
     } catch (err: any) {
       setSubmitError(err.message || 'Error inesperado');
-    } finally {
       setSubmitting(false);
     }
   };
@@ -199,10 +397,14 @@ export default function BuyPage() {
 
   return (
     <div className="min-h-dvh bg-[#0c0a06]">
-      {/* Header — logo centered, seller name below */}
+      {/* Header — logo 300px centered, seller name below */}
       <div className="sticky top-0 z-10 bg-[#0c0a06]/95 backdrop-blur-xl border-b border-[#d3a86f]/10 px-4 py-3">
         <div className="max-w-lg mx-auto flex flex-col items-center gap-1">
-          <img src="/icons/logo-final.svg" alt="D Perfume House" className="w-10 h-10" />
+          <img
+            src="/icons/logo-final.svg"
+            alt="D Perfume House"
+            style={{ width: '300px', height: 'auto' }}
+          />
           <p className="text-xs text-white/40">Vendedor: {link.seller.name}</p>
         </div>
       </div>
@@ -309,6 +511,8 @@ export default function BuyPage() {
                 {/* Personal Info */}
                 <div className="space-y-3">
                   <h3 className="text-sm font-medium text-white/70">Datos personales</h3>
+
+                  {/* Full name */}
                   <input
                     type="text"
                     placeholder="Nombre completo *"
@@ -318,14 +522,21 @@ export default function BuyPage() {
                     onChange={(e) => setName(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
                   />
-                  <input
-                    type="tel"
-                    placeholder="Teléfono *"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
-                  />
+
+                  {/* Phone with country code picker */}
+                  <div className="flex">
+                    <PhoneCodeDropdown value={phoneCode} onChange={setPhoneCode} />
+                    <input
+                      type="tel"
+                      placeholder="Número de teléfono *"
+                      required
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="flex-1 min-w-0 px-3 py-2.5 rounded-r-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
+                    />
+                  </div>
+
+                  {/* Email */}
                   <input
                     type="email"
                     placeholder="Email *"
@@ -334,24 +545,50 @@ export default function BuyPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
                   />
-                </div>
 
-                {/* Address */}
-                <div className="space-y-3">
-                  <h3 className="text-sm font-medium text-white/70">Dirección de envío</h3>
-                  {/* Street with Google Maps Autocomplete */}
-                  <div className="relative">
+                  {/* Identification */}
+                  <div className="flex gap-2">
+                    <select
+                      value={idType}
+                      onChange={(e) => setIdType(e.target.value)}
+                      className="px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm focus:outline-none focus:border-[#d3a86f]/40 transition-colors flex-shrink-0 appearance-none"
+                    >
+                      {ID_TYPES.map((t) => (
+                        <option key={t.value} value={t.value} style={{ background: '#1a1610' }}>{t.label}</option>
+                      ))}
+                    </select>
                     <input
-                      ref={streetInputRef}
                       type="text"
-                      placeholder="Dirección *"
-                      required
-                      value={street}
-                      onChange={(e) => setStreet(e.target.value)}
-                      autoComplete="off"
-                      className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
+                      placeholder="Número de identificación"
+                      value={idNumber}
+                      onChange={(e) => setIdNumber(e.target.value)}
+                      className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
                     />
                   </div>
+                </div>
+
+                {/* Address — Colombia only */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium text-white/70">Dirección de envío</h3>
+                    <span className="flex items-center gap-1 text-xs text-white/35">
+                      <span>🇨🇴</span>
+                      <span>Solo Colombia</span>
+                    </span>
+                  </div>
+
+                  {/* Street with Google Maps Autocomplete */}
+                  <input
+                    ref={streetInputRef}
+                    type="text"
+                    placeholder="Dirección *"
+                    required
+                    value={street}
+                    onChange={(e) => setStreet(e.target.value)}
+                    autoComplete="off"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
+                  />
+
                   <div className="grid grid-cols-2 gap-3">
                     <input
                       type="text"
@@ -399,7 +636,7 @@ export default function BuyPage() {
                       Procesando...
                     </span>
                   ) : (
-                    `Comprar ${formatPrice(total)}`
+                    `Pagar ${formatPrice(total)}`
                   )}
                 </button>
               </form>

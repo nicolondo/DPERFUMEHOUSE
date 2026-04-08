@@ -47,4 +47,12 @@ export class PurchaseDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  legalIdType?: string;
+
+  @IsOptional()
+  @IsString()
+  legalId?: string;
 }
