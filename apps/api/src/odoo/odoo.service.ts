@@ -550,8 +550,8 @@ export class OdooService {
         'search_read',
         [
           [
-            ['origin', 'like', `SO`],
             ['sale_id', '=', saleOrderId],
+            ['state', 'not in', ['done', 'cancel']],
           ],
         ],
         {
@@ -560,18 +560,63 @@ export class OdooService {
         },
       );
 
-      if (pickings.length > 0) {
-        const pickingId = pickings[0].id;
-        this.logger.log(
-          `Found delivery picking ${pickingId} for sale order ${saleOrderId}`,
+      if (pickings.length === 0) {
+        // Also check for already-done pickings
+        const donePicks = await this.execute(
+          'stock.picking',
+          'search_read',
+          [[['sale_id', '=', saleOrderId], ['state', '=', 'done']]],
+          { fields: ['id'], limit: 1 },
         );
-        return pickingId;
+        if (donePicks.length > 0) {
+          this.logger.log(`Delivery ${donePicks[0].id} already validated for SO ${saleOrderId}`);
+          return donePicks[0].id;
+        }
+        this.logger.warn(`No delivery picking found for sale order ${saleOrderId}`);
+        return null;
       }
 
-      this.logger.warn(
-        `No delivery picking found for sale order ${saleOrderId}`,
+      const pickingId = pickings[0].id;
+      const pickingState = pickings[0].state;
+      this.logger.log(`Found delivery picking ${pickingId} (state: ${pickingState}) for SO ${saleOrderId}`);
+
+      // Assign stock if not yet assigned
+      if (pickingState === 'waiting' || pickingState === 'confirmed') {
+        try {
+          await this.execute('stock.picking', 'action_assign', [[pickingId]]);
+          this.logger.log(`Stock assigned for picking ${pickingId}`);
+        } catch (e) {
+          this.logger.warn(`action_assign failed for picking ${pickingId}: ${e.message}`);
+        }
+      }
+
+      // Set done quantities on move lines
+      const moveLines = await this.execute(
+        'stock.move',
+        'search_read',
+        [[['picking_id', '=', pickingId]]],
+        { fields: ['id', 'product_uom_qty', 'quantity'] },
       );
-      return null;
+      for (const ml of moveLines) {
+        if ((ml.quantity || 0) < ml.product_uom_qty) {
+          await this.execute('stock.move', 'write', [[ml.id], { quantity: ml.product_uom_qty }]);
+        }
+      }
+
+      // Validate the delivery
+      try {
+        await this.execute('stock.picking', 'button_validate', [[pickingId]]);
+        this.logger.log(`Delivery ${pickingId} validated for SO ${saleOrderId}`);
+      } catch (e) {
+        // button_validate may return a wizard (immediate.transfer) — try to confirm it
+        if (e.message?.includes('cannot marshal None') || e.message?.includes('ir.actions')) {
+          this.logger.warn(`button_validate returned wizard result — delivery likely validated`);
+        } else {
+          this.logger.error(`Failed to validate delivery ${pickingId}: ${e.message}`);
+        }
+      }
+
+      return pickingId;
     } catch (error) {
       this.logger.error(
         `Failed to create delivery for sale order ${saleOrderId}`,
@@ -686,13 +731,57 @@ export class OdooService {
         this.logger.log(`SO ${saleOrderId} confirmed (was ${soState})`);
       }
 
+      // Check if SO already has a valid (posted) invoice — skip creation to prevent duplicates
+      if (existingInvoiceIds.length > 0) {
+        const paidInvoices = await this.execute(
+          'account.move',
+          'search_read',
+          [[['id', 'in', existingInvoiceIds], ['state', '=', 'posted'], ['payment_state', 'in', ['paid', 'in_payment']]]],
+          { fields: ['id', 'name'], order: 'id desc', limit: 1 },
+        );
+        if (paidInvoices.length > 0) {
+          this.logger.log(`SO ${saleOrderId} already has paid invoice ${paidInvoices[0].id} (${paidInvoices[0].name}) — skipping`);
+          return { invoiceId: paidInvoices[0].id, invoiceName: paidInvoices[0].name, paymentId: 0 };
+        }
+
+        // Check for posted but unpaid invoice — register payment on it instead of creating a new one
+        const postedUnpaid = await this.execute(
+          'account.move',
+          'search_read',
+          [[['id', 'in', existingInvoiceIds], ['state', '=', 'posted'], ['payment_state', 'not in', ['paid', 'in_payment']]]],
+          { fields: ['id', 'name'], order: 'id desc', limit: 1 },
+        );
+        if (postedUnpaid.length > 0) {
+          this.logger.log(`SO ${saleOrderId} has posted unpaid invoice ${postedUnpaid[0].id} — registering payment`);
+          return await this.registerPaymentOnInvoice(
+            postedUnpaid[0].id, postedUnpaid[0].name, amount, companyId, saleOrderId, journalName, journalType,
+          );
+        }
+
+        // Check for draft invoice — post it and register payment instead of creating a new one
+        const draftExisting = await this.execute(
+          'account.move',
+          'search_read',
+          [[['id', 'in', existingInvoiceIds], ['state', '=', 'draft']]],
+          { fields: ['id', 'name'], order: 'id desc', limit: 1 },
+        );
+        if (draftExisting.length > 0) {
+          const invId = draftExisting[0].id;
+          this.logger.log(`SO ${saleOrderId} has existing draft invoice ${invId} — posting and registering payment`);
+          await this.execute('account.move', 'action_post', [[invId]]);
+          const posted = await this.execute('account.move', 'read', [[invId]], { fields: ['name'] });
+          const invName = (posted?.[0]?.name && posted[0].name !== '/') ? posted[0].name : `INV-${invId}`;
+          return await this.registerPaymentOnInvoice(invId, invName, amount, companyId, saleOrderId, journalName, journalType);
+        }
+      }
+
       const soCtx = { active_ids: [saleOrderId], active_model: 'sale.order', active_id: saleOrderId };
 
       // 2. Create invoice via wizard — active_ids must be in 'context' key
       const wizardInvId = await this.execute(
         'sale.advance.payment.inv',
         'create',
-        [{ advance_payment_method: 'delivered' }],
+        [{ advance_payment_method: 'percentage', amount: 100 }],
         { context: soCtx },
       );
 
