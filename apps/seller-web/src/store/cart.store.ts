@@ -5,6 +5,7 @@ interface OrderConfig {
   taxRate: number;
   shippingCost: number;
   freeShippingThreshold: number;
+  cashPaymentEnabled?: boolean;
 }
 
 interface CartState {

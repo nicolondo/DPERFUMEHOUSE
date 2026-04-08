@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { OrdersController } from './orders.controller';
+import { OrdersPublicController } from './orders-public.controller';
 import { OrdersService } from './orders.service';
 import { PaymentSyncService } from './payment-sync.service';
 import { OdooModule } from '../odoo/odoo.module';
@@ -18,7 +19,7 @@ import { CommissionsModule } from '../commissions/commissions.module';
       name: 'email-send',
     }),
   ],
-  controllers: [OrdersController],
+  controllers: [OrdersPublicController, OrdersController],
   providers: [OrdersService, PaymentSyncService],
   exports: [OrdersService],
 })

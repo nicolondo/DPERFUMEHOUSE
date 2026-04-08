@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { PageSpinner } from '@/components/ui/spinner';
+import { NotificationPrompt } from '@/components/ui/notification-prompt';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -16,8 +17,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [hydrate]);
 
   useEffect(() => {
-    const main = document.querySelector('main');
-    if (main) main.scrollTo(0, 0);
+    window.scrollTo(0, 0);
   }, [pathname]);
 
   // Prevent iOS zoom via gestures
@@ -50,10 +50,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex flex-col h-dvh bg-surface overflow-hidden">
-      <main className="flex-1 overflow-y-auto overscroll-none">
-        <div className="min-h-[calc(100%+1px)]">{children}</div>
-      </main>
+    <div className="min-h-dvh bg-surface pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]">
+      <NotificationPrompt />
+      <main>{children}</main>
       <BottomNav />
     </div>
   );

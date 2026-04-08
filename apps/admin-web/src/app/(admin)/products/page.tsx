@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchProducts,
@@ -27,18 +27,39 @@ import {
   CheckSquare,
   Square,
   MinusSquare,
+  X,
 } from 'lucide-react';
 
 type StatusFilter = 'active' | 'inactive' | 'all';
 
 export default function ProductsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
+  const [page, setPageState] = useState(() => Number(searchParams.get('page')) || 1);
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
+  const [category, setCategory] = useState(() => searchParams.get('category') || '');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => (searchParams.get('status') as StatusFilter) || 'active');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Sync state to URL
+  const updateURL = (params: Record<string, string | number>) => {
+    const sp = new URLSearchParams(searchParams.toString());
+    Object.entries(params).forEach(([k, v]) => {
+      if (!v || v === 'active' && k === 'status' || v === 1 && k === 'page') {
+        sp.delete(k);
+      } else {
+        sp.set(k, String(v));
+      }
+    });
+    const qs = sp.toString();
+    router.replace(`/products${qs ? `?${qs}` : ''}`, { scroll: false });
+  };
+
+  const setPage = (p: number) => {
+    setPageState(p);
+    updateURL({ page: p, search, category, status: statusFilter });
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['products', page, search, category, statusFilter],
@@ -361,16 +382,27 @@ export default function ProductsPage() {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
-              setPage(1);
+              setPageState(1);
+              updateURL({ page: 1, search: e.target.value, category, status: statusFilter });
             }}
-            className="pl-9"
+            className="pl-9 pr-9"
           />
+          {search && (
+            <button
+              onClick={() => { setSearch(''); setPageState(1); updateURL({ page: 1, search: '', category, status: statusFilter }); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-0.5 text-white/40 hover:text-white transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
         <Select
           value={statusFilter}
           onChange={(e) => {
-            setStatusFilter(e.target.value as StatusFilter);
-            setPage(1);
+            const v = e.target.value as StatusFilter;
+            setStatusFilter(v);
+            setPageState(1);
+            updateURL({ page: 1, search, category, status: v });
           }}
           className="w-40"
         >
@@ -381,8 +413,10 @@ export default function ProductsPage() {
         <Select
           value={category}
           onChange={(e) => {
-            setCategory(e.target.value);
-            setPage(1);
+            const v = e.target.value;
+            setCategory(v);
+            setPageState(1);
+            updateURL({ page: 1, search, category: v, status: statusFilter });
           }}
           className="w-48"
         >

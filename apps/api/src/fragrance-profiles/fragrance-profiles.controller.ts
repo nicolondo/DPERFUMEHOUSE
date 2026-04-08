@@ -30,8 +30,31 @@ export class FragranceProfilesController {
   }
 
   @Get('variants')
-  async getVariantsWithProfileStatus() {
-    return this.service.getVariantsWithProfileStatus();
+  async getVariantsWithProfileStatus(@Query('search') search?: string) {
+    return this.service.getVariantsWithProfileStatus(search);
+  }
+
+  @Get('fragella-fields')
+  async getFragellaFields(@Query('equivalencia') equivalencia: string) {
+    return this.service.getFragellaFields(equivalencia);
+  }
+
+  @Post('extract-from-pyramid')
+  @UseInterceptors(FileInterceptor('file'))
+  async extractFromPyramid(@UploadedFile() file: Express.Multer.File) {
+    return this.service.extractFromPyramidImage(file.buffer, file.mimetype);
+  }
+
+  @Post('bulk-import')
+  async bulkImport(@Body() dto: BulkImportDto) {
+    return this.service.bulkImport(dto.profiles);
+  }
+
+  @Post('parse-pdf')
+  @UseInterceptors(FileInterceptor('file'))
+  async parsePdf(@UploadedFile() file: Express.Multer.File) {
+    const textContent = file.buffer.toString('utf-8');
+    return this.service.parsePdf(textContent);
   }
 
   @Get(':id')
@@ -49,20 +72,9 @@ export class FragranceProfilesController {
     return this.service.update(id, dto);
   }
 
-  @Post('bulk-import')
-  async bulkImport(@Body() dto: BulkImportDto) {
-    return this.service.bulkImport(dto.profiles);
-  }
-
   @Post(':id/enrich')
   async enrich(@Param('id') id: string) {
     return this.service.enrich(id);
   }
-
-  @Post('parse-pdf')
-  @UseInterceptors(FileInterceptor('file'))
-  async parsePdf(@UploadedFile() file: Express.Multer.File) {
-    const textContent = file.buffer.toString('utf-8');
-    return this.service.parsePdf(textContent);
-  }
 }
+

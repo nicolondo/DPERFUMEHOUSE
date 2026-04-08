@@ -42,6 +42,11 @@ export class LeadsController {
     return this.leadsService.getResults(leadId);
   }
 
+  @Post('results/:leadId/notify-contact')
+  async notifySellerContact(@Param('leadId') leadId: string) {
+    return this.leadsService.notifySellerContact(leadId);
+  }
+
   // ── Seller endpoints ──
 
   @Get()
@@ -69,11 +74,16 @@ export class LeadsController {
 
   @Get('generate-link')
   @UseGuards(JwtAuthGuard)
-  async generateLink(@CurrentUser() user: CurrentUserPayload, @Req() req: Request) {
+  async generateLink(
+    @CurrentUser() user: CurrentUserPayload,
+    @Req() req: Request,
+    @Query('categories') categories?: string,
+  ) {
     const baseUrl = `${req.protocol}://${req.get('host')}`.replace('/api', '');
     // Use the seller-web URL from referer or a config
     const sellerWebUrl = (req.get('origin') || req.get('referer') || '').replace(/\/+$/, '');
-    return this.leadsService.generatePublicLink(user.sub, sellerWebUrl || baseUrl);
+    const categoriesArray = categories ? categories.split(',').map(c => c.trim()).filter(Boolean) : undefined;
+    return this.leadsService.generatePublicLink(user.sub, sellerWebUrl || baseUrl, categoriesArray);
   }
 
   @Post('for-customer')
@@ -94,6 +104,15 @@ export class LeadsController {
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.leadsService.sendQuestionnaireEmail(id, user.sub);
+  }
+
+  @Post(':id/reanalyze')
+  @UseGuards(JwtAuthGuard)
+  async reanalyze(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.leadsService.reanalyzeLead(id, user.sub);
   }
 
   @Get(':id')
@@ -133,6 +152,15 @@ export class LeadsController {
     @Body() dto: ConvertLeadDto,
   ) {
     return this.leadsService.convertLead(id, user.sub, dto);
+  }
+
+  @Post(':id/create-customer')
+  @UseGuards(JwtAuthGuard)
+  async createCustomerFromLead(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.leadsService.createCustomerFromLead(id, user.sub);
   }
 
   // ── Admin endpoints ──

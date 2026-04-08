@@ -58,3 +58,18 @@ export function formatPhone(phone: string | null | undefined): string {
   if (match) return `${match[1]}-${match[2]}`;
   return phone;
 }
+
+/**
+ * Returns a digits-only phone number with country code, ready for wa.me URLs.
+ * @param phone  Stored phone number (may be digits only or include country code)
+ * @param phoneCode  Country dial code (e.g. "+57"). Defaults to "+57" (Colombia).
+ */
+export function getWhatsAppPhone(phone: string | null | undefined, phoneCode?: string | null): string {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return '';
+  const codeDigits = (phoneCode || '+57').replace(/\D/g, '');
+  // If number already starts with the country code, don't prepend again
+  if (digits.startsWith(codeDigits)) return digits;
+  return codeDigits + digits;
+}

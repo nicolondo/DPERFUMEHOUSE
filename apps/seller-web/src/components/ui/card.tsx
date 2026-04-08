@@ -20,7 +20,7 @@ export function Card({ children, className, onClick, padding = 'md' }: CardProps
   return (
     <div
       className={cn(
-        'rounded-2xl bg-glass-100 border border-glass-border shadow-glass backdrop-blur-xl',
+        'rounded-2xl bg-glass-100 border border-glass-border shadow-glass backdrop-blur-xl overflow-hidden',
         paddingStyles[padding],
         onClick && 'hover:bg-glass-200 hover:border-glass-border-light hover:shadow-glass-hover transition-all duration-200 cursor-pointer active:scale-[0.98]',
         className

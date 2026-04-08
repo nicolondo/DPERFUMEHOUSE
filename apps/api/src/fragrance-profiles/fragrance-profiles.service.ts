@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnthropicService } from '../questionnaires/anthropic.service';
+import { FragellaService } from '../fragella/fragella.service';
 import { CreateFragranceProfileDto, UpdateFragranceProfileDto } from './dto';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class FragranceProfilesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly anthropicService: AnthropicService,
+    private readonly fragellaService: FragellaService,
   ) {}
 
   async findAll(params: { page?: number; pageSize?: number; search?: string; activeOnly?: boolean }) {
@@ -74,10 +76,17 @@ export class FragranceProfilesService {
 
   async findAllActive() {
     return this.prisma.fragranceProfile.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        productVariant: {
+          stock: { gt: 0 },
+          isActive: true,
+          isBlocked: false,
+        },
+      },
       include: {
         productVariant: {
-          select: { id: true, name: true, price: true, sku: true, images: { where: { isPrimary: true }, take: 1 } },
+          select: { id: true, name: true, price: true, sku: true, categoryName: true, images: { where: { isPrimary: true }, take: 1 } },
         },
       },
     });
@@ -206,9 +215,17 @@ export class FragranceProfilesService {
     return this.anthropicService.parsePdfContent(textContent);
   }
 
-  async getVariantsWithProfileStatus() {
+  async getVariantsWithProfileStatus(search?: string) {
+    const where: any = { isActive: true, isBlocked: false };
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { sku: { contains: search, mode: 'insensitive' } },
+        { categoryName: { contains: search, mode: 'insensitive' } },
+      ];
+    }
     const variants = await this.prisma.productVariant.findMany({
-      where: { isActive: true, isBlocked: false },
+      where,
       select: {
         id: true,
         name: true,
@@ -223,6 +240,19 @@ export class FragranceProfilesService {
       orderBy: { name: 'asc' },
     });
     return variants;
+  }
+
+  async extractFromPyramidImage(buffer: Buffer, mimeType: string) {
+    const base64 = buffer.toString('base64');
+    return this.anthropicService.extractFromPyramidImage(base64, mimeType);
+  }
+
+  async getFragellaFields(equivalencia: string) {
+    const profile = await this.fragellaService.getProfile(equivalencia);
+    if (!profile) return null;
+
+    // Use AI to combine Fragella data + Claude's own knowledge about the fragrance
+    return this.anthropicService.enrichFromFragellaData(equivalencia, profile);
   }
 
   private calculateCompletionScore(data: any): number {

@@ -13,6 +13,7 @@ import {
   Lock,
   Eye,
   EyeOff,
+  Pencil,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,32 @@ export default function ConfigPage() {
   const [passwordError, setPasswordError] = useState('');
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
+
+  // Profile edit state
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: '',
+    phone: '',
+    phoneCode: '+57',
+  });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSuccess, setProfileSuccess] = useState(false);
+
+  const handleSaveProfile = async () => {
+    setProfileSaving(true);
+    try {
+      const { data } = await api.patch('/users/me/profile', profileForm);
+      const updated = unwrap(data);
+      setSeller((prev: any) => ({ ...prev, ...updated }));
+      setProfileSuccess(true);
+      setIsEditingProfile(false);
+      setTimeout(() => setProfileSuccess(false), 3000);
+    } catch (e: any) {
+      alert(e.response?.data?.message || 'Error al guardar el perfil');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   const handleChangePassword = async () => {
     setPasswordError('');
@@ -157,42 +184,123 @@ export default function ConfigPage() {
       <PageHeader title="Configuracion" />
 
       <div className="px-4 space-y-4">
-        {/* Profile Card (read-only) */}
+        {/* Profile Card */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-white/30" />
               <span className="text-sm font-semibold text-white">Perfil</span>
             </div>
-            <Badge variant="purple">Vendedor</Badge>
+            <div className="flex items-center gap-2">
+              {profileSuccess && (
+                <span className="text-xs text-status-success">Guardado</span>
+              )}
+              <Badge variant="purple">Vendedor</Badge>
+              {!isEditingProfile && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileForm({
+                      name: seller?.name || '',
+                      phone: seller?.phone || '',
+                      phoneCode: seller?.phoneCode || '+57',
+                    });
+                    setIsEditingProfile(true);
+                  }}
+                  className="p-1.5 rounded-lg bg-glass-50 hover:bg-glass-100 transition-colors"
+                >
+                  <Pencil className="h-3.5 w-3.5 text-white/50" />
+                </button>
+              )}
+            </div>
           </CardHeader>
           <CardBody>
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs text-white/30">Nombre</p>
-                <p className="text-sm font-medium text-white">
-                  {seller?.name || user?.name || '-'}
-                </p>
+            {isEditingProfile ? (
+              <div className="space-y-4">
+                <Input
+                  label="Nombre"
+                  placeholder="Tu nombre completo"
+                  value={profileForm.name}
+                  onChange={(e) => setProfileForm((p) => ({ ...p, name: e.target.value }))}
+                />
+                <div className="flex gap-2">
+                  <div className="w-24">
+                    <Input
+                      label="Codigo"
+                      value={profileForm.phoneCode}
+                      onChange={(e) => setProfileForm((p) => ({ ...p, phoneCode: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <Input
+                      label="Telefono"
+                      placeholder="3001234567"
+                      value={profileForm.phone}
+                      onChange={(e) => setProfileForm((p) => ({ ...p, phone: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-white/30">Email</p>
+                  <p className="text-sm font-medium text-white">
+                    {seller?.email || user?.email || '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/30">Tasa de Comision</p>
+                  <p className="text-sm font-medium text-white">
+                    {seller?.commissionRate ? `${(seller.commissionRate * 100).toFixed(0)}%` : '-'}
+                  </p>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    fullWidth
+                    size="sm"
+                    onClick={handleSaveProfile}
+                    loading={profileSaving}
+                    disabled={!profileForm.name.trim()}
+                    className="bg-accent-gold hover:bg-accent-gold/90 text-black"
+                  >
+                    Guardar
+                  </Button>
+                  <Button
+                    fullWidth
+                    size="sm"
+                    onClick={() => setIsEditingProfile(false)}
+                    className="bg-glass-100 hover:bg-glass-200"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-white/30">Email</p>
-                <p className="text-sm font-medium text-white">
-                  {seller?.email || user?.email || '-'}
-                </p>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs text-white/30">Nombre</p>
+                  <p className="text-sm font-medium text-white">
+                    {seller?.name || user?.name || '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/30">Email</p>
+                  <p className="text-sm font-medium text-white">
+                    {seller?.email || user?.email || '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/30">Telefono</p>
+                  <p className="text-sm font-medium text-white">
+                    {formatPhone(seller?.phone)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/30">Tasa de Comision</p>
+                  <p className="text-sm font-medium text-white">
+                    {seller?.commissionRate ? `${(seller.commissionRate * 100).toFixed(0)}%` : '-'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-white/30">Telefono</p>
-                <p className="text-sm font-medium text-white">
-                  {formatPhone(seller?.phone)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-white/30">Tasa de Comision</p>
-                <p className="text-sm font-medium text-white">
-                  {seller?.commissionRate ? `${(seller.commissionRate * 100).toFixed(0)}%` : '-'}
-                </p>
-              </div>
-            </div>
+            )}
           </CardBody>
         </Card>
 

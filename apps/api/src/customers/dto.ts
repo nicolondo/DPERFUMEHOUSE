@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsBoolean,
   IsNotEmpty,
+  IsDateString,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -87,6 +88,10 @@ export class CreateCustomerBodyDto {
   @IsOptional()
   notes?: string;
 
+  @IsDateString()
+  @IsOptional()
+  birthday?: string;
+
   @ValidateNested()
   @Type(() => CreateCustomerAddressDto)
   @IsOptional()
@@ -125,6 +130,10 @@ export class UpdateCustomerBodyDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsDateString()
+  @IsOptional()
+  birthday?: string;
 }
 
 export class CreateAddressBodyDto {

@@ -115,6 +115,18 @@ export class OrdersController {
     return this.ordersService.markAsPaid(id);
   }
 
+  @Post(':id/sync-odoo')
+  @HttpCode(HttpStatus.OK)
+  async syncOdoo(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only admins can sync orders to Odoo');
+    }
+    return this.ordersService.syncOdoo(id);
+  }
+
   @Patch(':id/ship')
   async markAsShipped(
     @Param('id', ParseUUIDPipe) id: string,
@@ -124,5 +136,17 @@ export class OrdersController {
       throw new ForbiddenException('Only admins can mark orders as shipped');
     }
     return this.ordersService.markAsShipped(id);
+  }
+
+  @Patch(':id/deliver')
+  async markAsDelivered(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { notes?: string },
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only admins can mark orders as delivered');
+    }
+    return this.ordersService.markAsDelivered(id, body?.notes);
   }
 }

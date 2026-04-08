@@ -97,4 +97,16 @@ export class PaymentsController {
 
     return { received: true };
   }
+
+  /**
+   * Public endpoint: get Wompi widget config for an order.
+   * Returns public key, reference, amount, integrity signature,
+   * and pre-filled customer/shipping data.
+   */
+  @Get('widget-config/:orderId')
+  async getWidgetConfig(
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ) {
+    return this.paymentsService.getWidgetConfig(orderId);
+  }
 }

@@ -135,14 +135,16 @@ export class ShippingService {
     return digits;
   }
 
-  private async buildDestination(order: { customer: { name: string; phone?: string | null; documentNumber?: string | null }; address: { street: string; city: string; state?: string | null; zip?: string | null; country: string; phone?: string | null } | null }) {
+  private async buildDestination(order: { customer: { name: string; phone?: string | null; email?: string | null; documentType?: string | null; documentNumber?: string | null }; address: { street: string; city: string; state?: string | null; zip?: string | null; country: string; phone?: string | null } | null }) {
     if (!order.address) {
       throw new BadRequestException('Order has no delivery address');
     }
 
     const countryCode = this.normalizeCountry(order.address.country);
     const { street: parsedStreet, number: streetNumber } = this.parseStreetNumber(order.address.street);
-    const identification_number = order.customer.documentNumber || '';
+    const identification_type = order.customer.documentType || 'CC';
+    const senderIdFallback = await this.settings.get('shipping_sender_id_number') || '22222222';
+    const identification_number = order.customer.documentNumber || senderIdFallback;
     const normalizedPhone = this.normalizePhone(order.address.phone || order.customer.phone);
     const geo = await this.envia.locateCity(countryCode, order.address.city, order.address.state || undefined);
     if (geo) {
@@ -150,6 +152,8 @@ export class ShippingService {
       return {
         name: order.customer.name,
         phone: normalizedPhone,
+        email: order.customer.email || '',
+        identification_type,
         identification_number,
         street: parsedStreet,
         number: streetNumber,
@@ -163,6 +167,8 @@ export class ShippingService {
     return {
       name: order.customer.name,
       phone: normalizedPhone,
+      email: order.customer.email || '',
+      identification_type,
       identification_number,
       street: parsedStreet,
       number: streetNumber,
@@ -247,13 +253,17 @@ export class ShippingService {
     const destination = await this.buildDestination(order);
     const packages = await this.buildPackages(order);
 
-    const response = await this.envia.generateLabel({
+    const labelRequest = {
       origin,
       destination,
       packages,
       shipment: { type: 1, carrier, service },
       settings: { currency: 'COP', printFormat: 'PDF', printSize: 'PAPER_4X6' },
-    });
+    };
+
+    this.logger.log(`Generate label request: ${JSON.stringify(labelRequest).substring(0, 1500)}`);
+
+    const response = await this.envia.generateLabel(labelRequest);
 
     this.logger.log(`Generate label response: ${JSON.stringify(response).substring(0, 500)}`);
 

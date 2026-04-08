@@ -519,7 +519,10 @@ function Step2SelectAddress({
           description="Este cliente no tiene direcciones registradas"
           action={{
             label: 'Agregar Direccion',
-            onClick: () => setShowNewAddress(true),
+            onClick: () => {
+              setAddressForm((prev) => ({ ...prev, label: `Dirección ${addresses.length + 1}` }));
+              setShowNewAddress(true);
+            },
           }}
         />
       ) : (
@@ -583,7 +586,10 @@ function Step2SelectAddress({
       {/* New address toggle */}
       {!showNewAddress && addresses.length > 0 && (
         <button
-          onClick={() => setShowNewAddress(true)}
+          onClick={() => {
+            setAddressForm((prev) => ({ ...prev, label: `Dirección ${addresses.length + 1}` }));
+            setShowNewAddress(true);
+          }}
           className="flex items-center gap-2 text-sm font-medium text-accent-purple"
         >
           <Plus className="h-4 w-4" />
@@ -1216,10 +1222,6 @@ function Step4Summary({
             <span className="text-white">{formatCurrency(subtotalAmount)}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-white/50">IVA ({Math.round(useCartStore.getState().orderConfig.taxRate * 100)}%)</span>
-            <span className="text-white">{formatCurrency(taxAmount)}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
             <span className="text-white/50">Envio</span>
             <span className="text-white">
               {shippingAmount === 0 ? 'Gratis' : formatCurrency(shippingAmount)}
@@ -1257,17 +1259,19 @@ function Step4Summary({
           Confirmar y Generar Link de Pago
         </Button>
 
-        <Button
-          fullWidth
-          size="lg"
-          variant="outline"
-          onClick={() => setShowCashConfirm(true)}
-          disabled={items.length === 0 || isSubmitting}
-          leftIcon={<Banknote className="h-5 w-5" />}
-          className="!py-4 text-base font-semibold border-accent-gold/40 text-accent-gold hover:bg-accent-gold/10 rounded-2xl"
-        >
-          Pago en Efectivo
-        </Button>
+        {useCartStore.getState().orderConfig.cashPaymentEnabled !== false && (
+          <Button
+            fullWidth
+            size="lg"
+            variant="outline"
+            onClick={() => setShowCashConfirm(true)}
+            disabled={items.length === 0 || isSubmitting}
+            leftIcon={<Banknote className="h-5 w-5" />}
+            className="!py-4 text-base font-semibold border-accent-gold/40 text-accent-gold hover:bg-accent-gold/10 rounded-2xl"
+          >
+            Pago en Efectivo
+          </Button>
+        )}
       </div>
 
       {/* Cash payment confirmation modal */}

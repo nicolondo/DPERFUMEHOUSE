@@ -239,98 +239,86 @@ export class EmailService implements EmailProvider {
     setPasswordUrl: string,
   ): Promise<boolean> {
     const subject = '¡Bienvenido a D Perfume House! Configura tu cuenta';
+    const logoUrl = 'https://pos.dperfumehouse.com/icons/logo-email.png';
     const html = `
       <!DOCTYPE html>
-      <html>
+      <html xmlns="http://www.w3.org/1999/xhtml">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="color-scheme" content="light only">
+        <meta name="supported-color-schemes" content="light only">
         <style>
-          body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1a1a2e; background-color: #f0f0f5; }
-          .wrapper { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
-          .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); color: white; padding: 40px 30px; text-align: center; }
-          .header h1 { margin: 0 0 4px 0; font-size: 28px; font-weight: 700; letter-spacing: 1px; }
-          .header p { margin: 0; font-size: 13px; color: rgba(255,255,255,0.7); letter-spacing: 2px; text-transform: uppercase; }
-          .welcome-badge { display: inline-block; background: rgba(233, 69, 96, 0.15); border: 1px solid rgba(233, 69, 96, 0.3); color: #e94560; padding: 6px 18px; border-radius: 50px; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 20px; }
-          .content { padding: 40px 30px; }
-          .greeting { font-size: 22px; font-weight: 700; color: #1a1a2e; margin: 0 0 20px 0; }
-          .message { font-size: 15px; color: #555; margin: 0 0 12px 0; }
-          .highlight { color: #1a1a2e; font-weight: 600; }
-          .cta-section { text-align: center; margin: 32px 0; padding: 28px; background: linear-gradient(135deg, #f8f9ff 0%, #f0f0f5 100%); border-radius: 12px; }
-          .cta-section p { font-size: 14px; color: #666; margin: 0 0 20px 0; }
-          .btn { display: inline-block; background: linear-gradient(135deg, #e94560 0%, #c23152 100%); color: #ffffff; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 15px; letter-spacing: 0.5px; box-shadow: 0 4px 15px rgba(233, 69, 96, 0.3); }
-          .expiry-note { display: inline-block; margin-top: 16px; font-size: 12px; color: #999; }
-          .steps { margin: 28px 0; padding: 0; }
-          .step { display: flex; align-items: flex-start; margin-bottom: 16px; }
-          .step-number { flex-shrink: 0; width: 28px; height: 28px; background: linear-gradient(135deg, #e94560, #c23152); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; margin-right: 14px; margin-top: 2px; }
-          .step-text { font-size: 14px; color: #555; }
-          .divider { border: none; border-top: 1px solid #eee; margin: 28px 0; }
-          .footer { background-color: #1a1a2e; color: rgba(255,255,255,0.6); padding: 24px 30px; text-align: center; font-size: 12px; }
-          .footer p { margin: 4px 0; }
-          .footer a { color: rgba(255,255,255,0.6); text-decoration: none; }
-          .fallback-link { word-break: break-all; font-size: 11px; color: #999; margin-top: 8px; }
-          @media only screen and (max-width: 480px) {
-            .content { padding: 24px 20px; }
-            .header { padding: 30px 20px; }
-            .cta-section { padding: 20px; }
-            .btn { padding: 14px 32px; font-size: 14px; }
-          }
+          :root { color-scheme: light only; }
+          body { margin: 0; padding: 0; font-family: 'Outfit', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f0b05 !important; }
         </style>
       </head>
-      <body>
-        <div class="wrapper">
-          <div class="header">
-            <h1>D Perfume House</h1>
-            <p>Tu plataforma de ventas</p>
-          </div>
-          <div class="content">
-            <div style="text-align: center;">
-              <span class="welcome-badge">Nuevo vendedor</span>
-            </div>
-            <p class="greeting">¡Hola ${this.escapeHtml(name)}!</p>
-            <p class="message">
-              <span class="highlight">${this.escapeHtml(inviterName)}</span> te ha invitado a unirte al equipo de ventas de
-              <span class="highlight">D Perfume House</span>. Ya tienes una cuenta lista, solo necesitas crear tu contraseña para comenzar.
-            </p>
-
-            <div class="steps">
-              <div class="step">
-                <div class="step-number">1</div>
-                <div class="step-text">Haz clic en el botón de abajo para crear tu contraseña</div>
-              </div>
-              <div class="step">
-                <div class="step-number">2</div>
-                <div class="step-text">Inicia sesión con tu email y nueva contraseña</div>
-              </div>
-              <div class="step">
-                <div class="step-number">3</div>
-                <div class="step-text">¡Comienza a vender y ganar comisiones!</div>
-              </div>
-            </div>
-
-            <div class="cta-section">
-              <p>Configura tu contraseña para activar tu cuenta</p>
-              <a href="${this.escapeHtml(setPasswordUrl)}" class="btn" style="color: #ffffff;">Crear Mi Contraseña</a>
-              <br>
-              <span class="expiry-note">Este enlace expira en 72 horas</span>
-            </div>
-
-            <hr class="divider">
-
-            <p class="message">Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
-            <p class="fallback-link">${this.escapeHtml(setPasswordUrl)}</p>
-
-            <hr class="divider">
-
-            <p class="message" style="color: #999; font-size: 13px;">
-              Si no esperabas este correo, puedes ignorarlo. No se realizará ningún cambio en tu cuenta.
-            </p>
-          </div>
-          <div class="footer">
-            <p><strong>D Perfume House</strong></p>
-            <p>&copy; ${new Date().getFullYear()} Todos los derechos reservados.</p>
-          </div>
-        </div>
+      <body style="margin:0;padding:0;background-color:#0f0b05;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#0f0b05;">
+          <tr><td align="center" style="padding:24px 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" width="620" style="max-width:620px;width:100%;background-color:#16110a;">
+              <!-- Header with logo -->
+              <tr><td align="center" style="padding:30px 32px 20px;background-color:#16110a;">
+                <img src="${logoUrl}" alt="D Perfume House" width="320" style="display:block;width:320px;max-width:80%;height:auto;" />
+                <p style="margin:12px 0 0 0;color:#bfa685;letter-spacing:2px;font-size:11px;text-transform:uppercase;">Tu plataforma de ventas</p>
+              </td></tr>
+              <!-- Content -->
+              <tr><td style="padding:28px 32px 14px;color:#f4ece1;background-color:#16110a;">
+                <div style="text-align:center;">
+                  <span style="display:inline-block;margin-bottom:14px;padding:6px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#ffdca7;border:1px solid #7a5b2f;background-color:rgba(196,148,77,.14);">🎉 Nuevo vendedor</span>
+                </div>
+                <p style="margin:0 0 12px 0;font-size:25px;line-height:1.2;color:#fff7eb;font-weight:700;">¡Hola ${this.escapeHtml(name)}!</p>
+                <p style="margin:0 0 10px 0;font-size:15px;color:#d6c3a8;">
+                  <strong style="color:#fff7eb;">${this.escapeHtml(inviterName)}</strong> te ha invitado a unirte al equipo de ventas de
+                  <strong style="color:#fff7eb;">D Perfume House</strong>. Ya tienes una cuenta lista, solo necesitas crear tu contraseña para comenzar.
+                </p>
+                <!-- Steps card -->
+                <div style="margin:22px 0;border:1px solid #3b2c17;border-radius:12px;background-color:#1e160d;padding:20px;">
+                  <p style="margin:0 0 14px 0;color:#ffdca7;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Pasos para comenzar</p>
+                  <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="32" valign="top" style="padding:0 12px 12px 0;">
+                        <div style="width:26px;height:26px;border-radius:50%;background-color:#e94560;color:#ffffff;font-size:13px;font-weight:700;text-align:center;line-height:26px;">1</div>
+                      </td>
+                      <td style="padding:0 0 12px 0;color:#d6c3a8;font-size:14px;line-height:1.4;">Haz clic en el botón de abajo para crear tu contraseña</td>
+                    </tr>
+                    <tr>
+                      <td width="32" valign="top" style="padding:0 12px 12px 0;">
+                        <div style="width:26px;height:26px;border-radius:50%;background-color:#e94560;color:#ffffff;font-size:13px;font-weight:700;text-align:center;line-height:26px;">2</div>
+                      </td>
+                      <td style="padding:0 0 12px 0;color:#d6c3a8;font-size:14px;line-height:1.4;">Inicia sesión con tu email y nueva contraseña</td>
+                    </tr>
+                    <tr>
+                      <td width="32" valign="top" style="padding:0 12px 0 0;">
+                        <div style="width:26px;height:26px;border-radius:50%;background-color:#e94560;color:#ffffff;font-size:13px;font-weight:700;text-align:center;line-height:26px;">3</div>
+                      </td>
+                      <td style="padding:0;color:#d6c3a8;font-size:14px;line-height:1.4;">¡Comienza a vender y ganar comisiones!</td>
+                    </tr>
+                  </table>
+                </div>
+                <!-- CTA Button -->
+                <div style="text-align:center;margin:28px 0;">
+                  <p style="margin:0 0 18px 0;font-size:14px;color:#9c8568;">Configura tu contraseña para activar tu cuenta</p>
+                  <a href="${this.escapeHtml(setPasswordUrl)}" style="display:inline-block;background-color:#e94560;color:#ffffff;padding:16px 44px;text-decoration:none;border-radius:999px;font-weight:700;font-size:16px;letter-spacing:.5px;">Crear Mi Contraseña</a>
+                  <p style="margin:16px 0 0 0;font-size:12px;color:#7a5b2f;">⏱ Este enlace expira en 72 horas</p>
+                </div>
+                <!-- Fallback link -->
+                <div style="border-top:1px solid #3b2c17;padding-top:16px;margin-top:10px;">
+                  <p style="margin:0 0 8px 0;font-size:13px;color:#9c8568;">Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
+                  <p style="margin:0 0 16px 0;word-break:break-all;font-size:12px;color:#7a5b2f;">${this.escapeHtml(setPasswordUrl)}</p>
+                  <p style="margin:0;font-size:13px;color:#9c8568;">
+                    Si no esperabas este correo, puedes ignorarlo. No se realizará ningún cambio en tu cuenta.
+                  </p>
+                </div>
+              </td></tr>
+              <!-- Footer -->
+              <tr><td style="padding:18px 32px 24px;color:#9c8568;font-size:12px;text-align:center;background-color:#16110a;">
+                <p style="margin:4px 0;"><strong>D Perfume House</strong></p>
+                <p style="margin:4px 0;">&copy; ${new Date().getFullYear()} Todos los derechos reservados.</p>
+              </td></tr>
+            </table>
+          </td></tr>
+        </table>
       </body>
       </html>
     `;
@@ -564,6 +552,132 @@ export class EmailService implements EmailProvider {
     return this.send(customerEmail, subject, html);
   }
 
+  async sendNewOrderNotification(data: {
+    orderNumber: string;
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string;
+    sellerName: string;
+    items: { name: string; quantity: number; unitPrice: number }[];
+    subtotal: number;
+    tax: number;
+    shipping: number;
+    total: number;
+    paidAt: string;
+  }): Promise<boolean> {
+    const logoUrl = 'https://pos.dperfumehouse.com/icons/logo-email.png';
+    const fmt = (n: number) =>
+      new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n);
+
+    const itemRows = data.items
+      .map(
+        (item) => `
+          <tr>
+            <td style="padding:10px 12px;border-bottom:1px solid #3b2c17;color:#d6c3a8;font-size:14px;">${this.escapeHtml(item.name)}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid #3b2c17;color:#d6c3a8;font-size:14px;text-align:center;">${item.quantity}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid #3b2c17;color:#d6c3a8;font-size:14px;text-align:right;">${fmt(item.unitPrice)}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid #3b2c17;color:#fff7eb;font-size:14px;text-align:right;font-weight:600;">${fmt(item.unitPrice * item.quantity)}</td>
+          </tr>`,
+      )
+      .join('');
+
+    const paidDate = new Date(data.paidAt).toLocaleString('es-CO', {
+      timeZone: 'America/Bogota',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const subject = `🛒 Nuevo Pedido Pagado: ${data.orderNumber}`;
+    const html = `
+      <!DOCTYPE html>
+      <html xmlns="http://www.w3.org/1999/xhtml">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { margin: 0; padding: 0; font-family: 'Outfit', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f0b05; }
+        </style>
+      </head>
+      <body style="margin:0;padding:0;background-color:#0f0b05;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#0f0b05;">
+          <tr><td align="center" style="padding:24px 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" width="620" style="max-width:620px;width:100%;background-color:#16110a;">
+              <!-- Header -->
+              <tr><td align="center" style="padding:30px 32px 20px;background-color:#16110a;">
+                <img src="${logoUrl}" alt="D Perfume House" width="320" style="display:block;width:320px;max-width:80%;height:auto;" />
+                <p style="margin:12px 0 0 0;color:#bfa685;letter-spacing:2px;font-size:11px;text-transform:uppercase;">Notificación de Pedido</p>
+              </td></tr>
+              <!-- Badge -->
+              <tr><td style="padding:20px 32px 10px;background-color:#16110a;">
+                <span style="display:inline-block;padding:6px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#a3e635;border:1px solid #4d7c0f;background-color:rgba(74,222,128,.1);">✓ Pago Confirmado</span>
+              </td></tr>
+              <!-- Order info -->
+              <tr><td style="padding:14px 32px;color:#f4ece1;background-color:#16110a;">
+                <p style="margin:0 0 6px 0;font-size:22px;font-weight:700;color:#fff7eb;">Pedido ${this.escapeHtml(data.orderNumber)}</p>
+                <p style="margin:0 0 18px 0;font-size:13px;color:#9c8568;">${paidDate}</p>
+                <!-- Info cards -->
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:20px;">
+                  <tr>
+                    <td style="width:50%;vertical-align:top;padding-right:8px;">
+                      <div style="border:1px solid #3b2c17;border-radius:10px;background-color:#1e160d;padding:14px;">
+                        <p style="margin:0 0 4px 0;color:#9c8568;font-size:11px;text-transform:uppercase;letter-spacing:.5px;">Cliente</p>
+                        <p style="margin:0 0 2px 0;color:#fff7eb;font-size:14px;font-weight:600;">${this.escapeHtml(data.customerName)}</p>
+                        <p style="margin:0 0 2px 0;color:#d6c3a8;font-size:12px;">${this.escapeHtml(data.customerEmail)}</p>
+                        <p style="margin:0;color:#d6c3a8;font-size:12px;">${this.escapeHtml(data.customerPhone)}</p>
+                      </div>
+                    </td>
+                    <td style="width:50%;vertical-align:top;padding-left:8px;">
+                      <div style="border:1px solid #3b2c17;border-radius:10px;background-color:#1e160d;padding:14px;">
+                        <p style="margin:0 0 4px 0;color:#9c8568;font-size:11px;text-transform:uppercase;letter-spacing:.5px;">Vendedor</p>
+                        <p style="margin:0;color:#fff7eb;font-size:14px;font-weight:600;">${this.escapeHtml(data.sellerName)}</p>
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+                <!-- Items table -->
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #3b2c17;border-radius:10px;overflow:hidden;background-color:#1e160d;">
+                  <tr style="background-color:#281e11;">
+                    <th style="padding:10px 12px;text-align:left;color:#bfa685;font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:600;">Producto</th>
+                    <th style="padding:10px 12px;text-align:center;color:#bfa685;font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:600;">Cant.</th>
+                    <th style="padding:10px 12px;text-align:right;color:#bfa685;font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:600;">P. Unit.</th>
+                    <th style="padding:10px 12px;text-align:right;color:#bfa685;font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:600;">Total</th>
+                  </tr>
+                  ${itemRows}
+                </table>
+                <!-- Totals -->
+                <div style="margin-top:16px;border:1px solid #3b2c17;border-radius:10px;background-color:#1e160d;padding:16px;">
+                  <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td style="padding:4px 0;color:#9c8568;font-size:14px;">Subtotal</td>
+                      <td style="padding:4px 0;color:#d6c3a8;font-size:14px;text-align:right;">${fmt(data.subtotal)}</td>
+                    </tr>
+                    ${data.tax > 0 ? `<tr><td style="padding:4px 0;color:#9c8568;font-size:14px;">IVA</td><td style="padding:4px 0;color:#d6c3a8;font-size:14px;text-align:right;">${fmt(data.tax)}</td></tr>` : ''}
+                    ${data.shipping > 0 ? `<tr><td style="padding:4px 0;color:#9c8568;font-size:14px;">Envío</td><td style="padding:4px 0;color:#d6c3a8;font-size:14px;text-align:right;">${fmt(data.shipping)}</td></tr>` : ''}
+                    <tr>
+                      <td style="padding:10px 0 4px 0;border-top:1px solid #3b2c17;color:#fff7eb;font-size:18px;font-weight:700;">Total</td>
+                      <td style="padding:10px 0 4px 0;border-top:1px solid #3b2c17;color:#e94560;font-size:18px;font-weight:800;text-align:right;">${fmt(data.total)}</td>
+                    </tr>
+                  </table>
+                </div>
+              </td></tr>
+              <!-- Footer -->
+              <tr><td style="padding:18px 32px 24px;color:#9c8568;font-size:12px;text-align:center;background-color:#16110a;">
+                <p style="margin:4px 0;">Este correo fue generado automáticamente al confirmar el pago.</p>
+                <p style="margin:4px 0;"><strong>D Perfume House</strong> &mdash; &copy; ${new Date().getFullYear()}</p>
+              </td></tr>
+            </table>
+          </td></tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    return this.send('ordenes@dperfumehouse.com', subject, html);
+  }
+
   private escapeHtml(text: string): string {
     const map: Record<string, string> = {
       '&': '&amp;',
@@ -573,5 +687,102 @@ export class EmailService implements EmailProvider {
       "'": '&#x27;',
     };
     return text.replace(/[&<>"']/g, (char) => map[char]);
+  }
+
+  async sendOnboardingVideoEmail(
+    email: string,
+    name: string,
+  ): Promise<boolean> {
+    const subject = '📺 Aprende a usar D Perfume House en minutos';
+    const logoUrl = 'https://pos.dperfumehouse.com/icons/logo-email.png';
+    const videoUrl = 'https://youtu.be/zKIzQMpTkag';
+    const platformUrl = 'https://pos.dperfumehouse.com';
+    const firstName = this.escapeHtml(name.split(' ')[0]);
+    const html = `
+      <!DOCTYPE html>
+      <html xmlns="http://www.w3.org/1999/xhtml">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="color-scheme" content="light only">
+        <meta name="supported-color-schemes" content="light only">
+        <style>
+          :root { color-scheme: light only; }
+          body { margin: 0; padding: 0; font-family: 'Outfit', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f0b05 !important; }
+        </style>
+      </head>
+      <body style="margin:0;padding:0;background-color:#0f0b05;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#0f0b05;">
+          <tr><td align="center" style="padding:24px 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" width="620" style="max-width:620px;width:100%;background-color:#16110a;">
+              <!-- Header with logo -->
+              <tr><td align="center" style="padding:30px 32px 20px;background-color:#16110a;">
+                <img src="${logoUrl}" alt="D Perfume House" width="320" style="display:block;width:320px;max-width:80%;height:auto;" />
+                <p style="margin:12px 0 0 0;color:#bfa685;letter-spacing:2px;font-size:11px;text-transform:uppercase;">Tu plataforma de ventas</p>
+              </td></tr>
+              <!-- Content -->
+              <tr><td style="padding:28px 32px 14px;color:#f4ece1;background-color:#16110a;">
+                <div style="text-align:center;">
+                  <span style="display:inline-block;margin-bottom:14px;padding:6px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#ffdca7;border:1px solid #7a5b2f;background-color:rgba(196,148,77,.14);">📺 Video instructivo</span>
+                </div>
+                <p style="margin:0 0 12px 0;font-size:25px;line-height:1.2;color:#fff7eb;font-weight:700;">${firstName}, aprende a vender como un profesional</p>
+                <p style="margin:0 0 18px 0;font-size:15px;color:#d6c3a8;">
+                  Preparamos un video corto donde te explicamos paso a paso cómo usar la plataforma para gestionar tus clientes, enviar cuestionarios de fragancias y cerrar ventas.
+                </p>
+                <!-- Video thumbnail card -->
+                <div style="margin:0 0 22px 0;border:1px solid #3b2c17;border-radius:12px;background-color:#1e160d;overflow:hidden;">
+                  <a href="${videoUrl}" style="display:block;text-align:center;padding:28px 20px;text-decoration:none;">
+                    <div style="display:inline-block;width:64px;height:64px;border-radius:50%;background-color:#e94560;line-height:64px;text-align:center;font-size:28px;">▶</div>
+                    <p style="margin:14px 0 4px 0;color:#fff7eb;font-size:16px;font-weight:700;">Ver Video Instructivo</p>
+                    <p style="margin:0;color:#9c8568;font-size:13px;">Aprende todo en pocos minutos</p>
+                  </a>
+                </div>
+                <!-- Key topics -->
+                <div style="margin:0 0 22px 0;border:1px solid #3b2c17;border-radius:12px;background-color:#1e160d;padding:20px;">
+                  <p style="margin:0 0 14px 0;color:#ffdca7;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;">Lo que aprenderás</p>
+                  <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td style="padding:0 0 10px 0;color:#d6c3a8;font-size:14px;line-height:1.4;">✅ Cómo crear y gestionar clientes</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:0 0 10px 0;color:#d6c3a8;font-size:14px;line-height:1.4;">✅ Enviar cuestionarios de fragancias por WhatsApp o Email</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:0 0 10px 0;color:#d6c3a8;font-size:14px;line-height:1.4;">✅ Usar la inteligencia artificial para vender mejor</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:0 0 10px 0;color:#d6c3a8;font-size:14px;line-height:1.4;">✅ Crear pedidos y compartir links de pago</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:0 0 0 0;color:#d6c3a8;font-size:14px;line-height:1.4;">✅ Armar propuestas personalizadas</td>
+                    </tr>
+                  </table>
+                </div>
+                <!-- CTA Button -->
+                <div style="text-align:center;margin:24px 0;">
+                  <a href="${videoUrl}" style="display:inline-block;background-color:#e94560;color:#ffffff;padding:16px 44px;text-decoration:none;border-radius:999px;font-weight:700;font-size:16px;letter-spacing:.5px;">Ver Video Ahora</a>
+                </div>
+                <!-- Platform link -->
+                <div style="border-top:1px solid #3b2c17;padding-top:16px;margin-top:10px;">
+                  <p style="margin:0 0 8px 0;font-size:13px;color:#9c8568;">También puedes encontrar instrucciones escritas dentro de la plataforma:</p>
+                  <p style="margin:0;font-size:13px;">
+                    <a href="${platformUrl}" style="color:#d3a86f;text-decoration:underline;">${platformUrl}</a>
+                    <span style="color:#7a5b2f;"> → Menú → Instrucciones</span>
+                  </p>
+                </div>
+              </td></tr>
+              <!-- Footer -->
+              <tr><td style="padding:18px 32px 24px;color:#9c8568;font-size:12px;text-align:center;background-color:#16110a;">
+                <p style="margin:4px 0;"><strong>D Perfume House</strong></p>
+                <p style="margin:4px 0;">&copy; ${new Date().getFullYear()} Todos los derechos reservados.</p>
+              </td></tr>
+            </table>
+          </td></tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    return this.send(email, subject, html);
   }
 }

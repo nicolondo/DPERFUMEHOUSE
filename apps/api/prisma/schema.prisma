@@ -138,6 +138,9 @@ model User {
   productRequests      ProductRequest[]
   allowedCategories    UserAllowedCategory[]
   leads                Lead[]
+  proposals            Proposal[]           @relation("proposals")
+  pushTokens           PushToken[]
+  sellerProductLinks   SellerProductLink[]
 
   @@index([parentId])
   @@index([role])
@@ -169,6 +172,8 @@ model Customer {
   documentType    String?          @map("document_type")
   documentNumber  String?          @map("document_number")
   notes           String?
+  birthday        DateTime?        @db.Date
+  language        String           @default("es")
   odooPartnerId   Int?             @map("odoo_partner_id")
   sellerId        String           @map("seller_id") @db.Uuid
   seller          User             @relation(fields: [sellerId], references: [id])
@@ -178,6 +183,7 @@ model Customer {
   addresses       CustomerAddress[]
   orders          Order[]
   leads           Lead[]
+  proposals       Proposal[]
 
   @@unique([email, sellerId])
   @@unique([phone, sellerId])
@@ -230,6 +236,8 @@ model ProductVariant {
   orderItems       OrderItem[]
   productRequests  ProductRequest[]
   fragranceProfile FragranceProfile?
+  proposalItems    ProposalItem[]
+  sellerProductLinks SellerProductLink[]
 
   @@index([odooTemplateId])
   @@index([categoryName])
@@ -556,6 +564,7 @@ model Lead {
   budgetRange          String?     @map("budget_range")
   isForGift            Boolean     @default(false) @map("is_for_gift")
   giftRecipient        String?     @map("gift_recipient")
+  selectedCategories   Json?       @map("selected_categories")
   appointmentDate      DateTime?   @map("appointment_date")
   appointmentTime      String?     @map("appointment_time")
   appointmentLocation  String?     @map("appointment_location")
@@ -568,6 +577,7 @@ model Lead {
   visitedAt            DateTime?   @map("visited_at")
   convertedAt          DateTime?   @map("converted_at")
   emailSentAt          DateTime?   @map("email_sent_at")
+  language              String      @default("es")
   createdAt            DateTime    @default(now()) @map("created_at")
   updatedAt            DateTime    @updatedAt @map("updated_at")
 
@@ -578,4 +588,89 @@ model Lead {
   @@index([mode])
   @@index([createdAt])
   @@map("leads")
+}
+
+model QuestionnaireQuestion {
+  id          String   @id @default(uuid()) @db.Uuid
+  questionId  String   @unique @map("question_id")
+  question    String
+  type        String   // choice, multiChoice, text
+  options     Json?    // [{ value, label, emoji? }]
+  placeholder String?
+  optional    Boolean  @default(false)
+  showIf      Json?    // { field, value } condition
+  sortOrder   Int      @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([sortOrder])
+  @@index([isActive])
+  @@map("questionnaire_questions")
+}
+
+model Proposal {
+  id          String         @id @default(uuid()) @db.Uuid
+  sellerId    String         @map("seller_id") @db.Uuid
+  seller      User           @relation("proposals", fields: [sellerId], references: [id])
+  customerId  String?        @map("customer_id") @db.Uuid
+  customer    Customer?      @relation(fields: [customerId], references: [id])
+  title       String?
+  message     String?
+  viewCount   Int            @default(0) @map("view_count")
+  expiresAt   DateTime?      @map("expires_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  items       ProposalItem[]
+
+  @@index([sellerId])
+  @@index([customerId])
+  @@map("proposals")
+}
+
+model ProposalItem {
+  id          String         @id @default(uuid()) @db.Uuid
+  proposalId  String         @map("proposal_id") @db.Uuid
+  proposal    Proposal       @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  variantId   String         @map("variant_id") @db.Uuid
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+  sellerNote  String?        @map("seller_note")
+  sortOrder   Int            @default(0) @map("sort_order")
+
+  @@index([proposalId])
+  @@map("proposal_items")
+}
+
+model PushToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String
+  device    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, token])
+  @@index([userId])
+  @@map("push_tokens")
+}
+
+model SellerProductLink {
+  id          String         @id @default(uuid()) @db.Uuid
+  code        String         @unique
+  sellerId    String         @map("seller_id") @db.Uuid
+  seller      User           @relation(fields: [sellerId], references: [id])
+  variantId   String         @map("variant_id") @db.Uuid
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+  isActive    Boolean        @default(true) @map("is_active")
+  views       Int            @default(0)
+  conversions Int            @default(0)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  @@unique([sellerId, variantId])
+  @@index([code])
+  @@index([sellerId])
+  @@map("seller_product_links")
 }

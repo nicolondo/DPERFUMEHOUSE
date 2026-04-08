@@ -27,6 +27,7 @@ import {
   Sparkles,
   FlaskConical,
   Target,
+  ClipboardList,
 } from 'lucide-react';
 
 interface NavItem {
@@ -72,6 +73,7 @@ const navigation: NavItem[] = [
     children: [
       { label: 'Perfiles', href: '/fragrances', icon: <FlaskConical className="h-4 w-4" /> },
       { label: 'Leads', href: '/fragrances/leads', icon: <Target className="h-4 w-4" /> },
+      { label: 'Cuestionario', href: '/fragrances/questionnaire', icon: <ClipboardList className="h-4 w-4" /> },
     ],
   },
   {

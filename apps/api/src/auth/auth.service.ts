@@ -210,37 +210,70 @@ export class AuthService {
       data: { resetToken: hashedToken, resetTokenExpiry: expiry },
     });
 
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+    const frontendUrl = this.configService.get<string>('SELLER_APP_URL', 'https://pos.dperfumehouse.com');
     const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
 
     await this.emailService.send(
       user.email,
       'Restablecer contraseña - D Perfume House',
       `<!DOCTYPE html>
-      <html>
-      <head><meta charset="utf-8">
+      <html xmlns="http://www.w3.org/1999/xhtml">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="color-scheme" content="light only">
+        <meta name="supported-color-schemes" content="light only">
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
-          .header { background-color: #1a1a2e; color: white; padding: 20px; text-align: center; }
-          .content { padding: 30px 20px; }
-          .btn { display: inline-block; background-color: #e94560; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0; }
-          .footer { background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #888; }
+          :root { color-scheme: light only; }
+          body { margin: 0; padding: 0; font-family: 'Outfit', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f0b05 !important; }
         </style>
       </head>
-      <body>
-        <div class="header"><h1>D Perfume House</h1></div>
-        <div class="content">
-          <p>Hola ${user.name},</p>
-          <p>Recibimos una solicitud para restablecer tu contraseña.</p>
-          <p style="text-align: center;">
-            <a href="${resetUrl}" class="btn">Restablecer Contraseña</a>
-          </p>
-          <p>Este enlace expira en <strong>1 hora</strong>.</p>
-          <p>Si no solicitaste este cambio, ignora este correo.</p>
-        </div>
-        <div class="footer">
-          <p>&copy; ${new Date().getFullYear()} D Perfume House. Todos los derechos reservados.</p>
-        </div>
+      <body style="margin:0;padding:0;background-color:#0f0b05;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#0f0b05;">
+          <tr><td align="center" style="padding:24px 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" width="620" style="max-width:620px;width:100%;background-color:#16110a;">
+              <!-- Header -->
+              <tr><td align="center" style="padding:30px 32px 20px;background-color:#16110a;">
+                <img src="https://pos.dperfumehouse.com/icons/logo-email.png" alt="D Perfume House" width="320" style="display:block;width:320px;max-width:80%;height:auto;" />
+                <p style="margin:12px 0 0 0;color:#bfa685;letter-spacing:2px;font-size:11px;text-transform:uppercase;">Seguridad de tu cuenta</p>
+              </td></tr>
+              <!-- Content -->
+              <tr><td style="padding:28px 32px 14px;color:#f4ece1;background-color:#16110a;">
+                <span style="display:inline-block;margin-bottom:14px;padding:6px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#ffdca7;border:1px solid #7a5b2f;background-color:rgba(196,148,77,.14);">🔐 Restablecer contraseña</span>
+                <p style="margin:0 0 12px 0;font-size:25px;line-height:1.2;color:#fff7eb;font-weight:700;">Hola ${user.name}</p>
+                <p style="margin:0 0 10px 0;font-size:15px;color:#d6c3a8;">
+                  Recibimos una solicitud para restablecer la contraseña de tu cuenta en <strong style="color:#fff7eb;">D Perfume House</strong>.
+                </p>
+                <!-- Info card -->
+                <div style="margin:22px 0;border:1px solid #3b2c17;border-radius:12px;background-color:#1e160d;padding:20px;text-align:center;">
+                  <p style="margin:0 0 6px 0;color:#9c8568;font-size:12px;text-transform:uppercase;letter-spacing:1px;">⏱ Tiempo de expiración</p>
+                  <p style="margin:0;font-size:24px;font-weight:800;color:#ffdca7;letter-spacing:1px;">1 hora</p>
+                </div>
+                <p style="margin:0 0 20px 0;font-size:15px;color:#d6c3a8;">
+                  Haz clic en el botón para crear tu nueva contraseña:
+                </p>
+                <!-- CTA Button -->
+                <div style="text-align:center;margin:0 0 24px 0;">
+                  <a href="${resetUrl}" style="display:inline-block;background-color:#e94560;color:#ffffff;padding:16px 40px;text-decoration:none;border-radius:999px;font-weight:700;font-size:16px;letter-spacing:.5px;">Restablecer Contraseña</a>
+                </div>
+                <p style="margin:0 0 10px 0;font-size:13px;color:#9c8568;">
+                  Si el botón no funciona, copia y pega este enlace en tu navegador:
+                </p>
+                <p style="margin:0 0 20px 0;word-break:break-all;font-size:12px;color:#7a5b2f;">${resetUrl}</p>
+                <div style="border-top:1px solid #3b2c17;padding-top:16px;margin-top:10px;">
+                  <p style="margin:0;font-size:13px;color:#9c8568;">
+                    Si no solicitaste este cambio, puedes ignorar este correo. No se realizará ningún cambio en tu cuenta.
+                  </p>
+                </div>
+              </td></tr>
+              <!-- Footer -->
+              <tr><td style="padding:18px 32px 24px;color:#9c8568;font-size:12px;text-align:center;background-color:#16110a;">
+                <p style="margin:4px 0;"><strong>D Perfume House</strong></p>
+                <p style="margin:4px 0;">&copy; ${new Date().getFullYear()} Todos los derechos reservados.</p>
+              </td></tr>
+            </table>
+          </td></tr>
+        </table>
       </body>
       </html>`,
     );

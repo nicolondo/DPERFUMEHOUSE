@@ -88,3 +88,42 @@ export function useUpdateAddress() {
     },
   });
 }
+
+export function useBirthdays(daysAhead: number = 7) {
+  return useQuery({
+    queryKey: ['birthdays', daysAhead],
+    queryFn: async () => {
+      const { data } = await api.get(`/customers/birthdays?days=${daysAhead}`);
+      return unwrap(data) as Array<{
+        id: string;
+        name: string;
+        phone: string | null;
+        phoneCode: string | null;
+        birthday: string;
+        nextBirthday: string;
+        daysUntil: number;
+      }>;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useFollowUps(minDays: number = 45) {
+  return useQuery({
+    queryKey: ['follow-ups', minDays],
+    queryFn: async () => {
+      const { data } = await api.get(`/customers/follow-ups?days=${minDays}`);
+      return unwrap(data) as Array<{
+        id: string;
+        name: string;
+        phone: string | null;
+        phoneCode: string | null;
+        lastOrderDate: string;
+        lastOrderTotal: number;
+        daysSinceLastOrder: number;
+        lastProducts: string[];
+      }>;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}

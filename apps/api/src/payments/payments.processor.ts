@@ -4,6 +4,7 @@ import { Job } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { OdooService } from '../odoo/odoo.service';
 import { CommissionsService } from '../commissions/commissions.service';
+import { EmailService } from '../email/email.service';
 import { CommissionStatus } from '@prisma/client';
 
 @Processor('payment-process')
@@ -14,6 +15,7 @@ export class PaymentsProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly odooService: OdooService,
     private readonly commissionsService: CommissionsService,
+    private readonly emailService: EmailService,
   ) {
     super();
   }
@@ -54,84 +56,137 @@ export class PaymentsProcessor extends WorkerHost {
       throw new Error(`Order ${orderId} not found`);
     }
 
-    // Step 1: Ensure Odoo partner exists
-    let odooPartnerId = order.customer.odooPartnerId;
-    if (!odooPartnerId) {
-      odooPartnerId = await this.odooService.upsertPartner({
-        name: order.customer.name,
-        email: order.customer.email || '',
-        phone: order.customer.phone || '',
-      });
-
-      await this.prisma.customer.update({
-        where: { id: order.customerId },
-        data: { odooPartnerId },
-      });
-    }
-
-    // Step 2: Create sale order in Odoo if not already created
-    let odooSaleOrderId = order.odooSaleOrderId;
-    if (!odooSaleOrderId) {
-      const odooSO = await this.odooService.createSaleOrder({
-        partnerId: odooPartnerId,
-        lines: order.items.map((item) => ({
-          productId: item.variant.odooProductId,
-          quantity: item.quantity,
-          price: Number(item.unitPrice),
-        })),
-        companyId: order.seller.odooCompanyId || undefined,
-      });
-      odooSaleOrderId = odooSO.id;
-
-      await this.prisma.order.update({
-        where: { id: orderId },
-        data: { odooSaleOrderId, orderNumber: odooSO.name },
-      });
-    }
-
-    // Step 3: Confirm the sale order and register payment in Odoo
-    let odooInvoiceId: number | undefined;
-    let odooInvoiceName: string | undefined;
-    try {
-      const result = await this.odooService.confirmAndRegisterPayment(
-        odooSaleOrderId,
-        Number(order.total),
-        'Wompi',
-        'bank',
-      );
-      odooInvoiceId = result.invoiceId;
-      odooInvoiceName = result.invoiceName;
-      this.logger.log(
-        `Odoo SO ${odooSaleOrderId} confirmed, invoice ${odooInvoiceName} paid`,
-      );
-    } catch (err) {
-      this.logger.warn(
-        `Could not register Odoo payment for SO ${odooSaleOrderId}: ${err.message}. Falling back to simple confirm.`,
-      );
-      await this.odooService.confirmSaleOrder(odooSaleOrderId);
-    }
-
-    // Step 4: Create delivery and mark as PAID
-    const deliveryId =
-      await this.odooService.createDelivery(odooSaleOrderId);
-    const updateData: any = {
-      status: 'PAID',
-      paymentStatus: 'COMPLETED',
-    };
-    if (deliveryId) updateData.odooDeliveryId = deliveryId;
-    if (odooInvoiceId) updateData.odooInvoiceId = odooInvoiceId;
-    if (odooInvoiceName) updateData.odooInvoiceName = odooInvoiceName;
-
-    await this.prisma.order.update({
-      where: { id: orderId },
-      data: updateData,
-    });
-
-    // Step 5: Calculate commissions
+    // --- Commissions first (independent of Odoo) ---
+    // Step 1: Calculate commissions
     await this.calculateCommissions(order);
 
-    // Step 6: Auto-approve commissions (payment confirmed by Wompi)
+    // Step 2: Auto-approve commissions (payment confirmed by provider)
     await this.commissionsService.approveCommissionsForOrder(orderId);
+
+    this.logger.log(
+      `Commissions created and approved for order ${order.orderNumber}`,
+    );
+
+    // --- Odoo sync (best-effort, does not block commissions) ---
+    try {
+      // Step 3: Ensure Odoo partner exists
+      let odooPartnerId = order.customer.odooPartnerId;
+      if (!odooPartnerId) {
+        odooPartnerId = await this.odooService.upsertPartner({
+          name: order.customer.name,
+          email: order.customer.email || '',
+          phone: order.customer.phone || '',
+        });
+
+        await this.prisma.customer.update({
+          where: { id: order.customerId },
+          data: { odooPartnerId },
+        });
+      }
+
+      // Step 4: Create sale order in Odoo if not already created
+      let odooSaleOrderId = order.odooSaleOrderId;
+      if (!odooSaleOrderId) {
+        const odooSO = await this.odooService.createSaleOrder({
+          partnerId: odooPartnerId,
+          lines: order.items.map((item) => ({
+            productId: item.variant.odooProductId,
+            quantity: item.quantity,
+            price: Number(item.unitPrice),
+          })),
+          companyId: order.seller.odooCompanyId || undefined,
+        });
+        odooSaleOrderId = odooSO.id;
+
+        await this.prisma.order.update({
+          where: { id: orderId },
+          data: { odooSaleOrderId },
+        });
+      }
+
+      // Step 5: Confirm the sale order and register payment in Odoo (with retry)
+      let odooInvoiceId: number | undefined;
+      let odooInvoiceName: string | undefined;
+      const maxRetries = 3;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const result = await this.odooService.confirmAndRegisterPayment(
+            odooSaleOrderId,
+            Number(order.total),
+            'Wompi',
+            'bank',
+          );
+          odooInvoiceId = result.invoiceId;
+          odooInvoiceName = result.invoiceName;
+          this.logger.log(
+            `Odoo SO ${odooSaleOrderId} confirmed, invoice ${odooInvoiceName} paid (attempt ${attempt})`,
+          );
+          break;
+        } catch (err) {
+          this.logger.warn(
+            `Attempt ${attempt}/${maxRetries} — Could not register Odoo payment for SO ${odooSaleOrderId}: ${err.message}`,
+          );
+          if (attempt < maxRetries) {
+            const delay = attempt * 2000;
+            await new Promise((r) => setTimeout(r, delay));
+          } else {
+            this.logger.error(
+              `All ${maxRetries} attempts failed for SO ${odooSaleOrderId}. Falling back to simple confirm (no invoice).`,
+            );
+            try {
+              await this.odooService.confirmSaleOrder(odooSaleOrderId);
+            } catch (_) {}
+          }
+        }
+      }
+
+      // Step 6: Create delivery
+      const deliveryId =
+        await this.odooService.createDelivery(odooSaleOrderId);
+      const updateData: any = {};
+      if (deliveryId) updateData.odooDeliveryId = deliveryId;
+      if (odooInvoiceId) updateData.odooInvoiceId = odooInvoiceId;
+      if (odooInvoiceName) updateData.odooInvoiceName = odooInvoiceName;
+
+      if (Object.keys(updateData).length > 0) {
+        await this.prisma.order.update({
+          where: { id: orderId },
+          data: updateData,
+        });
+      }
+
+      this.logger.log(
+        `Odoo sync completed for order ${order.orderNumber}`,
+      );
+    } catch (odooErr) {
+      this.logger.error(
+        `Odoo sync failed for order ${order.orderNumber}: ${odooErr.message}. Commissions were already created. Odoo sync can be retried manually.`,
+      );
+    }
+
+    // --- Email notification to ordenes@dperfumehouse.com ---
+    try {
+      await this.emailService.sendNewOrderNotification({
+        orderNumber: order.orderNumber,
+        customerName: order.customer.name,
+        customerEmail: order.customer.email || '',
+        customerPhone: order.customer.phone || '',
+        sellerName: order.seller.name,
+        items: order.items.map((item: any) => ({
+          name: item.variant.name,
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice),
+        })),
+        subtotal: Number(order.subtotal),
+        tax: Number(order.tax),
+        shipping: Number(order.shipping),
+        total: Number(order.total),
+        paidAt: data.paidAt,
+      });
+      this.logger.log(`Order notification email sent for ${order.orderNumber}`);
+    } catch (emailErr) {
+      this.logger.error(`Failed to send order notification email for ${order.orderNumber}: ${emailErr.message}`);
+    }
 
     this.logger.log(
       `Payment processing completed for order ${order.orderNumber}`,

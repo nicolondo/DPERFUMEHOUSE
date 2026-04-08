@@ -3,14 +3,15 @@
 import { useState, useMemo } from 'react';
 import { format, startOfWeek, endOfWeek, startOfMonth, addWeeks, subWeeks, addMonths, subMonths, differenceInWeeks, differenceInMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, TrendingUp, Wallet, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, TrendingUp, Wallet, Clock, Cake, Gift, MessageCircle, RefreshCw, ShoppingBag } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card, CardHeader, CardBody } from '@/components/ui/card';
 import { Badge, PaymentStatusBadge } from '@/components/ui/badge';
 import { PageSpinner } from '@/components/ui/spinner';
 import { useAuthStore } from '@/store/auth.store';
 import { useDashboard } from '@/hooks/use-dashboard';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { useBirthdays, useFollowUps } from '@/hooks/use-customers';
+import { formatCurrency, formatDate, getWhatsAppPhone } from '@/lib/utils';
 
 type Period = 'week' | 'month';
 type ChartMode = 'ventas' | 'comisiones';
@@ -39,6 +40,8 @@ export default function DashboardPage() {
   }, [period, referenceDate]);
 
   const { data: stats, isLoading } = useDashboard({ period, offset });
+  const { data: birthdays } = useBirthdays(14);
+  const { data: followUps } = useFollowUps(45);
 
   const navigatePeriod = (direction: 'prev' | 'next') => {
     setReferenceDate((prev) => {
@@ -236,6 +239,92 @@ export default function DashboardPage() {
           <Badge variant="warning">Pendiente</Badge>
         </div>
       </Card>
+
+      {/* Upcoming Birthdays */}
+      {birthdays && birthdays.length > 0 && (
+        <div>
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-white">
+            <Cake className="h-4 w-4 text-accent-gold" />
+            Cumpleaños Próximos
+          </h2>
+          <div className="space-y-2">
+            {birthdays.map((c) => (
+              <Card key={c.id} padding="sm">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-white truncate">{c.name}</p>
+                    <p className="text-xs text-white/30">
+                      {new Date(c.nextBirthday + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}
+                      {c.daysUntil === 0 ? ' — ¡Hoy! 🎉' : c.daysUntil === 1 ? ' — Mañana' : ` — en ${c.daysUntil} días`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 pl-3">
+                    {c.phone && (
+                      <a
+                        href={`https://wa.me/${getWhatsAppPhone(c.phone, c.phoneCode)}?text=${encodeURIComponent(`¡Feliz cumpleaños, ${c.name.split(' ')[0]}! 🎂🎉 De parte de D Perfume House te deseamos un día increíble.`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 transition-colors"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                      </a>
+                    )}
+                    <a
+                      href={`/customers/${c.id}`}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-gold/10 text-accent-gold hover:bg-accent-gold/20 transition-colors"
+                    >
+                      <Gift className="h-4 w-4" />
+                    </a>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Follow-up / Recompra */}
+      {followUps && followUps.length > 0 && (
+        <div>
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-white">
+            <RefreshCw className="h-4 w-4 text-accent-purple" />
+            Clientes para Recontactar
+          </h2>
+          <div className="space-y-2">
+            {followUps.slice(0, 5).map((c) => (
+              <Card key={c.id} padding="sm">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-white truncate">{c.name}</p>
+                    <p className="text-xs text-white/30">
+                      Última compra hace {c.daysSinceLastOrder} días
+                      {c.lastProducts.length > 0 && ` · ${c.lastProducts[0]}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 pl-3">
+                    {c.phone && (
+                      <a
+                        href={`https://wa.me/${getWhatsAppPhone(c.phone, c.phoneCode)}?text=${encodeURIComponent(`Hola ${c.name.split(' ')[0]}, ¿cómo te ha ido con tu fragancia? 😊 Quería saber si te gustaría explorar algo nuevo.`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 transition-colors"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                      </a>
+                    )}
+                    <a
+                      href={`/customers/${c.id}`}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-purple/10 text-accent-purple hover:bg-accent-purple/20 transition-colors"
+                    >
+                      <ShoppingBag className="h-4 w-4" />
+                    </a>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Payment history */}
       <div>

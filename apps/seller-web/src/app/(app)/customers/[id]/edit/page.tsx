@@ -23,6 +23,7 @@ const customerSchema = z.object({
   documentType: z.string().optional(),
   documentNumber: z.string().optional(),
   notes: z.string().optional(),
+  birthday: z.string().optional(),
 });
 
 type CustomerFormData = z.infer<typeof customerSchema>;
@@ -93,6 +94,7 @@ export default function EditCustomerPage() {
         documentType: customer.documentType || '',
         documentNumber: customer.documentNumber || '',
         notes: customer.notes || '',
+        birthday: customer.birthday ? customer.birthday.split('T')[0] : '',
       });
       setPhone(customer.phone || '');
       setPhoneCode(customer.phoneCode || '+57');
@@ -121,6 +123,7 @@ export default function EditCustomerPage() {
         documentType: data.documentType || undefined,
         documentNumber: data.documentNumber || undefined,
         notes: data.notes || undefined,
+        birthday: data.birthday || undefined,
       });
       router.push(`/customers/${id}`);
     } catch (error: any) {
@@ -215,6 +218,11 @@ export default function EditCustomerPage() {
               label="Notas"
               placeholder="Notas sobre el cliente..."
               {...register('notes')}
+            />
+            <Input
+              label="Fecha de cumpleaños"
+              type="date"
+              {...register('birthday')}
             />
           </div>
         </Card>

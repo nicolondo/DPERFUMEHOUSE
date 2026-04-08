@@ -11,7 +11,7 @@ import { Modal } from '@/components/ui/modal';
 import { PageSpinner } from '@/components/ui/spinner';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { formatCurrency, formatDate, formatDateTime, formatPercent, formatPhone } from '@/lib/utils';
-import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck, MapPin, X, Calendar, Download, RefreshCw, Pencil } from 'lucide-react';
+import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck, MapPin, X, Calendar, Download, RefreshCw, Pencil, UserCheck } from 'lucide-react';
 
 const orderStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info' | 'orange' | 'brown'> = {
   DRAFT: 'default',
@@ -75,6 +75,18 @@ export default function OrderDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
+
+  const syncOdooMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/orders/${orderId}/sync-odoo`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['commissions'] });
     },
   });
 
@@ -176,6 +188,24 @@ export default function OrderDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
+
+  const [showManualDelivery, setShowManualDelivery] = useState(false);
+  const [manualDeliveryNotes, setManualDeliveryNotes] = useState('');
+
+  const manualDeliveryMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.patch(`/orders/${orderId}/deliver`, {
+        notes: manualDeliveryNotes || undefined,
+      });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      setShowManualDelivery(false);
+      setManualDeliveryNotes('');
     },
   });
 
@@ -327,6 +357,20 @@ export default function OrderDetailPage() {
             {markPaidMutation.isError && (
               <p className="text-xs text-status-danger">
                 Error: {(markPaidMutation.error as any)?.response?.data?.message || 'No se pudo marcar como pagado'}
+              </p>
+            )}
+            {['PAID', 'SHIPPED', 'DELIVERED'].includes(order.status) && (!order.odooSaleOrderId || !order.odooInvoiceId) && (
+              <Button
+                variant="secondary"
+                onClick={() => syncOdooMutation.mutate()}
+                disabled={syncOdooMutation.isPending}
+              >
+                {syncOdooMutation.isPending ? 'Sincronizando...' : 'Sincronizar con Odoo'}
+              </Button>
+            )}
+            {syncOdooMutation.isError && (
+              <p className="text-xs text-status-danger">
+                Error: {(syncOdooMutation.error as any)?.response?.data?.message || 'No se pudo sincronizar'}
               </p>
             )}
           </div>
@@ -583,6 +627,15 @@ export default function OrderDetailPage() {
                   disabled={ratesMutation.isPending}
                 >
                   {ratesMutation.isPending ? 'Cotizando...' : 'Cotizar Envío'}
+                </Button>
+              )}
+              {['PAID', 'SHIPPED'].includes(order.status) && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setShowManualDelivery(true)}
+                >
+                  <UserCheck className="h-4 w-4 mr-1" /> Entrega Manual
                 </Button>
               )}
             </div>
@@ -881,8 +934,50 @@ export default function OrderDetailPage() {
               </div>
             )}
           </div>
+
         </Card>
       )}
+
+      {/* Manual Delivery Modal */}
+      <Modal
+        open={showManualDelivery}
+        onClose={() => setShowManualDelivery(false)}
+        title="Entrega Manual"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-white/70">
+            Marcar este pedido como entregado en persona. El pedido pasará directamente a estado <strong className="text-white">DELIVERED</strong> sin envío por transportadora.
+          </p>
+          <div>
+            <label className="text-xs text-white/50">Notas (opcional)</label>
+            <textarea
+              value={manualDeliveryNotes}
+              onChange={(e) => setManualDeliveryNotes(e.target.value)}
+              placeholder="Ej: Recogido por el cliente en oficina"
+              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white placeholder:text-white/30 [color-scheme:dark]"
+              rows={2}
+            />
+          </div>
+          {manualDeliveryMutation.isError && (
+            <p className="text-xs text-status-danger">
+              {(manualDeliveryMutation.error as any)?.response?.data?.message || 'No se pudo marcar como entregado'}
+            </p>
+          )}
+          <div className="flex gap-2 pt-2">
+            <Button variant="ghost" className="w-full" onClick={() => setShowManualDelivery(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="w-full"
+              onClick={() => manualDeliveryMutation.mutate()}
+              loading={manualDeliveryMutation.isPending}
+            >
+              <UserCheck className="h-4 w-4 mr-1" /> Confirmar Entrega
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Payment Events Timeline */}
       <Card padding={false}>

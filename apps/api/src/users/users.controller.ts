@@ -4,6 +4,7 @@ import {
   Post,
   Put,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -28,7 +29,7 @@ import { UserRole } from '@prisma/client';
 import { UsersService } from './users.service';
 import { CertificateAnalyzerService } from './certificate-analyzer.service';
 import { CreateUserDto, CreateSubSellerDto } from './dto/create-user.dto';
-import { UpdateUserDto, UpdateBankInfoDto, ChangePasswordDto } from './dto/update-user.dto';
+import { UpdateUserDto, UpdateBankInfoDto, UpdateProfileDto, ChangePasswordDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -103,6 +104,15 @@ export class UsersController {
   @ApiOperation({ summary: 'Get current user profile' })
   async getProfile(@CurrentUser() user: CurrentUserPayload) {
     return this.usersService.getProfile(user.sub);
+  }
+
+  @Patch('me/profile')
+  @ApiOperation({ summary: 'Update current user profile (name, phone)' })
+  async updateMyProfile(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.usersService.updateProfile(user.sub, dto);
   }
 
   @Put('me/bank-info')
@@ -228,5 +238,12 @@ export class UsersController {
     @Body() dto: UpdateBankInfoDto,
   ) {
     return this.usersService.updateBankInfo(id, dto);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Delete user (admin only)' })
+  async deleteUser(@Param('id', ParseUUIDPipe) id: string) {
+    return this.usersService.delete(id);
   }
 }

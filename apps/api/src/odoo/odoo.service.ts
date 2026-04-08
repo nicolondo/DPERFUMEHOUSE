@@ -9,7 +9,7 @@ export interface OdooProduct {
   default_code: string;
   barcode?: string;
   list_price: number;
-  qty_available: number;
+  virtual_available: number;
   categ_id: [number, string] | false;
   product_tmpl_id: [number, string];
   product_template_attribute_value_ids: number[];
@@ -176,7 +176,7 @@ export class OdooService {
             'default_code',
             'barcode',
             'list_price',
-            'qty_available',
+            'virtual_available',
             'categ_id',
             'product_tmpl_id',
             'product_template_attribute_value_ids',
@@ -212,7 +212,7 @@ export class OdooService {
             'default_code',
             'barcode',
             'list_price',
-            'qty_available',
+            'virtual_available',
             'categ_id',
             'product_tmpl_id',
             'product_template_attribute_value_ids',
@@ -267,22 +267,39 @@ export class OdooService {
     }
   }
 
-  async getStock(productIds: number[]): Promise<Map<number, number>> {
+  async getStock(productIds: number[], locationId?: number): Promise<Map<number, number>> {
     const stockMap = new Map<number, number>();
     if (productIds.length === 0) return stockMap;
 
     try {
+      // If a specific location is provided, use stock.quant for location-filtered qty
+      if (locationId) {
+        const quants = await this.execute(
+          'stock.quant',
+          'search_read',
+          [[['product_id', 'in', productIds], ['location_id', '=', locationId]]],
+          { fields: ['product_id', 'quantity'] },
+        );
+        for (const q of quants) {
+          const pid = Array.isArray(q.product_id) ? q.product_id[0] : q.product_id;
+          stockMap.set(pid, (stockMap.get(pid) || 0) + (q.quantity || 0));
+        }
+        this.logger.debug(`Fetched stock for ${quants.length} quants from location ${locationId}`);
+        return stockMap;
+      }
+
+      // Default: use product.product virtual_available (forecasted qty)
       const products = await this.execute(
         'product.product',
         'search_read',
         [[['id', 'in', productIds]]],
         {
-          fields: ['id', 'qty_available'],
+          fields: ['id', 'virtual_available'],
         },
       );
 
       for (const product of products) {
-        stockMap.set(product.id, product.qty_available || 0);
+        stockMap.set(product.id, product.virtual_available || 0);
       }
 
       this.logger.debug(
@@ -292,6 +309,15 @@ export class OdooService {
     } catch (error) {
       this.logger.error('Failed to fetch stock from Odoo', error);
       throw error;
+    }
+  }
+
+  async partnerExists(partnerId: number): Promise<boolean> {
+    try {
+      const ids = await this.execute('res.partner', 'search', [[[['id', '=', partnerId]]]]);
+      return Array.isArray(ids) && ids.length > 0;
+    } catch {
+      return false;
     }
   }
 
@@ -931,6 +957,22 @@ export class OdooService {
       }));
     } catch (error) {
       this.logger.error('Failed to fetch categories from Odoo', error);
+      throw error;
+    }
+  }
+
+  async getWarehouses(companyId?: number): Promise<{ id: number; name: string; lotStockId: number }[]> {
+    try {
+      const kwargs: any = { fields: ['id', 'name', 'lot_stock_id'], order: 'name asc' };
+      if (companyId) kwargs.context = { allowed_company_ids: [companyId] };
+      const warehouses = await this.execute('stock.warehouse', 'search_read', [[]], kwargs);
+      return warehouses.map((w: any) => ({
+        id: w.id,
+        name: w.name,
+        lotStockId: Array.isArray(w.lot_stock_id) ? w.lot_stock_id[0] : w.lot_stock_id,
+      }));
+    } catch (error) {
+      this.logger.error('Failed to fetch warehouses from Odoo', error);
       throw error;
     }
   }

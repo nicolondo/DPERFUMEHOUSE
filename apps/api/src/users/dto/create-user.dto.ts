@@ -42,11 +42,11 @@ export class CreateUserDto {
   @IsNotEmpty()
   email: string;
 
-  @ApiProperty({ example: 'securePassword123' })
+  @ApiPropertyOptional({ example: 'securePassword123' })
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @MinLength(8, { message: 'La contrasena debe tener minimo 8 caracteres' })
-  password: string;
+  password?: string;
 
   @ApiProperty({ example: 'Maria Lopez' })
   @IsString()

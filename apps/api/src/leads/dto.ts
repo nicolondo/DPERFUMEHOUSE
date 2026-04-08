@@ -1,6 +1,5 @@
-import { IsString, IsOptional, IsBoolean, IsEnum, IsArray, IsDateString, ValidateNested, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsEnum, IsArray, IsDateString, ValidateNested, IsObject, Allow } from 'class-validator';
 import { Type } from 'class-transformer';
-import { Allow } from 'class-validator';
 
 export class SubmitQuestionnaireDto {
   @IsOptional()
@@ -33,11 +32,25 @@ export class SubmitQuestionnaireDto {
   @IsOptional()
   @IsString()
   giftRecipient?: string;
+
+  @IsOptional()
+  @IsString()
+  language?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  selectedCategories?: string[];
 }
 
 export class CreateLeadForCustomerDto {
   @IsString()
   customerId: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  selectedCategories?: string[];
 }
 
 export class UpdateLeadStatusDto {

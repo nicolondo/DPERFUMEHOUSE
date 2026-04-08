@@ -10,8 +10,9 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentProviderFactory } from './payment-provider.factory';
-import { WompiWebhookEvent } from './wompi.service';
+import { WompiWebhookEvent, WompiService } from './wompi.service';
 import { SettingsService } from '../settings/settings.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export interface WebhookData {
   customerOrderId: string;
@@ -34,7 +35,9 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly providerFactory: PaymentProviderFactory,
+    private readonly wompiService: WompiService,
     private readonly settingsService: SettingsService,
+    private readonly notificationsService: NotificationsService,
     @InjectQueue('payment-process')
     private readonly paymentQueue: Queue,
   ) {
@@ -76,17 +79,12 @@ export class PaymentsService {
       );
     }
 
-    // Check if there's already an active payment link
+    // Check if there's already an active payment link - always regenerate
+    // to avoid "Link de pago no disponible" errors when Wompi deactivates
+    // a link on their side (e.g. after a sandbox test approval)
     const existingLink = await this.prisma.paymentLink.findUnique({
       where: { orderId },
     });
-
-    if (existingLink && existingLink.status === 'ACTIVE') {
-      return {
-        paymentLink: existingLink,
-        message: 'Existing active payment link returned',
-      };
-    }
 
     // Parse customer name into first/last
     const nameParts = order.customer.name.trim().split(/\s+/);
@@ -247,6 +245,13 @@ export class PaymentsService {
         },
       );
 
+      // Push notification
+      this.notificationsService.notifyPaymentReceived(
+        paymentLink.order.sellerId,
+        paymentLink.order.orderNumber,
+        `$${Number(paymentLink.order.total).toLocaleString('es-CO')}`,
+      ).catch((err) => this.logger.error(`Push notify failed: ${err.message}`));
+
       this.logger.log(
         `Payment confirmed for order ${paymentLink.order.orderNumber}`,
       );
@@ -356,6 +361,24 @@ export class PaymentsService {
     }
 
     if (!paymentLink) {
+      // Widget-based transactions: reference format is "PH-YYYYMMDD-XXXX-N"
+      // Extract orderNumber by removing the last "-N" segment
+      const reference = transaction.reference || '';
+      const orderNumberMatch = reference.match(/^(PH-\d{8}-\d{4})/);
+      if (orderNumberMatch) {
+        const order = await this.prisma.order.findFirst({
+          where: { orderNumber: orderNumberMatch[1] },
+        });
+        if (order) {
+          paymentLink = await this.prisma.paymentLink.findFirst({
+            where: { orderId: order.id },
+            include: { order: true },
+          });
+        }
+      }
+    }
+
+    if (!paymentLink) {
       this.logger.error(
         `Payment link not found for Wompi transaction ${transaction.id}`,
       );
@@ -413,6 +436,13 @@ export class PaymentsService {
         },
       );
 
+      // Push notification
+      this.notificationsService.notifyPaymentReceived(
+        paymentLink.order.sellerId,
+        paymentLink.order.orderNumber,
+        `$${Number(paymentLink.order.total).toLocaleString('es-CO')}`,
+      ).catch((err) => this.logger.error(`Push notify failed: ${err.message}`));
+
       this.logger.log(
         `Wompi payment APPROVED for order ${paymentLink.order.orderNumber}`,
       );
@@ -439,5 +469,141 @@ export class PaymentsService {
         `Received Wompi status "${transaction.status}" for order ${paymentLink.order.orderNumber}`,
       );
     }
+  }
+
+  /**
+   * Return Wompi widget configuration for an order (public endpoint).
+   * Generates a unique reference + integrity signature and pre-fills customer data.
+   */
+  async getWidgetConfig(orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        customer: true,
+        address: true,
+        paymentLink: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order ${orderId} not found`);
+    }
+
+    if (order.paymentStatus === 'COMPLETED' || order.status === 'PAID' || order.status === 'SHIPPED' || order.status === 'DELIVERED') {
+      throw new BadRequestException('Order already paid');
+    }
+
+    if (order.status === 'CANCELLED') {
+      throw new BadRequestException('Order is cancelled');
+    }
+
+    // Generate unique reference: orderNumber-attempt
+    const attempt = order.paymentLink?.metadata
+      ? ((order.paymentLink.metadata as any).widgetAttempt || 0) + 1
+      : 1;
+    const reference = `${order.orderNumber}-${attempt}`;
+    const amountInCents = Math.round(Number(order.total) * 100);
+
+    // Get Wompi keys
+    const publicKey = await this.wompiService.getPublicKey();
+    const signature = await this.wompiService.generateIntegritySignature(
+      reference,
+      amountInCents,
+      'COP',
+    );
+
+    // Upsert PaymentLink record with current reference
+    const sellerUrl = this.configService.get<string>('SELLER_APP_URL', 'http://localhost:3000');
+    const redirectUrl = `${sellerUrl}/pay/${orderId}?payment=done`;
+
+    if (order.paymentLink) {
+      await this.prisma.paymentLink.update({
+        where: { id: order.paymentLink.id },
+        data: {
+          externalId: reference,
+          provider: 'wompi',
+          status: 'PENDING',
+          metadata: {
+            ...(order.paymentLink.metadata as any || {}),
+            widgetAttempt: attempt,
+            widgetReference: reference,
+          },
+        },
+      });
+    } else {
+      await this.prisma.paymentLink.create({
+        data: {
+          orderId,
+          externalId: reference,
+          amount: order.total,
+          currency: 'COP',
+          provider: 'wompi',
+          status: 'PENDING',
+          metadata: { widgetAttempt: attempt, widgetReference: reference },
+        },
+      });
+    }
+
+    // Ensure order is PENDING_PAYMENT
+    if (order.status === 'DRAFT') {
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: { status: 'PENDING_PAYMENT', paymentStatus: 'PENDING' },
+      });
+    }
+
+    // Map document type to Wompi legal-id-type
+    const docTypeMap: Record<string, string> = {
+      CC: 'CC', 'Cédula de Ciudadanía': 'CC',
+      CE: 'CE', 'Cédula de Extranjería': 'CE',
+      NIT: 'NIT',
+      PP: 'PP', Pasaporte: 'PP',
+      TI: 'TI', 'Tarjeta de Identidad': 'TI',
+    };
+    const legalIdType = docTypeMap[order.customer.documentType || ''] || undefined;
+
+    // Build customer data for pre-fill
+    const customerData: Record<string, string> = {};
+    if (order.customer.email) customerData.email = order.customer.email;
+    if (order.customer.name) customerData.fullName = order.customer.name;
+    if (order.customer.phone) {
+      const digits = order.customer.phone.replace(/\D/g, '');
+      customerData.phoneNumber = digits;
+      customerData.phoneNumberPrefix = '+57';
+    }
+    if (order.customer.documentNumber && legalIdType) {
+      customerData.legalId = order.customer.documentNumber;
+      customerData.legalIdType = legalIdType;
+    }
+
+    // Build shipping address for pre-fill
+    let shippingAddress: Record<string, string> | undefined;
+    if (order.address) {
+      shippingAddress = {
+        addressLine1: order.address.street,
+        country: 'CO',
+        city: order.address.city,
+        phoneNumber: (order.address.phone || order.customer.phone || '').replace(/\D/g, ''),
+        region: order.address.state || order.address.city,
+      };
+      if (order.address.detail) {
+        shippingAddress.addressLine2 = order.address.detail;
+      }
+    }
+
+    this.logger.log(
+      `Widget config generated for order ${order.orderNumber}, ref: ${reference}`,
+    );
+
+    return {
+      publicKey,
+      currency: 'COP',
+      amountInCents,
+      reference,
+      signature,
+      redirectUrl,
+      customerData,
+      shippingAddress,
+    };
   }
 }

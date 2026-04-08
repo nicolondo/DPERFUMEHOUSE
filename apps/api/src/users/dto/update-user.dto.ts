@@ -122,6 +122,11 @@ export class UpdateUserDto {
   @IsOptional()
   usdtWalletTrc20?: string | null;
 
+  @ApiPropertyOptional({ description: 'Unique seller code for questionnaire links' })
+  @IsString()
+  @IsOptional()
+  sellerCode?: string | null;
+
   @ApiPropertyOptional({ description: 'Enable monthly commission scale for this seller' })
   @IsBoolean()
   @IsOptional()
@@ -170,6 +175,23 @@ export class UpdateBankInfoDto {
   @IsString()
   @IsOptional()
   usdtWalletTrc20?: string;
+}
+
+export class UpdateProfileDto {
+  @ApiPropertyOptional({ example: 'Maria Lopez' })
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @ApiPropertyOptional({ example: '3001234567' })
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
+  @ApiPropertyOptional({ example: '+57' })
+  @IsString()
+  @IsOptional()
+  phoneCode?: string;
 }
 
 export class ChangePasswordDto {

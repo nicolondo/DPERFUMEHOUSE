@@ -86,11 +86,19 @@ export default function OrderDetailPage() {
 
   // Auto-open payment link modal when coming from order creation
   useEffect(() => {
-    if (searchParams.get('showPaymentLink') && order?.paymentLink?.url && !isPaymentLinkModalOpen) {
+    if (!searchParams.get('showPaymentLink')) return;
+    // If payment link already exists, just open the modal
+    if (order?.paymentLink?.url && !isPaymentLinkModalOpen) {
       setIsPaymentLinkModalOpen(true);
       router.replace(`/orders/${id}`, { scroll: false });
+      return;
     }
-  }, [searchParams, order?.paymentLink?.url]);
+    // If no payment link yet, auto-generate it
+    if (order && !order.paymentLink?.url && order.paymentMethod !== 'CASH' && !processOrder.isPending) {
+      router.replace(`/orders/${id}`, { scroll: false });
+      handleGeneratePaymentLink();
+    }
+  }, [searchParams, order?.paymentLink?.url, order?.id]);
 
   const handleShare = async () => {
     if (!order?.paymentLink?.url) return;
@@ -369,10 +377,6 @@ export default function OrderDetailPage() {
               <span className="text-white">
                 {formatCurrency(Number(order.subtotal))}
               </span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-white/50">IVA (19%)</span>
-              <span className="text-white">{formatCurrency(Number(order.tax))}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-white/50">Envio</span>

@@ -8,11 +8,13 @@ import { PaymentProviderFactory } from './payment-provider.factory';
 import { PaymentsProcessor } from './payments.processor';
 import { OdooModule } from '../odoo/odoo.module';
 import { CommissionsModule } from '../commissions/commissions.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
     OdooModule,
     CommissionsModule,
+    EmailModule,
     BullModule.registerQueue({
       name: 'payment-process',
     }),

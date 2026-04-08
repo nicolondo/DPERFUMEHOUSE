@@ -5,6 +5,7 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
@@ -26,14 +27,18 @@ export interface FindAllOrdersParams {
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
+  private readonly sellerAppUrl: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly odooService: OdooService,
     private readonly paymentsService: PaymentsService,
     private readonly commissionsService: CommissionsService,
+    private readonly configService: ConfigService,
     @InjectQueue('email-send') private readonly emailQueue: Queue,
-  ) {}
+  ) {
+    this.sellerAppUrl = this.configService.get<string>('SELLER_APP_URL', 'https://pos.dperfumehouse.com');
+  }
 
   async isChildSeller(parentId: string, childId: string): Promise<boolean> {
     const child = await this.prisma.user.findFirst({
@@ -161,6 +166,57 @@ export class OrdersService {
 
     if (sellerId && order.sellerId !== sellerId) {
       throw new ForbiddenException('You do not own this order');
+    }
+
+    return order;
+  }
+
+  async findOnePublic(id: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        subtotal: true,
+        tax: true,
+        shipping: true,
+        total: true,
+        paymentMethod: true,
+        paymentStatus: true,
+        createdAt: true,
+        customer: {
+          select: { name: true },
+        },
+        seller: {
+          select: { name: true, phone: true },
+        },
+        items: {
+          include: {
+            variant: {
+              select: {
+                name: true,
+                price: true,
+                attributes: true,
+                images: { where: { isPrimary: true }, take: 1 },
+                fragranceProfile: {
+                  select: {
+                    familiaOlfativa: true,
+                    intensidad: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        paymentLink: {
+          select: { url: true, status: true },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Pedido no encontrado');
     }
 
     return order;
@@ -438,13 +494,14 @@ export class OrdersService {
 
     // Queue email to customer with payment link
     if (order.customer.email) {
+      const summaryUrl = `${this.sellerAppUrl}/pay/${orderId}`;
       await this.emailQueue.add(
         'send-payment-link',
         {
           customerEmail: order.customer.email,
           customerName: order.customer.name,
           orderNumber: order.orderNumber,
-          paymentUrl: paymentResult.paymentUrl,
+          paymentUrl: summaryUrl,
           total: Number(order.total),
         },
         {
@@ -698,6 +755,117 @@ export class OrdersService {
   }
 
   /**
+   * Admin-only: re-sync a PAID order to Odoo and generate commissions if missing.
+   */
+  async syncOdoo(orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: { include: { variant: true } },
+        customer: true,
+        seller: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order ${orderId} not found`);
+    }
+
+    if (order.status === 'DRAFT' || order.status === 'PENDING_PAYMENT' || order.status === 'CANCELLED') {
+      throw new BadRequestException(`Order must be paid to sync with Odoo`);
+    }
+
+    // Step 1: Ensure Odoo partner exists (recover if stored ID is invalid)
+    let odooPartnerId = order.customer.odooPartnerId;
+    if (odooPartnerId) {
+      // Verify the partner still exists in Odoo
+      const exists = await this.odooService.partnerExists(odooPartnerId);
+      if (!exists) {
+        this.logger.warn(`Odoo partner ${odooPartnerId} not found, will re-create`);
+        odooPartnerId = null;
+        await this.prisma.customer.update({ where: { id: order.customer.id }, data: { odooPartnerId: null } });
+      }
+    }
+
+    if (!odooPartnerId) {
+      odooPartnerId = await this.odooService.upsertPartner({
+        name: order.customer.name,
+        email: order.customer.email || '',
+        phone: order.customer.phone || '',
+      });
+      await this.prisma.customer.update({ where: { id: order.customer.id }, data: { odooPartnerId } });
+    }
+
+    // Step 2: Create Odoo sale order if missing
+    let odooSaleOrderId = order.odooSaleOrderId;
+    let orderNumber = order.orderNumber;
+
+    if (!odooSaleOrderId) {
+      const odooSO = await this.odooService.createSaleOrder({
+        partnerId: odooPartnerId,
+        lines: order.items.map((item) => ({
+          productId: item.variant.odooProductId,
+          quantity: item.quantity,
+          price: Number(item.unitPrice),
+        })),
+        companyId: order.seller?.odooCompanyId || undefined,
+      });
+      odooSaleOrderId = odooSO.id;
+      orderNumber = odooSO.name;
+    }
+
+    // Step 3: Confirm SO and register payment
+    let odooInvoiceId: number | undefined;
+    let odooInvoiceName: string | undefined;
+    try {
+      const journalName = order.paymentMethod === 'ONLINE' ? 'Wompi' : 'Cash';
+      const journalType = order.paymentMethod === 'ONLINE' ? 'bank' : 'cash';
+      const result = await this.odooService.confirmAndRegisterPayment(
+        odooSaleOrderId,
+        Number(order.total),
+        journalName,
+        journalType,
+      );
+      odooInvoiceId = result.invoiceId;
+      odooInvoiceName = result.invoiceName;
+    } catch (err) {
+      this.logger.warn(`Could not register Odoo payment for SO ${odooSaleOrderId}: ${err.message}`);
+      try {
+        await this.odooService.confirmSaleOrder(odooSaleOrderId);
+      } catch (_) {}
+    }
+
+    // Step 4: Create delivery
+    let deliveryId: number | null | undefined;
+    try {
+      deliveryId = await this.odooService.createDelivery(odooSaleOrderId);
+    } catch (err) {
+      this.logger.warn(`Could not create delivery for SO ${odooSaleOrderId}: ${err.message}`);
+    }
+
+    // Step 5: Update order with Odoo IDs
+    const updateData: any = { odooSaleOrderId, orderNumber };
+    if (odooInvoiceId) updateData.odooInvoiceId = odooInvoiceId;
+    if (odooInvoiceName) updateData.odooInvoiceName = odooInvoiceName;
+    if (deliveryId) updateData.odooDeliveryId = deliveryId;
+
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: updateData,
+    });
+
+    // Step 6: Generate commissions if missing
+    const existingCommissions = await this.prisma.commission.count({ where: { orderId } });
+    if (existingCommissions === 0) {
+      await this.commissionsService.approveCommissionsForOrder(orderId);
+      await this.commissionsService.calculateForOrder(orderId, CommissionStatus.APPROVED);
+    }
+
+    this.logger.log(`Odoo sync completed for order ${updated.orderNumber}`);
+    return updated;
+  }
+
+  /**
    * Admin-only: manually mark an order as SHIPPED (fallback without Envia).
    */
   async markAsShipped(orderId: string) {
@@ -729,6 +897,85 @@ export class OrdersService {
 
     this.logger.log(`Order ${order.orderNumber} manually marked as SHIPPED`);
     return updated;
+  }
+
+  async markAsDelivered(orderId: string, notes?: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { shipment: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order ${orderId} not found`);
+    }
+
+    const allowedStatuses: OrderStatus[] = ['PAID', 'SHIPPED'];
+    if (!allowedStatuses.includes(order.status)) {
+      throw new BadRequestException(
+        `Cannot mark order as delivered in status ${order.status}`,
+      );
+    }
+
+    // Use a transaction: update order status + create/update shipment record
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // Update order status to DELIVERED
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: { status: 'DELIVERED' },
+      });
+
+      // Create or update shipment to reflect manual delivery
+      if (order.shipment) {
+        await tx.shipment.update({
+          where: { id: order.shipment.id },
+          data: { status: 'DELIVERED' },
+        });
+      } else {
+        await tx.shipment.create({
+          data: {
+            orderId: order.id,
+            carrier: 'MANUAL',
+            service: 'Entrega en persona',
+            status: 'DELIVERED',
+            trackingNumber: `MANUAL-${order.orderNumber}`,
+            totalPrice: 0,
+            currency: 'COP',
+          },
+        });
+      }
+
+      // Add a shipment event for the delivery
+      const shipment = await tx.shipment.findUnique({
+        where: { orderId: order.id },
+      });
+      if (shipment) {
+        await tx.shipmentEvent.create({
+          data: {
+            shipmentId: shipment.id,
+            timestamp: new Date(),
+            description: notes || 'Entrega manual - Recogido en persona',
+            status: 'DELIVERED',
+            location: 'Entrega directa',
+          },
+        });
+      }
+
+      return updatedOrder;
+    });
+
+    const result = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        customer: {
+          select: { id: true, name: true, email: true, phone: true },
+        },
+        items: true,
+        shipment: { include: { events: true } },
+      },
+    });
+
+    this.logger.log(`Order ${order.orderNumber} manually marked as DELIVERED (entrega en persona)`);
+    return result;
   }
 
   private async generateOrderNumber(): Promise<string> {

@@ -45,8 +45,8 @@ export function useLeadStats() {
 export function useCreateLeadForCustomer() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (customerId: string) => {
-      const { data } = await api.post('/leads/for-customer', { customerId });
+    mutationFn: async ({ customerId, selectedCategories }: { customerId: string; selectedCategories?: string[] }) => {
+      const { data } = await api.post('/leads/for-customer', { customerId, selectedCategories });
       return unwrap(data);
     },
     onSuccess: () => {
@@ -109,10 +109,26 @@ export function useConvertLead() {
   });
 }
 
+export function useCreateCustomerFromLead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (leadId: string) => {
+      const { data } = await api.post(`/leads/${leadId}/create-customer`);
+      return unwrap(data) as { customerId: string; customerName: string };
+    },
+    onSuccess: (_, leadId) => {
+      queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+    },
+  });
+}
+
 export function useGenerateLeadLink() {
   return useMutation({
-    mutationFn: async () => {
-      const { data } = await api.get('/leads/generate-link');
+    mutationFn: async (categories?: string[]) => {
+      const params = categories?.length ? `?categories=${encodeURIComponent(categories.join(','))}` : '';
+      const { data } = await api.get(`/leads/generate-link${params}`);
       return unwrap(data) as { url: string; sellerCode: string };
     },
   });

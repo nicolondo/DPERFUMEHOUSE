@@ -21,6 +21,11 @@ import { ProductRequestsModule } from './product-requests/product-requests.modul
 import { ShippingModule } from './shipping/shipping.module';
 import { FragranceProfilesModule } from './fragrance-profiles/fragrance-profiles.module';
 import { LeadsModule } from './leads/leads.module';
+import { QuestionnaireQuestionsModule } from './questionnaire-questions/questionnaire-questions.module';
+import { PerfumeSearchModule } from './perfume-search/perfume-search.module';
+import { ProposalsModule } from './proposals/proposals.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { SellerProductLinksModule } from './seller-product-links/seller-product-links.module';
 
 @Module({
   imports: [
@@ -73,6 +78,11 @@ import { LeadsModule } from './leads/leads.module';
     ShippingModule,
     FragranceProfilesModule,
     LeadsModule,
+    QuestionnaireQuestionsModule,
+    PerfumeSearchModule,
+    ProposalsModule,
+    NotificationsModule,
+    SellerProductLinksModule,
   ],
 })
 export class AppModule {}

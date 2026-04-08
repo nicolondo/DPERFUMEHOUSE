@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { fetchUser, updateUser, toggleUserStatus, fetchUsers, fetchProductCategories, fetchSettings } from '@/lib/api';
+import api, { fetchUser, updateUser, toggleUserStatus, fetchUsers, fetchProductCategories, fetchSettings } from '@/lib/api';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -255,6 +255,23 @@ export default function UserDetailPage() {
               loading={toggleMutation.isPending}
             >
               {user.isActive ? 'Desactivar' : user.pendingApproval ? 'Aprobar' : 'Activar'}
+            </Button>
+            <Button
+              variant="danger"
+              icon={<Trash2 className="h-4 w-4" />}
+              onClick={async () => {
+                if (window.confirm('¿Estas seguro de eliminar este usuario? Esta accion no se puede deshacer.')) {
+                  try {
+                    await api.delete(`/users/${userId}`);
+                    queryClient.invalidateQueries({ queryKey: ['users'] });
+                    router.push('/users');
+                  } catch (e: any) {
+                    alert(e.response?.data?.message || 'Error al eliminar');
+                  }
+                }
+              }}
+            >
+              Eliminar
             </Button>
           </div>
         </div>

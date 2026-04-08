@@ -42,6 +42,30 @@ export class CustomersController {
     });
   }
 
+  @Get('birthdays')
+  async getUpcomingBirthdays(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('days') days?: string,
+  ) {
+    const sellerId = user.role === 'ADMIN' ? null : user.sub;
+    if (!sellerId) {
+      return []; // Admin doesn't have "their" customers for birthday card
+    }
+    return this.customersService.getUpcomingBirthdays(sellerId, days ? parseInt(days, 10) : 7);
+  }
+
+  @Get('follow-ups')
+  async getFollowUpCustomers(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('days') days?: string,
+  ) {
+    const sellerId = user.role === 'ADMIN' ? null : user.sub;
+    if (!sellerId) {
+      return [];
+    }
+    return this.customersService.getFollowUpCustomers(sellerId, days ? parseInt(days, 10) : 45);
+  }
+
   @Get(':id')
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,

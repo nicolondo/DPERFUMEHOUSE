@@ -44,7 +44,7 @@ export class WompiService implements PaymentProvider {
     const payload = {
       name: `Orden ${data.orderId.substring(0, 8)}`,
       description: `Pago D Perfume House - ${data.customerFirstName} ${data.customerLastName}`,
-      single_use: true,
+      single_use: false,
       collect_shipping: false,
       currency: 'COP',
       amount_in_cents: amountInCents,
@@ -85,6 +85,36 @@ export class WompiService implements PaymentProvider {
       url: `https://checkout.wompi.co/l/${linkId}`,
       code: linkId,
     };
+  }
+
+  async getPublicKey(): Promise<string> {
+    const key = await this.settingsService.get('wompi_public_key');
+    if (!key) {
+      throw new Error('Wompi public key not configured');
+    }
+    return key;
+  }
+
+  async getIntegritySecret(): Promise<string> {
+    const secret = await this.settingsService.get('wompi_integrity_secret');
+    if (!secret) {
+      throw new Error('Wompi integrity secret not configured');
+    }
+    return secret;
+  }
+
+  /**
+   * Generate SHA256 integrity signature for Wompi widget/checkout.
+   * Concatenation order: reference + amountInCents + currency + integritySecret
+   */
+  async generateIntegritySignature(
+    reference: string,
+    amountInCents: number,
+    currency: string,
+  ): Promise<string> {
+    const integritySecret = await this.getIntegritySecret();
+    const concatenated = `${reference}${amountInCents}${currency}${integritySecret}`;
+    return crypto.createHash('sha256').update(concatenated).digest('hex');
   }
 
   async getPaymentStatus(paymentId: string): Promise<string> {

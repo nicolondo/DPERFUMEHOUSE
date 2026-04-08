@@ -148,7 +148,7 @@ export class OdooSyncService {
             sku: odooProduct.default_code || null,
             barcode: odooProduct.barcode || null,
             price: odooProduct.list_price,
-            stock: Math.max(0, Math.floor(odooProduct.qty_available || 0)),
+            stock: Math.max(0, Math.floor(odooProduct.virtual_available || 0)),
             categoryName: categName,
             odooTemplateId: templateId,
             attributes: attributes as any,
@@ -228,13 +228,18 @@ export class OdooSyncService {
       }
 
       // Fetch stock in batches
+      const warehouseLocationId = await this.settingsService.get('odoo_warehouse_location_id');
+      const locationId = warehouseLocationId ? parseInt(warehouseLocationId, 10) : undefined;
+      if (locationId) {
+        this.logger.log(`Syncing stock from location ${locationId}`);
+      }
       const batchSize = 100;
       for (let i = 0; i < activeVariants.length; i += batchSize) {
         const batch = activeVariants.slice(i, i + batchSize);
         const odooIds = batch.map((v) => v.odooProductId);
 
         try {
-          const stockMap = await this.odooService.getStock(odooIds);
+          const stockMap = await this.odooService.getStock(odooIds, locationId);
 
           for (const variant of batch) {
             const stock = stockMap.get(variant.odooProductId);
