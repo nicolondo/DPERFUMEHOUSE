@@ -120,6 +120,13 @@ export default function UserDetailPage() {
     queryFn: () => fetchUser(userId),
   });
 
+  const { data: commissionSettingsMain } = useQuery({
+    queryKey: ['settings', 'commissions', 'user-detail'],
+    queryFn: () => fetchSettings('commissions'),
+  });
+
+  const globalCommissionScaleMain = parseCommissionScaleSettings(commissionSettingsMain);
+
   const toggleMutation = useMutation({
     mutationFn: () => toggleUserStatus(userId),
     onSuccess: () => {
@@ -350,7 +357,7 @@ export default function UserDetailPage() {
               const tiers: CommissionScaleTier[] =
                 !user.commissionScaleUseGlobal && Array.isArray(user.commissionScaleOverride) && user.commissionScaleOverride.length > 0
                   ? (user.commissionScaleOverride as CommissionScaleTier[])
-                  : DEFAULT_COMMISSION_SCALE;
+                  : globalCommissionScaleMain;
               return (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
