@@ -41,7 +41,6 @@ export class SettingsController {
     const shippingCost = await this.settingsService.get('default_shipping_cost');
     const freeShippingThreshold = await this.settingsService.get('free_shipping_threshold');
     const activePaymentProvider = await this.settingsService.get('active_payment_provider');
-    const cashPaymentEnabled = await this.settingsService.get('cash_payment_enabled');
 
     const rawTax = parseFloat(taxRate || '19');
     // If stored as percentage (e.g. 19), convert to decimal (0.19)
@@ -52,7 +51,6 @@ export class SettingsController {
       shippingCost: parseFloat(shippingCost || '0'),
       freeShippingThreshold: parseFloat(freeShippingThreshold || '200000'),
       activePaymentProvider: activePaymentProvider || 'myxspend',
-      cashPaymentEnabled: cashPaymentEnabled !== 'false',
     };
   }
 
@@ -163,14 +161,13 @@ export class SettingsController {
         if (existing !== null) {
           await this.settingsService.update(setting.key, { value: setting.value });
         } else {
-          const lk = setting.key.toLowerCase();
           await this.settingsService.create({
             key: setting.key,
             value: setting.value,
-            group: lk.startsWith('odoo') ? 'odoo' :
-              (lk.startsWith('myxspend') || lk.startsWith('wompi') || lk.includes('payment')) ? 'payments' :
-              lk.startsWith('commission') ? 'commissions' : 'general',
-            isSecret: lk.includes('key') || lk.includes('password') || lk.includes('secret'),
+                 group: setting.key.toLowerCase().startsWith('odoo') ? 'odoo' :
+                   setting.key.toLowerCase().startsWith('myxspend') ? 'payment' :
+                   setting.key.toLowerCase().startsWith('commission') ? 'commissions' : 'general',
+            isSecret: setting.key.toLowerCase().includes('key') || setting.key.toLowerCase().includes('password') || setting.key.toLowerCase().includes('secret'),
           });
         }
         results.push({ key: setting.key, status: 'updated' });

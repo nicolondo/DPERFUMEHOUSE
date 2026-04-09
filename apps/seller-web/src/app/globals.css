@@ -82,10 +82,15 @@
     touch-action: manipulation;
   }
 
+  * {
+    touch-action: manipulation;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior-y: contain;
     font-family: var(--font-outfit), Outfit, system-ui, sans-serif;
   }
 
@@ -112,15 +117,6 @@
   input, textarea, select {
     @apply outline-none;
     font-size: 16px;
-  }
-
-  input[type="date"] {
-    max-width: 100%;
-    min-width: 0;
-    overflow: hidden;
-    box-sizing: border-box;
-    -webkit-appearance: none;
-    appearance: none;
   }
 
   ::selection {

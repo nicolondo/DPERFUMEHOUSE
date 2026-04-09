@@ -37,7 +37,7 @@ export class OrdersService {
     private readonly configService: ConfigService,
     @InjectQueue('email-send') private readonly emailQueue: Queue,
   ) {
-    this.sellerAppUrl = this.configService.get<string>('SELLER_APP_URL', 'https://pos.dperfumehouse.com');
+    this.sellerAppUrl = this.configService.get<string>('SELLER_APP_URL', 'http://localhost:3000');
   }
 
   async isChildSeller(parentId: string, childId: string): Promise<boolean> {
@@ -119,11 +119,9 @@ export class OrdersService {
     };
   }
 
-  async findOne(slug: string, sellerId?: string) {
-    // Accept UUID or orderNumber (e.g. "PH-20260408-0011")
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
-    const order = await this.prisma.order.findFirst({
-      where: isUuid ? { id: slug } : { orderNumber: slug },
+  async findOne(id: string, sellerId?: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
       include: {
         customer: {
           select: { id: true, name: true, email: true, phone: true },
@@ -163,7 +161,7 @@ export class OrdersService {
     });
 
     if (!order) {
-      throw new NotFoundException(`Order ${slug} not found`);
+      throw new NotFoundException(`Order ${id} not found`);
     }
 
     if (sellerId && order.sellerId !== sellerId) {
@@ -173,13 +171,9 @@ export class OrdersService {
     return order;
   }
 
-  async findOnePublic(slug: string) {
-    // Accept either a UUID (old links) or an order number slug like "20260408-0011" (= orderNumber without "PH-" prefix)
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
-    const order = await this.prisma.order.findFirst({
-      where: isUuid
-        ? { id: slug }
-        : { orderNumber: `PH-${slug}` },
+  async findOnePublic(id: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
       select: {
         id: true,
         orderNumber: true,
@@ -192,7 +186,7 @@ export class OrdersService {
         paymentStatus: true,
         createdAt: true,
         customer: {
-          select: { name: true, email: true, phone: true, documentType: true, documentNumber: true },
+          select: { name: true },
         },
         seller: {
           select: { name: true, phone: true },
@@ -369,6 +363,14 @@ export class OrdersService {
         },
       });
 
+      // Decrement local stock
+      for (const item of data.items) {
+        await tx.productVariant.update({
+          where: { id: item.variantId },
+          data: { stock: { decrement: item.quantity } },
+        });
+      }
+
       return createdOrder;
     });
 
@@ -492,8 +494,7 @@ export class OrdersService {
 
     // Queue email to customer with payment link
     if (order.customer.email) {
-      const orderSlug = order.orderNumber.replace(/^PH-/, '');
-      const summaryUrl = `${this.sellerAppUrl}/pay/${orderSlug}`;
+      const summaryUrl = `${this.sellerAppUrl}/pay/${orderId}`;
       await this.emailQueue.add(
         'send-payment-link',
         {
@@ -770,8 +771,8 @@ export class OrdersService {
       throw new NotFoundException(`Order ${orderId} not found`);
     }
 
-    if (order.status === 'DRAFT' || order.status === 'PENDING_PAYMENT' || order.status === 'CANCELLED') {
-      throw new BadRequestException(`Order must be paid to sync with Odoo`);
+    if (order.status !== 'PAID') {
+      throw new BadRequestException(`Order must be in PAID status to sync with Odoo`);
     }
 
     // Step 1: Ensure Odoo partner exists (recover if stored ID is invalid)

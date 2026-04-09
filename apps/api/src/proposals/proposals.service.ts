@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -7,12 +8,19 @@ import { CreateProposalDto, UpdateProposalDto } from './dto';
 @Injectable()
 export class ProposalsService {
   private readonly logger = new Logger(ProposalsService.name);
+  private readonly sellerAppUrl: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly notificationsService: NotificationsService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.sellerAppUrl = this.configService.get<string>(
+      'SELLER_APP_URL',
+      'http://localhost:3000',
+    );
+  }
 
   private readonly itemInclude = {
     variant: {
@@ -201,8 +209,8 @@ export class ProposalsService {
 
     const customerName = proposal.customer?.name?.split(' ')[0] || '';
     const sellerName = proposal.seller?.name || 'tu asesor';
-    const proposalUrl = `https://pos.dperfumehouse.com/p/${proposal.id}`;
-    const logoUrl = 'https://pos.dperfumehouse.com/icons/logo-email.png';
+    const proposalUrl = `${this.sellerAppUrl}/p/${proposal.id}`;
+    const logoUrl = `${this.sellerAppUrl}/icons/logo-email.png`;
 
     const productRows = (proposal.items || [])
       .map((item: any) => {

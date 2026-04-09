@@ -276,12 +276,6 @@ export async function fetchOdooCategories() {
   return result?.data ?? result ?? [];
 }
 
-export async function fetchOdooWarehouses() {
-  const { data } = await api.get('/settings/odoo-warehouses');
-  const result = unwrap(data);
-  return result?.data ?? result ?? [];
-}
-
 export async function testPaymentConnection() {
   const { data } = await api.post('/settings/test-payment');
   return unwrap(data);
@@ -438,20 +432,6 @@ export async function enrichFragranceProfile(id: string) {
   return unwrap(data);
 }
 
-export async function extractPyramidFromImage(file: File) {
-  const formData = new FormData();
-  formData.append('file', file);
-  const { data } = await api.post('/fragrance-profiles/extract-from-pyramid', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return unwrap(data);
-}
-
-export async function getFragellaFields(equivalencia: string) {
-  const { data } = await api.get('/fragrance-profiles/fragella-fields', { params: { equivalencia } });
-  return unwrap(data);
-}
-
 // ── Leads (Admin) ──
 
 export async function fetchAdminLeads(params?: {
@@ -466,32 +446,5 @@ export async function fetchAdminLeads(params?: {
 
 export async function fetchAdminLeadAnalytics() {
   const { data } = await api.get('/leads/admin/analytics');
-  return unwrap(data);
-}
-
-// ── Questionnaire Questions ──
-
-export async function fetchQuestionnaireQuestions() {
-  const { data } = await api.get('/questionnaire-questions');
-  return unwrap(data);
-}
-
-export async function createQuestionnaireQuestion(payload: any) {
-  const { data } = await api.post('/questionnaire-questions', payload);
-  return unwrap(data);
-}
-
-export async function updateQuestionnaireQuestion(id: string, payload: any) {
-  const { data } = await api.put(`/questionnaire-questions/${id}`, payload);
-  return unwrap(data);
-}
-
-export async function deleteQuestionnaireQuestion(id: string) {
-  const { data } = await api.delete(`/questionnaire-questions/${id}`);
-  return unwrap(data);
-}
-
-export async function reorderQuestionnaireQuestions(ids: string[]) {
-  const { data } = await api.post('/questionnaire-questions/reorder', { ids });
   return unwrap(data);
 }

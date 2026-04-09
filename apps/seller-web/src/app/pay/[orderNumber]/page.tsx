@@ -90,7 +90,7 @@ export default async function PayPage({ params }: { params: { orderNumber: strin
     return (
       <div style={s.page}>
         <div style={s.wrap}>
-          <img src="https://pos.dperfumehouse.com/icons/logo-email.png" alt="D Perfume House" style={s.logo} />
+          <img src={`${process.env.NEXT_PUBLIC_APP_URL || ''}/icons/logo-email.png`} alt="D Perfume House" style={s.logo} />
           <div style={{ ...s.card, padding: '40px 24px', textAlign: 'center' }}>
             <div style={s.successIcon}>✅</div>
             <h1 style={s.successTitle}>¡Pago recibido!</h1>
@@ -108,7 +108,7 @@ export default async function PayPage({ params }: { params: { orderNumber: strin
   return (
     <div style={s.page}>
       <div style={s.wrap}>
-        <img src="https://pos.dperfumehouse.com/icons/logo-email.png" alt="D Perfume House" style={s.logo} />
+        <img src={`${process.env.NEXT_PUBLIC_APP_URL || ''}/icons/logo-email.png`} alt="D Perfume House" style={s.logo} />
 
         <div style={s.card}>
           {/* Header */}

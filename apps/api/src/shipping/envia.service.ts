@@ -105,16 +105,12 @@ export interface EnviaPickupRequest {
 }
 
 export interface EnviaPickupResult {
-  id?: number;
   carrier: string;
-  confirmation?: string;
-  pickupNumber?: string;
-  status?: string;
-  date?: string;
-  pickupDate?: string;
-  timeFrom?: number | string;
-  timeTo?: number | string;
-  pickupFee?: number;
+  confirmation: string;
+  status: string;
+  date: string;
+  timeFrom: number;
+  timeTo: number;
 }
 
 export interface EnviaCancelResult {
@@ -203,18 +199,8 @@ export class EnviaService {
 
   async schedulePickup(req: EnviaPickupRequest): Promise<{ meta: string; data: EnviaPickupResult }> {
     this.logger.log(`Scheduling pickup for ${req.shipment.carrier}`);
-    this.logger.log(`Pickup payload: ${JSON.stringify(req)}`);
     const baseUrl = await this.getBaseUrl();
-    try {
-      const result = await this.request<{ meta: string; data: EnviaPickupResult | EnviaPickupResult[] }>(`${baseUrl}/ship/pickup/`, 'POST', req);
-      this.logger.log(`Pickup response: ${JSON.stringify(result)}`);
-      // Envia returns either a single object or an array
-      const data = Array.isArray(result.data) ? result.data[0] : result.data;
-      return { meta: result.meta, data };
-    } catch (err: any) {
-      this.logger.error(`Pickup failed: ${err.message}`);
-      throw err;
-    }
+    return this.request(`${baseUrl}/ship/pickup/`, 'POST', req);
   }
 
   async cancelShipment(carrier: string, trackingNumber: string): Promise<{ meta: string; data: EnviaCancelResult }> {

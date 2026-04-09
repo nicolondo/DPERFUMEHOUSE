@@ -9,7 +9,7 @@ export interface OdooProduct {
   default_code: string;
   barcode?: string;
   list_price: number;
-  virtual_available: number;
+  qty_available: number;
   categ_id: [number, string] | false;
   product_tmpl_id: [number, string];
   product_template_attribute_value_ids: number[];
@@ -176,7 +176,7 @@ export class OdooService {
             'default_code',
             'barcode',
             'list_price',
-            'virtual_available',
+            'qty_available',
             'categ_id',
             'product_tmpl_id',
             'product_template_attribute_value_ids',
@@ -212,7 +212,7 @@ export class OdooService {
             'default_code',
             'barcode',
             'list_price',
-            'virtual_available',
+            'qty_available',
             'categ_id',
             'product_tmpl_id',
             'product_template_attribute_value_ids',
@@ -288,18 +288,18 @@ export class OdooService {
         return stockMap;
       }
 
-      // Default: use product.product virtual_available (forecasted qty)
+      // Default: use product.product qty_available (all locations)
       const products = await this.execute(
         'product.product',
         'search_read',
         [[['id', 'in', productIds]]],
         {
-          fields: ['id', 'virtual_available'],
+          fields: ['id', 'qty_available'],
         },
       );
 
       for (const product of products) {
-        stockMap.set(product.id, product.virtual_available || 0);
+        stockMap.set(product.id, product.qty_available || 0);
       }
 
       this.logger.debug(
@@ -550,8 +550,8 @@ export class OdooService {
         'search_read',
         [
           [
+            ['origin', 'like', `SO`],
             ['sale_id', '=', saleOrderId],
-            ['state', 'not in', ['done', 'cancel']],
           ],
         ],
         {
@@ -560,63 +560,18 @@ export class OdooService {
         },
       );
 
-      if (pickings.length === 0) {
-        // Also check for already-done pickings
-        const donePicks = await this.execute(
-          'stock.picking',
-          'search_read',
-          [[['sale_id', '=', saleOrderId], ['state', '=', 'done']]],
-          { fields: ['id'], limit: 1 },
+      if (pickings.length > 0) {
+        const pickingId = pickings[0].id;
+        this.logger.log(
+          `Found delivery picking ${pickingId} for sale order ${saleOrderId}`,
         );
-        if (donePicks.length > 0) {
-          this.logger.log(`Delivery ${donePicks[0].id} already validated for SO ${saleOrderId}`);
-          return donePicks[0].id;
-        }
-        this.logger.warn(`No delivery picking found for sale order ${saleOrderId}`);
-        return null;
+        return pickingId;
       }
 
-      const pickingId = pickings[0].id;
-      const pickingState = pickings[0].state;
-      this.logger.log(`Found delivery picking ${pickingId} (state: ${pickingState}) for SO ${saleOrderId}`);
-
-      // Assign stock if not yet assigned
-      if (pickingState === 'waiting' || pickingState === 'confirmed') {
-        try {
-          await this.execute('stock.picking', 'action_assign', [[pickingId]]);
-          this.logger.log(`Stock assigned for picking ${pickingId}`);
-        } catch (e) {
-          this.logger.warn(`action_assign failed for picking ${pickingId}: ${e.message}`);
-        }
-      }
-
-      // Set done quantities on move lines
-      const moveLines = await this.execute(
-        'stock.move',
-        'search_read',
-        [[['picking_id', '=', pickingId]]],
-        { fields: ['id', 'product_uom_qty', 'quantity'] },
+      this.logger.warn(
+        `No delivery picking found for sale order ${saleOrderId}`,
       );
-      for (const ml of moveLines) {
-        if ((ml.quantity || 0) < ml.product_uom_qty) {
-          await this.execute('stock.move', 'write', [[ml.id], { quantity: ml.product_uom_qty }]);
-        }
-      }
-
-      // Validate the delivery
-      try {
-        await this.execute('stock.picking', 'button_validate', [[pickingId]]);
-        this.logger.log(`Delivery ${pickingId} validated for SO ${saleOrderId}`);
-      } catch (e) {
-        // button_validate may return a wizard (immediate.transfer) — try to confirm it
-        if (e.message?.includes('cannot marshal None') || e.message?.includes('ir.actions')) {
-          this.logger.warn(`button_validate returned wizard result — delivery likely validated`);
-        } else {
-          this.logger.error(`Failed to validate delivery ${pickingId}: ${e.message}`);
-        }
-      }
-
-      return pickingId;
+      return null;
     } catch (error) {
       this.logger.error(
         `Failed to create delivery for sale order ${saleOrderId}`,
@@ -720,12 +675,10 @@ export class OdooService {
         'sale.order',
         'search_read',
         [[['id', '=', saleOrderId]]],
-        { fields: ['state', 'company_id', 'invoice_ids', 'partner_id', 'name'], limit: 1 },
+        { fields: ['state', 'company_id', 'invoice_ids'], limit: 1 },
       );
       const soState = soData0?.[0]?.state;
       const companyId: number = soData0?.[0]?.company_id?.[0];
-      const partnerId: number = soData0?.[0]?.partner_id?.[0];
-      const soName: string = soData0?.[0]?.name ?? `SO-${saleOrderId}`;
       const existingInvoiceIds: number[] = soData0?.[0]?.invoice_ids ?? [];
 
       if (soState === 'draft' || soState === 'sent') {
@@ -733,98 +686,88 @@ export class OdooService {
         this.logger.log(`SO ${saleOrderId} confirmed (was ${soState})`);
       }
 
-      // Check if SO already has a valid (posted) invoice — skip creation to prevent duplicates
-      if (existingInvoiceIds.length > 0) {
-        const paidInvoices = await this.execute(
-          'account.move',
-          'search_read',
-          [[['id', 'in', existingInvoiceIds], ['state', '=', 'posted'], ['payment_state', 'in', ['paid', 'in_payment']]]],
-          { fields: ['id', 'name'], order: 'id desc', limit: 1 },
-        );
-        if (paidInvoices.length > 0) {
-          this.logger.log(`SO ${saleOrderId} already has paid invoice ${paidInvoices[0].id} (${paidInvoices[0].name}) — skipping`);
-          return { invoiceId: paidInvoices[0].id, invoiceName: paidInvoices[0].name, paymentId: 0 };
-        }
+      const soCtx = { active_ids: [saleOrderId], active_model: 'sale.order', active_id: saleOrderId };
 
-        // Check for posted but unpaid invoice — register payment on it instead of creating a new one
-        const postedUnpaid = await this.execute(
-          'account.move',
-          'search_read',
-          [[['id', 'in', existingInvoiceIds], ['state', '=', 'posted'], ['payment_state', 'not in', ['paid', 'in_payment']]]],
-          { fields: ['id', 'name'], order: 'id desc', limit: 1 },
-        );
-        if (postedUnpaid.length > 0) {
-          this.logger.log(`SO ${saleOrderId} has posted unpaid invoice ${postedUnpaid[0].id} — registering payment`);
-          return await this.registerPaymentOnInvoice(
-            postedUnpaid[0].id, postedUnpaid[0].name, amount, companyId, saleOrderId, journalName, journalType,
-          );
-        }
-
-        // Check for draft invoice — post it and register payment instead of creating a new one
-        const draftExisting = await this.execute(
-          'account.move',
-          'search_read',
-          [[['id', 'in', existingInvoiceIds], ['state', '=', 'draft']]],
-          { fields: ['id', 'name'], order: 'id desc', limit: 1 },
-        );
-        if (draftExisting.length > 0) {
-          const invId = draftExisting[0].id;
-          this.logger.log(`SO ${saleOrderId} has existing draft invoice ${invId} — posting and registering payment`);
-          await this.execute('account.move', 'action_post', [[invId]]);
-          const posted = await this.execute('account.move', 'read', [[invId]], { fields: ['name'] });
-          const invName = (posted?.[0]?.name && posted[0].name !== '/') ? posted[0].name : `INV-${invId}`;
-          return await this.registerPaymentOnInvoice(invId, invName, amount, companyId, saleOrderId, journalName, journalType);
-        }
-      }
-
-      // 2. Get SO lines to create a proper invoice (not an advance/down payment)
-      const soLines = await this.execute(
-        'sale.order.line',
-        'search_read',
-        [[['order_id', '=', saleOrderId], ['display_type', '=', false]]],
-        { fields: ['id', 'product_id', 'product_uom', 'product_uom_qty', 'price_unit', 'name', 'tax_id', 'discount'] },
-      );
-
-      if (!soLines || soLines.length === 0) {
-        throw new Error(`No invoiceable lines found on SO ${saleOrderId}`);
-      }
-
-      const invoiceLineVals = soLines.map((line: any) => [
-        0, 0,
-        {
-          product_id: line.product_id?.[0] ?? false,
-          product_uom_id: line.product_uom?.[0] ?? false,
-          quantity: line.product_uom_qty,
-          price_unit: line.price_unit,
-          name: line.name,
-          tax_ids: [[6, 0, Array.isArray(line.tax_id) ? line.tax_id : []]],
-          discount: line.discount || 0,
-          sale_line_ids: [[4, line.id]],
-        },
-      ]);
-
-      // 3. Create invoice directly from SO lines (proper invoice, not anticipo)
-      const invoiceId: number = await this.execute(
-        'account.move',
+      // 2. Create invoice via wizard — active_ids must be in 'context' key
+      const wizardInvId = await this.execute(
+        'sale.advance.payment.inv',
         'create',
-        [{
-          move_type: 'out_invoice',
-          partner_id: partnerId,
-          invoice_origin: soName,
-          company_id: companyId,
-          invoice_line_ids: invoiceLineVals,
-        }],
+        [{ advance_payment_method: 'delivered' }],
+        { context: soCtx },
       );
-      this.logger.log(`Created invoice ${invoiceId} directly from SO lines for SO ${saleOrderId}`);
+
+      // create_invoices returns an action dict that may contain None values (can't serialize via XML-RPC)
+      // We wrap it in try/catch because the invoice IS created even when serialization fails
+      try {
+        await this.execute(
+          'sale.advance.payment.inv',
+          'create_invoices',
+          [[Array.isArray(wizardInvId) ? wizardInvId[0] : wizardInvId]],
+          { context: soCtx },
+        );
+      } catch (e) {
+        if (!e.message?.includes('cannot marshal None')) {
+          throw e;
+        }
+        this.logger.warn(`create_invoices returned unserializable result (expected) — continuing`);
+      }
+
+      // 3. Find the created invoice (newly added ones vs what existed before)
+      const soData = await this.execute(
+        'sale.order',
+        'search_read',
+        [[['id', '=', saleOrderId]]],
+        { fields: ['invoice_ids'], limit: 1 },
+      );
+
+      const invoiceIds: number[] = soData?.[0]?.invoice_ids ?? [];
+      const newInvoiceIds = invoiceIds.filter((id) => !existingInvoiceIds.includes(id));
+      const lookupIds = newInvoiceIds.length > 0 ? newInvoiceIds : invoiceIds;
+
+      if (lookupIds.length === 0) {
+        throw new Error(`No invoice found after creation for SO ${saleOrderId}`);
+      }
+
+      // Get the most recently created draft invoice
+      const draftInvoices = await this.execute(
+        'account.move',
+        'search_read',
+        [[['id', 'in', lookupIds], ['state', '=', 'draft']]],
+        { fields: ['id', 'name'], order: 'id desc', limit: 1 },
+      );
+
+      if (draftInvoices.length === 0) {
+        // Invoice may already be posted — find most recent
+        const postedInvoices = await this.execute(
+          'account.move',
+          'search_read',
+          [[['id', 'in', lookupIds], ['state', '=', 'posted'], ['payment_state', '!=', 'paid']]],
+          { fields: ['id', 'name'], order: 'id desc', limit: 1 },
+        );
+        if (postedInvoices.length === 0) {
+          throw new Error(`No actionable invoice found for SO ${saleOrderId}`);
+        }
+        const invoiceId = postedInvoices[0].id;
+        const invoiceName = postedInvoices[0].name || `INV-${invoiceId}`;
+        return await this.registerPaymentOnInvoice(invoiceId, invoiceName, amount, companyId, saleOrderId, journalName, journalType);
+      }
+
+      const invoiceId = draftInvoices[0].id;
+      this.logger.log(`Created invoice ${invoiceId} for SO ${saleOrderId}`);
 
       // 4. Post (validate) the invoice: draft → posted
       await this.execute('account.move', 'action_post', [[invoiceId]]);
       this.logger.log(`Posted invoice ${invoiceId}`);
 
       // Read the real sequence name after posting (draft invoices have name="/")
-      const postedInvoice = await this.execute('account.move', 'read', [[invoiceId]], { fields: ['name'] });
-      const invoiceName = (postedInvoice?.[0]?.name && postedInvoice[0].name !== '/')
-        ? postedInvoice[0].name
+      const postedInvoice = await this.execute(
+        'account.move',
+        'read',
+        [[invoiceId]],
+        { fields: ['name'] },
+      );
+      const invoiceName = (postedInvoice?.[0]?.name && postedInvoice[0].name !== '/') 
+        ? postedInvoice[0].name 
         : `INV-${invoiceId}`;
 
       return await this.registerPaymentOnInvoice(invoiceId, invoiceName, amount, companyId, saleOrderId, journalName, journalType);
@@ -846,7 +789,7 @@ export class OdooService {
     journalName: string,
     journalType: 'cash' | 'bank' = 'cash',
   ): Promise<{ invoiceId: number; invoiceName: string; paymentId: number }> {
-    // Find journal matching the SO's company
+    // 5. Find journal matching the SO's company
     const domain: any[] = [['type', '=', journalType]];
     if (companyId) domain.push(['company_id', '=', companyId]);
 
@@ -854,116 +797,53 @@ export class OdooService {
       'account.journal',
       'search_read',
       [domain],
-      { fields: ['id', 'name', 'default_account_id', 'company_id'], limit: 5 },
+      { fields: ['id', 'name'], limit: 5 },
     );
 
+    // Try to find by name first, otherwise use first available
     let journalId: number | undefined;
-    let bankAccountId: number | undefined;
     const named = cashJournals.find((j: any) =>
       j.name.toLowerCase().includes(journalName.toLowerCase()),
     );
-    const chosenJournal = named ?? cashJournals[0];
-    if (chosenJournal) {
-      journalId = chosenJournal.id;
-      bankAccountId = chosenJournal.default_account_id?.[0];
-      this.logger.log(`Using journal: ${chosenJournal.name} (${journalId}), bank account: ${bankAccountId}`);
+    if (named) {
+      journalId = named.id;
+    } else if (cashJournals.length > 0) {
+      journalId = cashJournals[0].id;
+      this.logger.log(`Using cash journal: ${cashJournals[0].name} (${journalId})`);
     }
 
-    if (!journalId || !bankAccountId) {
-      throw new Error(`No suitable journal found for payment on SO ${saleOrderId}`);
-    }
+    // 6. Register payment via wizard — active_ids must be in 'context' key
+    const payCtx = { active_model: 'account.move', active_ids: [invoiceId], active_id: invoiceId };
+    const wizardPayData: Record<string, any> = {
+      amount,
+      payment_date: new Date().toISOString().slice(0, 10),
+    };
+    if (journalId) wizardPayData.journal_id = journalId;
 
-    // Get company currency
-    const companyData = await this.execute(
-      'res.company',
-      'read',
-      [[companyId]],
-      { fields: ['currency_id'] },
-    );
-    const currencyId: number = companyData?.[0]?.currency_id?.[0];
-
-    // Get invoice receivable line (accounts receivable) — this is what we reconcile
-    const invoiceLines = await this.execute(
-      'account.move.line',
-      'search_read',
-      [[['move_id', '=', invoiceId], ['account_type', '=', 'asset_receivable'], ['reconciled', '=', false]]],
-      { fields: ['id', 'account_id', 'amount_residual'] },
-    );
-
-    if (invoiceLines.length === 0) {
-      this.logger.warn(`No unreconciled receivable line found on invoice ${invoiceId} — may already be paid`);
-      return { invoiceId, invoiceName, paymentId: 0 };
-    }
-
-    const receivableLineId: number = invoiceLines[0].id;
-    const amountToPay: number = Math.abs(invoiceLines[0].amount_residual);
-
-    // Create payment journal entry directly: DR Bank, CR Customers(617)
-    // This is the reliable approach — account.payment.register creates payments in 'in_process'
-    // without a move_id in this Odoo instance, so we create the journal entry directly.
-    const today = new Date().toISOString().slice(0, 10);
-    const payMoveId: number = await this.execute(
-      'account.move',
+    const wizardPayId = await this.execute(
+      'account.payment.register',
       'create',
-      [{
-        move_type: 'entry',
-        journal_id: journalId,
-        date: today,
-        ref: `Payment - ${invoiceName} - SO ${saleOrderId}`,
-        company_id: companyId,
-        line_ids: [
-          [0, 0, {
-            account_id: bankAccountId,
-            debit: amountToPay,
-            credit: 0,
-            name: `${journalName} - ${invoiceName}`,
-            ...(currencyId ? { currency_id: currencyId, amount_currency: amountToPay } : {}),
-          }],
-          [0, 0, {
-            account_id: invoiceLines[0].account_id?.[0] ?? invoiceLines[0].account_id,
-            debit: 0,
-            credit: amountToPay,
-            name: `${journalName} - ${invoiceName}`,
-            ...(currencyId ? { currency_id: currencyId, amount_currency: -amountToPay } : {}),
-          }],
-        ],
-      }],
-    );
-    this.logger.log(`Created payment journal entry ${payMoveId} for invoice ${invoiceName}`);
-
-    // Post the journal entry
-    await this.execute('account.move', 'action_post', [[payMoveId]]);
-    this.logger.log(`Posted payment entry ${payMoveId}`);
-
-    // Get the receivable (Customers) credit line on the payment entry to reconcile
-    const payLines = await this.execute(
-      'account.move.line',
-      'search_read',
-      [[['move_id', '=', payMoveId], ['credit', '>', 0]]],
-      { fields: ['id', 'account_id', 'credit'] },
+      [wizardPayData],
+      { context: payCtx },
     );
 
-    if (payLines.length === 0) {
-      throw new Error(`Could not find credit line on payment move ${payMoveId}`);
-    }
+    const payResult = await this.execute(
+      'account.payment.register',
+      'action_create_payments',
+      [[Array.isArray(wizardPayId) ? wizardPayId[0] : wizardPayId]],
+      { context: payCtx },
+    );
 
-    // Reconcile invoice receivable line with payment credit line
-    try {
-      await this.execute(
-        'account.move.line',
-        'reconcile',
-        [[receivableLineId, payLines[0].id]],
-        {},
-      );
-    } catch (e) {
-      // reconcile() returns None which causes marshal error — this is expected
-      if (!e.message?.includes('cannot marshal None')) {
-        throw e;
-      }
-    }
-    this.logger.log(`Reconciled invoice ${invoiceName} with payment entry ${payMoveId}`);
+    const paymentId =
+      payResult && typeof payResult === 'object' && payResult.res_id
+        ? payResult.res_id
+        : 0;
 
-    return { invoiceId, invoiceName, paymentId: payMoveId };
+    this.logger.log(
+      `Payment registered for invoice ${invoiceName} on SO ${saleOrderId} (amount: ${amount})`,
+    );
+
+    return { invoiceId, invoiceName, paymentId };
   }
 
   async getPricelists(companyId?: number): Promise<{ id: number; name: string }[]> {

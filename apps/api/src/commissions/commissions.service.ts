@@ -82,44 +82,8 @@ export class CommissionsService {
     const orderTotal = order.total.toNumber();
     const commissionsToCreate: Prisma.CommissionCreateManyInput[] = [];
 
-    // Resolve L1 rate: use scale tier if enabled, otherwise flat base rate
-    const seller = order.seller as any;
-    let l1Rate = seller.commissionRate.toNumber();
-
-    if (seller.commissionScaleEnabled) {
-      // Get seller's total sales for the current month (paid/shipped/delivered)
-      const now = order.createdAt ?? new Date();
-      const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-      const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-
-      const salesAgg = await this.prisma.order.aggregate({
-        where: {
-          sellerId: order.sellerId,
-          status: { in: [OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED] },
-          createdAt: { gte: periodStart, lt: periodEnd },
-        },
-        _sum: { total: true },
-      });
-
-      const monthlySales = (salesAgg._sum.total?.toNumber() ?? 0) + orderTotal;
-
-      let scaleTiers: CommissionScaleTier[];
-      if (seller.commissionScaleUseGlobal !== false) {
-        scaleTiers = await this.getGlobalScaleTiers();
-      } else {
-        const override = this.normalizeScaleTiers(seller.commissionScaleOverride);
-        scaleTiers = override.length > 0 ? override : await this.getGlobalScaleTiers();
-      }
-
-      const tierRate = this.pickTierRate(monthlySales, scaleTiers);
-      if (tierRate > 0) {
-        l1Rate = tierRate;
-        this.logger.log(
-          `L1 scale rate for seller ${order.sellerId}: ${l1Rate} (monthly sales: ${monthlySales})`,
-        );
-      }
-    }
-
+    // L1 commission: direct seller
+    const l1Rate = order.seller.commissionRate.toNumber();
     const l1Amount = Math.round(orderTotal * l1Rate * 100) / 100;
 
     commissionsToCreate.push({

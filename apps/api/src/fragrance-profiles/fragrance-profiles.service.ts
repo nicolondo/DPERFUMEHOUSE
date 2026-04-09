@@ -76,14 +76,7 @@ export class FragranceProfilesService {
 
   async findAllActive() {
     return this.prisma.fragranceProfile.findMany({
-      where: {
-        isActive: true,
-        productVariant: {
-          stock: { gt: 0 },
-          isActive: true,
-          isBlocked: false,
-        },
-      },
+      where: { isActive: true },
       include: {
         productVariant: {
           select: { id: true, name: true, price: true, sku: true, categoryName: true, images: { where: { isPrimary: true }, take: 1 } },

@@ -177,23 +177,6 @@ export class UpdateBankInfoDto {
   usdtWalletTrc20?: string;
 }
 
-export class UpdateProfileDto {
-  @ApiPropertyOptional({ example: 'Maria Lopez' })
-  @IsString()
-  @IsOptional()
-  name?: string;
-
-  @ApiPropertyOptional({ example: '3001234567' })
-  @IsString()
-  @IsOptional()
-  phone?: string;
-
-  @ApiPropertyOptional({ example: '+57' })
-  @IsString()
-  @IsOptional()
-  phoneCode?: string;
-}
-
 export class ChangePasswordDto {
   @ApiPropertyOptional()
   @IsString()

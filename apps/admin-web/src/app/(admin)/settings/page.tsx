@@ -13,7 +13,6 @@ import {
   fetchOdooCompanies,
   fetchOdooPricelists,
   fetchOdooCategories,
-  fetchOdooWarehouses,
   fetchProductCategories,
 } from '@/lib/api';
 import api from '@/lib/api';
@@ -359,9 +358,6 @@ function OdooSettings() {
   const [accountUsdt, setAccountUsdt] = useState('');
   const [accountCommissions, setAccountCommissions] = useState('');
   const [commissionsJournalId, setCommissionsJournalId] = useState('');
-  const [warehouses, setWarehouses] = useState<{ id: number; name: string; lotStockId: number }[]>([]);
-  const [warehouseLocationId, setWarehouseLocationId] = useState('');
-  const [loadingWarehouses, setLoadingWarehouses] = useState(false);
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings', 'odoo'],
@@ -383,7 +379,6 @@ function OdooSettings() {
       setAccountUsdt((map.get('odoo_account_usdt') as string) || '');
       setAccountCommissions((map.get('odoo_account_commissions') as string) || '');
       setCommissionsJournalId((map.get('odoo_commissions_journal_id') as string) || '');
-      setWarehouseLocationId((map.get('odoo_warehouse_location_id') as string) || '');
       try {
         const categs = map.get('odoo_sync_categories') as string;
         if (categs) setSelectedCategories(JSON.parse(categs));
@@ -427,18 +422,6 @@ function OdooSettings() {
     }
   };
 
-  const loadWarehouses = async () => {
-    setLoadingWarehouses(true);
-    try {
-      const result = await fetchOdooWarehouses();
-      setWarehouses(Array.isArray(result) ? result : []);
-    } catch {
-      setWarehouses([]);
-    } finally {
-      setLoadingWarehouses(false);
-    }
-  };
-
   const toggleCategory = (id: number) => {
     setSelectedCategories(prev =>
       prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
@@ -453,7 +436,6 @@ function OdooSettings() {
         loadCompanies();
         loadPricelists();
         loadCategories();
-        loadWarehouses();
       }
     }
   }, [settings]);
@@ -474,7 +456,6 @@ function OdooSettings() {
         { key: 'odoo_account_usdt', value: accountUsdt },
         { key: 'odoo_account_commissions', value: accountCommissions },
         { key: 'odoo_commissions_journal_id', value: commissionsJournalId },
-        { key: 'odoo_warehouse_location_id', value: warehouseLocationId },
       ]),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings', 'odoo'] });
@@ -570,32 +551,6 @@ function OdooSettings() {
               size="sm"
               onClick={loadPricelists}
               loading={loadingPricelists}
-              className="whitespace-nowrap"
-            >
-              Cargar
-            </Button>
-          </div>
-        </FormField>
-
-        <FormField label="Bodega de Inventario" hint="Selecciona la bodega de Odoo desde donde se consulta el stock disponible">
-          <div className="flex gap-2">
-            <Select
-              value={warehouseLocationId}
-              onChange={(e) => setWarehouseLocationId(e.target.value)}
-              className="flex-1"
-            >
-              <option value="">Todas las bodegas (por defecto)</option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={String(w.lotStockId)}>
-                  {w.name}
-                </option>
-              ))}
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadWarehouses}
-              loading={loadingWarehouses}
               className="whitespace-nowrap"
             >
               Cargar
@@ -745,8 +700,6 @@ function PaymentSettings() {
   const queryClient = useQueryClient();
   // Active provider
   const [activeProvider, setActiveProvider] = useState('myxspend');
-  // Cash payment toggle
-  const [cashPaymentEnabled, setCashPaymentEnabled] = useState(true);
   // MyxSpend
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -780,7 +733,6 @@ function PaymentSettings() {
     if (settings) {
       const map = new Map(settings.map((s: any) => [s.key, s.value]));
       setActiveProvider((map.get('active_payment_provider') as string) || 'myxspend');
-      setCashPaymentEnabled(map.get('cash_payment_enabled') !== 'false');
       // MyxSpend
       setEmail((map.get('myxspend_email') as string) || '');
       setPassword((map.get('myxspend_password') as string) || '');
@@ -799,7 +751,6 @@ function PaymentSettings() {
     mutationFn: () =>
       updateSettings([
         { key: 'active_payment_provider', value: activeProvider },
-        { key: 'cash_payment_enabled', value: String(cashPaymentEnabled) },
         // MyxSpend
         { key: 'myxspend_email', value: email },
         { key: 'myxspend_password', value: password },
@@ -836,7 +787,7 @@ function PaymentSettings() {
 
   const wompiWebhookUrl = typeof window !== 'undefined'
     ? `${window.location.origin.replace('admin', 'api').replace(':3001', ':4000')}/api/payments/wompi-webhook`
-    : 'https://api.dperfumehouse.com/api/payments/wompi-webhook';
+    : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'}/payments/wompi-webhook`;
 
   const logColumns: Column<any>[] = [
     {
@@ -906,34 +857,6 @@ function PaymentSettings() {
               <div className="text-sm text-white/50">Plataforma de pagos Bancolombia</div>
             </button>
           </div>
-        </div>
-      </Card>
-
-      {/* Cash Payment Toggle */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Pago en Efectivo</CardTitle>
-        </CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-white/70">Permitir que los vendedores registren pagos en efectivo</p>
-            <p className="text-xs text-white/40 mt-1">Si se desactiva, solo se podrá cobrar con link de pago online.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setCashPaymentEnabled(!cashPaymentEnabled)}
-            className={cn(
-              'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-accent-purple/50 focus:ring-offset-2 focus:ring-offset-surface',
-              cashPaymentEnabled ? 'bg-accent-purple' : 'bg-glass-300'
-            )}
-          >
-            <span
-              className={cn(
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out',
-                cashPaymentEnabled ? 'translate-x-5' : 'translate-x-0'
-              )}
-            />
-          </button>
         </div>
       </Card>
 

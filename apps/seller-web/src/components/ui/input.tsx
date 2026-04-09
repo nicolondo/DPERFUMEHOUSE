@@ -16,7 +16,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const inputId = id || label?.toLowerCase().replace(/\s+/g, '-');
 
     return (
-      <div className="w-full min-w-0">
+      <div className="w-full">
         {label && (
           <label
             htmlFor={inputId}
@@ -35,13 +35,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             className={cn(
-              'w-full min-w-0 max-w-full rounded-xl border bg-glass-100 px-4 py-3 text-base text-white transition-colors box-border',
+              'w-full rounded-xl border bg-glass-100 px-4 py-3 text-base text-white transition-colors',
               'placeholder:text-white/30',
               'focus:border-accent-purple/50 focus:ring-2 focus:ring-accent-purple/20',
               'disabled:bg-glass-50 disabled:text-white/30',
               leftIcon && 'pl-10',
               rightIcon && 'pr-10',
-              props.type === 'date' && '[color-scheme:dark] overflow-hidden [&::-webkit-calendar-picker-indicator]:opacity-60 [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-date-and-time-value]:text-left',
               error
                 ? 'border-status-danger/50 focus:border-status-danger focus:ring-status-danger/20'
                 : 'border-glass-border',

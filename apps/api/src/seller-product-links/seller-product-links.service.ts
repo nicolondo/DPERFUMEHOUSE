@@ -24,7 +24,7 @@ export class SellerProductLinksService {
   ) {
     this.sellerAppUrl = this.configService.get<string>(
       'SELLER_APP_URL',
-      'https://pos.dperfumehouse.com',
+      'http://localhost:3000',
     );
   }
 

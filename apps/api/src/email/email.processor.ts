@@ -94,37 +94,6 @@ export class EmailProcessor extends WorkerHost {
         return { sent: true };
       }
 
-      case 'send-shipping-notification': {
-        const { customerEmail, customerName, orderNumber, trackingNumber, trackUrl, carrier } = job.data;
-        const sent = await this.emailService.sendShippingNotification(
-          customerEmail,
-          customerName,
-          orderNumber,
-          trackingNumber,
-          trackUrl,
-          carrier,
-        );
-        if (!sent) {
-          throw new Error(`Failed to send shipping notification email to ${customerEmail}`);
-        }
-        this.logger.log(`Shipping notification email sent to ${customerEmail} for order ${orderNumber}`);
-        return { sent: true };
-      }
-
-      case 'send-delivered-notification': {
-        const { customerEmail, customerName, orderNumber } = job.data;
-        const sent = await this.emailService.sendDeliveredNotification(
-          customerEmail,
-          customerName,
-          orderNumber,
-        );
-        if (!sent) {
-          throw new Error(`Failed to send delivered notification email to ${customerEmail}`);
-        }
-        this.logger.log(`Delivered notification email sent to ${customerEmail} for order ${orderNumber}`);
-        return { sent: true };
-      }
-
       default:
         this.logger.warn(`Unknown email job type: ${job.name}`);
         throw new Error(`Unknown email job type: ${job.name}`);

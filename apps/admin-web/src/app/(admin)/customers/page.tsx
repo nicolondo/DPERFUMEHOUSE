@@ -8,7 +8,7 @@ import { DataTable, Column } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Input, Select } from '@/components/ui/input';
 import { formatDate, formatPhone } from '@/lib/utils';
-import { Search, Mail, Phone, ShoppingBag, X } from 'lucide-react';
+import { Search, Mail, Phone, ShoppingBag } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
 export default function CustomersPage() {
@@ -123,16 +123,8 @@ export default function CustomersPage() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            className="pl-9 pr-9"
+            className="pl-9"
           />
-          {search && (
-            <button
-              onClick={() => { setSearch(''); setPage(1); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-0.5 text-white/40 hover:text-white transition-colors"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
         </div>
         <Select
           value={sellerFilter}

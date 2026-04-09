@@ -18,11 +18,19 @@ async function bootstrap() {
   }));
   app.use(cookieParser());
 
-  const sellerAppUrl = configService.get<string>('SELLER_APP_URL', 'http://localhost:3003');
+  const sellerAppUrl = configService.get<string>('SELLER_APP_URL', 'http://localhost:3000');
   const adminAppUrl = configService.get<string>('ADMIN_APP_URL', 'http://localhost:3002');
 
+  // Build CORS origins dynamically from env vars + dev defaults
+  const corsOrigins = new Set([sellerAppUrl, adminAppUrl]);
+  if (configService.get<string>('NODE_ENV') !== 'production') {
+    corsOrigins.add('http://localhost:3000');
+    corsOrigins.add('http://localhost:3002');
+    corsOrigins.add('http://localhost:3003');
+  }
+
   app.enableCors({
-    origin: [sellerAppUrl, adminAppUrl, 'http://localhost:3000', 'http://localhost:3003'],
+    origin: [...corsOrigins],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

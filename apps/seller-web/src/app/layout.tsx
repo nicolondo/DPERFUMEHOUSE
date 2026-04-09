@@ -50,7 +50,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="DPH Seller" />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" href="/icons/dp-logo-full.png" />
         <link rel="icon" type="image/png" href="/icons/dp-logo-full.png" />
         <title>D Perfume House - Vendedor</title>
         <meta name="description" content="App de ventas para vendedores de D Perfume House" />

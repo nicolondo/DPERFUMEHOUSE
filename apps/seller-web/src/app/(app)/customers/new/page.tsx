@@ -21,7 +21,6 @@ const customerSchema = z.object({
   documentType: z.string().optional(),
   documentNumber: z.string().optional(),
   notes: z.string().optional(),
-  birthday: z.string().optional(),
 });
 
 type CustomerFormData = z.infer<typeof customerSchema>;
@@ -68,7 +67,6 @@ export default function NewCustomerPage() {
         documentType: data.documentType || undefined,
         documentNumber: data.documentNumber || undefined,
         notes: data.notes || undefined,
-        birthday: data.birthday || undefined,
       };
 
       if (showAddress && addressForm.street && addressForm.city) {
@@ -97,7 +95,7 @@ export default function NewCustomerPage() {
     <div className="pb-24">
       <PageHeader title="Nuevo Cliente" backHref="/customers" />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="px-4 space-y-4 overflow-hidden">
+      <form onSubmit={handleSubmit(onSubmit)} className="px-4 space-y-4">
         {/* Basic Info */}
         <Card>
           <h3 className="mb-4 text-base font-semibold text-white">
@@ -158,11 +156,6 @@ export default function NewCustomerPage() {
                 {...register('documentNumber')}
               />
             </div>
-            <Input
-              label="Fecha de cumpleaños"
-              type="date"
-              {...register('birthday')}
-            />
           </div>
         </Card>
 

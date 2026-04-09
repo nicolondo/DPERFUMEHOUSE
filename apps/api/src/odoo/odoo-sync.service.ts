@@ -148,7 +148,7 @@ export class OdooSyncService {
             sku: odooProduct.default_code || null,
             barcode: odooProduct.barcode || null,
             price: odooProduct.list_price,
-            stock: Math.max(0, Math.floor(odooProduct.virtual_available || 0)),
+            stock: Math.max(0, Math.floor(odooProduct.qty_available || 0)),
             categoryName: categName,
             odooTemplateId: templateId,
             attributes: attributes as any,

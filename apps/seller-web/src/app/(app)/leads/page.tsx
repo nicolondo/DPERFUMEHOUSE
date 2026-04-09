@@ -1,19 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sparkles, Search, Link2, Copy, Check, LayoutList, Columns3, CheckSquare, Square } from 'lucide-react';
+import { Sparkles, Search, Link2, Copy, Check } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { PageSpinner } from '@/components/ui/spinner';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
-import { useLeads, useLeadStats, useGenerateLeadLink, useUpdateLeadStatus } from '@/hooks/use-leads';
-import { useCategories } from '@/hooks/use-products';
+import { useLeads, useLeadStats, useGenerateLeadLink } from '@/hooks/use-leads';
 import { formatDate } from '@/lib/utils';
 import type { LeadStatus } from '@/lib/types';
 
 type FilterTab = 'all' | LeadStatus;
-type ViewMode = 'list' | 'kanban';
 
 const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bg: string }> = {
   SENT: { label: 'Enviado', color: 'text-blue-400', bg: 'bg-blue-500/15' },
@@ -36,78 +34,27 @@ export default function LeadsPage() {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<FilterTab>('all');
   const [search, setSearch] = useState('');
-  const [viewMode, setViewModeState] = useState<ViewMode>(() => {
-    if (typeof window !== 'undefined') {
-      return (sessionStorage.getItem('leads-view') as ViewMode) || 'list';
-    }
-    return 'list';
-  });
-  const setViewMode = (v: ViewMode) => {
-    setViewModeState(v);
-    sessionStorage.setItem('leads-view', v);
-  };
   const [showLinkModal, setShowLinkModal] = useState(false);
-  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [linkCopied, setLinkCopied] = useState(false);
   const [generatedLink, setGeneratedLink] = useState('');
-  const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
 
   const { data: leadsData, isLoading } = useLeads({
-    status: statusFilter === 'all' || viewMode === 'kanban' ? undefined : statusFilter,
+    status: statusFilter === 'all' ? undefined : statusFilter,
     search: search || undefined,
   });
   const { data: stats } = useLeadStats();
-  const { data: categoriesData } = useCategories();
   const generateLink = useGenerateLeadLink();
-  const updateStatus = useUpdateLeadStatus();
 
   const leads = leadsData?.data ?? [];
 
-  // Build category map: brand name → full category name
-  const fullCategories: string[] = Array.isArray(categoriesData) ? categoriesData : [];
-  const categoryMap: Record<string, string> = {};
-  fullCategories.forEach((c: string) => {
-    const parts = c.split('/').map((p: string) => p.trim());
-    const brand = parts.length >= 3 ? parts[2] : parts[parts.length - 1];
-    if (!categoryMap[brand]) categoryMap[brand] = c;
-  });
-  const sellerCategories = Object.keys(categoryMap);
-
   const handleGenerateLink = async () => {
-    if (sellerCategories.length > 1) {
-      // Show category picker first
-      setSelectedCategories([...sellerCategories]); // all selected by default
-      setShowCategoryPicker(true);
-    } else {
-      // Only 1 category or none — generate link directly
-      const fullNames = sellerCategories.map(b => categoryMap[b]).filter(Boolean);
-      try {
-        const result = await generateLink.mutateAsync(fullNames.length > 0 ? fullNames : undefined);
-        setGeneratedLink(result.url);
-        setShowLinkModal(true);
-      } catch {
-        // handled by react-query
-      }
-    }
-  };
-
-  const handleConfirmCategories = async () => {
-    setShowCategoryPicker(false);
-    const fullNames = selectedCategories.map(b => categoryMap[b]).filter(Boolean);
     try {
-      const result = await generateLink.mutateAsync(fullNames.length > 0 ? fullNames : undefined);
+      const result = await generateLink.mutateAsync();
       setGeneratedLink(result.url);
       setShowLinkModal(true);
     } catch {
       // handled by react-query
     }
-  };
-
-  const toggleCategory = (cat: string) => {
-    setSelectedCategories(prev =>
-      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
-    );
   };
 
   const copyLink = () => {
@@ -141,36 +88,19 @@ export default function LeadsPage() {
           </div>
         )}
 
-        {/* Search + View Toggle */}
-        <div className="flex gap-2 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nombre o teléfono..."
-              className="w-full rounded-xl border border-glass-border bg-glass-50 py-3 pl-10 pr-4 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-accent-purple/50"
-            />
-          </div>
-          <div className="flex rounded-xl border border-glass-border bg-glass-50 p-1">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`rounded-lg p-2 transition-colors ${viewMode === 'list' ? 'bg-accent-purple text-white' : 'text-white/30'}`}
-            >
-              <LayoutList className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('kanban')}
-              className={`rounded-lg p-2 transition-colors ${viewMode === 'kanban' ? 'bg-accent-purple text-white' : 'text-white/30'}`}
-            >
-              <Columns3 className="h-4 w-4" />
-            </button>
-          </div>
+        {/* Search */}
+        <div className="relative mb-4">
+          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre o teléfono..."
+            className="w-full rounded-xl border border-glass-border bg-glass-50 py-3 pl-10 pr-4 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-accent-purple/50"
+          />
         </div>
 
-        {/* Status Filter Tabs — List mode only */}
-        {viewMode === 'list' && (
+        {/* Status Filter Tabs */}
         <div className="mb-4 -mx-4 px-4 overflow-x-auto scrollbar-hide">
           <div className="flex gap-2 pb-1">
             {tabs.map((tab) => (
@@ -191,74 +121,9 @@ export default function LeadsPage() {
             ))}
           </div>
         </div>
-        )}
 
-        {/* Kanban View */}
-        {viewMode === 'kanban' ? (
-          isLoading ? (
-            <PageSpinner />
-          ) : (
-            <div className="-mx-4 px-4 overflow-x-auto scrollbar-hide">
-              <div className="flex gap-3 pb-4" style={{ minWidth: '900px' }}>
-                {(Object.entries(STATUS_CONFIG) as [LeadStatus, typeof STATUS_CONFIG[LeadStatus]][]).map(([status, config]) => {
-                  const columnLeads = leads.filter((l: any) => l.status === status);
-                  return (
-                    <div
-                      key={status}
-                      className="flex-1 min-w-[170px]"
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const leadId = e.dataTransfer.getData('leadId');
-                        if (leadId) {
-                          updateStatus.mutate({ id: leadId, status });
-                          setDraggedLeadId(null);
-                        }
-                      }}
-                    >
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${config.bg} ${config.color}`}>
-                          {config.label}
-                        </span>
-                        <span className="text-xs text-white/20">{columnLeads.length}</span>
-                      </div>
-                      <div className="space-y-2 min-h-[60px] rounded-xl bg-glass-50/30 p-2">
-                        {columnLeads.map((lead: any) => (
-                          <div
-                            key={lead.id}
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData('leadId', lead.id);
-                              setDraggedLeadId(lead.id);
-                            }}
-                            onDragEnd={() => setDraggedLeadId(null)}
-                            onClick={() => router.push(`/leads/${lead.id}`)}
-                            className={`cursor-grab active:cursor-grabbing rounded-xl border border-glass-border bg-surface-raised p-3 transition-opacity ${
-                              draggedLeadId === lead.id ? 'opacity-40' : ''
-                            }`}
-                          >
-                            <p className="text-sm font-medium text-white truncate">
-                              {lead.clientName || lead.customer?.name || 'Sin nombre'}
-                            </p>
-                            <p className="text-[11px] text-white/30 truncate mt-0.5">
-                              {lead.clientCity || lead.clientPhone || ''}
-                            </p>
-                            <p className="text-[10px] text-white/20 mt-1">
-                              {formatDate(lead.createdAt)}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )
-        ) : (
-
-        /* Lead List */
-        isLoading ? (
+        {/* Lead List */}
+        {isLoading ? (
           <PageSpinner />
         ) : leads.length === 0 ? (
           <EmptyState
@@ -285,18 +150,11 @@ export default function LeadsPage() {
                   onClick={() => router.push(`/leads/${lead.id}`)}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${config.bg} ${config.color}`}>
-                        {config.label}
-                      </span>
-                      {lead.mode === 'PUBLIC' && !lead.customerId && (
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                          Nuevo
-                        </span>
-                      )}
-                    </div>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${config.bg} ${config.color}`}>
+                      {config.label}
+                    </span>
                     <span className="text-xs text-white/25">
-                      {formatDate(lead.createdAt)}
+                      {lead.mode === 'PERSONAL' ? '👤' : '🌐'} {formatDate(lead.createdAt)}
                     </span>
                   </div>
 
@@ -329,61 +187,14 @@ export default function LeadsPage() {
               );
             })}
           </div>
-        )
         )}
       </div>
 
-      {/* Category Picker Modal */}
-      {showCategoryPicker && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowCategoryPicker(false)}>
-          <div
-            className="w-full max-w-lg rounded-t-3xl bg-surface-raised border-t border-glass-border p-6"
-            style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-semibold text-white mb-2">Categorías del Cuestionario</h3>
-            <p className="text-sm text-white/40 mb-4">Seleccioná qué categorías quieres incluir en los resultados</p>
-
-            <div className="space-y-2 mb-6">
-              {sellerCategories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => toggleCategory(cat)}
-                  className={`flex items-center gap-3 w-full rounded-xl border p-3.5 text-left transition-colors ${
-                    selectedCategories.includes(cat)
-                      ? 'border-accent-purple/50 bg-accent-purple/10'
-                      : 'border-glass-border bg-glass-50'
-                  }`}
-                >
-                  {selectedCategories.includes(cat) ? (
-                    <CheckSquare className="h-5 w-5 text-accent-purple shrink-0" />
-                  ) : (
-                    <Square className="h-5 w-5 text-white/30 shrink-0" />
-                  )}
-                  <span className={`text-sm font-medium ${selectedCategories.includes(cat) ? 'text-white' : 'text-white/50'}`}>
-                    {cat}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={handleConfirmCategories}
-              disabled={selectedCategories.length === 0 || generateLink.isPending}
-              className="w-full py-3 rounded-full bg-accent-purple text-white font-medium text-sm disabled:opacity-40"
-            >
-              {generateLink.isPending ? 'Generando...' : 'Generar Link'}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Link Modal */}
       {showLinkModal && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowLinkModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowLinkModal(false)}>
           <div
-            className="w-full max-w-lg rounded-t-3xl bg-surface-raised border-t border-glass-border p-6"
-            style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))' }}
+            className="w-full max-w-lg rounded-t-3xl bg-surface-raised border-t border-glass-border p-6 pb-10"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-white mb-2">Tu Link de Cuestionario</h3>

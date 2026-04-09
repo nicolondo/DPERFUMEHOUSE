@@ -71,13 +71,15 @@ export class NotificationsService implements OnModuleInit {
 
     if (!tokens.length) return;
 
+    const sellerAppUrl = this.configService.get<string>('SELLER_APP_URL', 'http://localhost:3000');
+
     const payload: admin.messaging.MulticastMessage = {
       tokens: tokens.map((t) => t.token),
       notification: { title, body },
       webpush: {
         notification: {
-          icon: 'https://pos.dperfumehouse.com/icons/icon-192x192.png',
-          badge: 'https://pos.dperfumehouse.com/icons/icon-72x72.png',
+          icon: `${sellerAppUrl}/icons/icon-192x192.png`,
+          badge: `${sellerAppUrl}/icons/icon-72x72.png`,
           ...(url ? { data: { url } } : {}),
         },
         fcmOptions: url ? { link: url } : undefined,

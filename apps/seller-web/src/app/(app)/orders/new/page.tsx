@@ -77,13 +77,6 @@ export default function NewOrderPage() {
   const setOrderConfig = useCartStore((s) => s.setOrderConfig);
   const createOrder = useCreateOrder();
 
-  // Guard: if customer is lost (e.g. router cache after order creation), reset to step 1
-  useEffect(() => {
-    if (step > 1 && !selectedCustomer) {
-      setStep(1);
-    }
-  }, [step, selectedCustomer]);
-
   // Fetch order config (tax, shipping) from backend
   useEffect(() => {
     const fetchConfig = async () => {
@@ -132,8 +125,7 @@ export default function NewOrderPage() {
         paymentMethod,
       });
       resetFlow();
-      const showLink = !paymentMethod || paymentMethod === 'ONLINE' ? '?showPaymentLink=1' : '';
-      router.replace(`/orders/${order.id}${showLink}`);
+      router.replace(`/orders/${order.id}`);
     } catch {
       // Error handled by react-query
     }
@@ -526,10 +518,7 @@ function Step2SelectAddress({
           description="Este cliente no tiene direcciones registradas"
           action={{
             label: 'Agregar Direccion',
-            onClick: () => {
-              setAddressForm((prev) => ({ ...prev, label: `Dirección ${addresses.length + 1}` }));
-              setShowNewAddress(true);
-            },
+            onClick: () => setShowNewAddress(true),
           }}
         />
       ) : (
@@ -593,10 +582,7 @@ function Step2SelectAddress({
       {/* New address toggle */}
       {!showNewAddress && addresses.length > 0 && (
         <button
-          onClick={() => {
-            setAddressForm((prev) => ({ ...prev, label: `Dirección ${addresses.length + 1}` }));
-            setShowNewAddress(true);
-          }}
+          onClick={() => setShowNewAddress(true)}
           className="flex items-center gap-2 text-sm font-medium text-accent-purple"
         >
           <Plus className="h-4 w-4" />
@@ -1059,8 +1045,7 @@ function Step3SelectProducts({
 
       {/* Floating bottom bar */}
       {count > 0 && (
-        <div className="fixed inset-x-0 bottom-[5.5rem] z-30 mx-auto max-w-[600px] px-3">
-        <div className="rounded-2xl border border-glass-border bg-surface-raised p-4 shadow-glass">
+        <div className="fixed inset-x-0 bottom-[5.5rem] z-30 mx-3 rounded-2xl border border-glass-border bg-surface-raised p-4 shadow-glass">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5 text-brand-gold" />
@@ -1077,7 +1062,6 @@ function Step3SelectProducts({
               Continuar
             </Button>
           </div>
-        </div>
         </div>
       )}
     </div>
@@ -1229,6 +1213,10 @@ function Step4Summary({
             <span className="text-white">{formatCurrency(subtotalAmount)}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
+            <span className="text-white/50">IVA ({Math.round(useCartStore.getState().orderConfig.taxRate * 100)}%)</span>
+            <span className="text-white">{formatCurrency(taxAmount)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
             <span className="text-white/50">Envio</span>
             <span className="text-white">
               {shippingAmount === 0 ? 'Gratis' : formatCurrency(shippingAmount)}
@@ -1266,19 +1254,17 @@ function Step4Summary({
           Confirmar y Generar Link de Pago
         </Button>
 
-        {useCartStore.getState().orderConfig.cashPaymentEnabled !== false && (
-          <Button
-            fullWidth
-            size="lg"
-            variant="outline"
-            onClick={() => setShowCashConfirm(true)}
-            disabled={items.length === 0 || isSubmitting}
-            leftIcon={<Banknote className="h-5 w-5" />}
-            className="!py-4 text-base font-semibold border-accent-gold/40 text-accent-gold hover:bg-accent-gold/10 rounded-2xl"
-          >
-            Pago en Efectivo
-          </Button>
-        )}
+        <Button
+          fullWidth
+          size="lg"
+          variant="outline"
+          onClick={() => setShowCashConfirm(true)}
+          disabled={items.length === 0 || isSubmitting}
+          leftIcon={<Banknote className="h-5 w-5" />}
+          className="!py-4 text-base font-semibold border-accent-gold/40 text-accent-gold hover:bg-accent-gold/10 rounded-2xl"
+        >
+          Pago en Efectivo
+        </Button>
       </div>
 
       {/* Cash payment confirmation modal */}

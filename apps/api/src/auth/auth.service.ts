@@ -210,7 +210,7 @@ export class AuthService {
       data: { resetToken: hashedToken, resetTokenExpiry: expiry },
     });
 
-    const frontendUrl = this.configService.get<string>('SELLER_APP_URL', 'https://pos.dperfumehouse.com');
+    const frontendUrl = this.configService.get<string>('SELLER_APP_URL', 'http://localhost:3000');
     const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
 
     await this.emailService.send(
@@ -234,7 +234,7 @@ export class AuthService {
             <table role="presentation" cellpadding="0" cellspacing="0" width="620" style="max-width:620px;width:100%;background-color:#16110a;">
               <!-- Header -->
               <tr><td align="center" style="padding:30px 32px 20px;background-color:#16110a;">
-                <img src="https://pos.dperfumehouse.com/icons/logo-email.png" alt="D Perfume House" width="320" style="display:block;width:320px;max-width:80%;height:auto;" />
+                <img src="${frontendUrl}/icons/logo-email.png" alt="D Perfume House" width="320" style="display:block;width:320px;max-width:80%;height:auto;" />
                 <p style="margin:12px 0 0 0;color:#bfa685;letter-spacing:2px;font-size:11px;text-transform:uppercase;">Seguridad de tu cuenta</p>
               </td></tr>
               <!-- Content -->

@@ -6,7 +6,7 @@ import { fetchAdminLeads, fetchAdminLeadAnalytics } from '@/lib/api';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Input, Select } from '@/components/ui/input';
-import { Search, Target, TrendingUp, Users, ShoppingBag, ExternalLink, Sparkles } from 'lucide-react';
+import { Search, Target, TrendingUp, Users, ShoppingBag } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -81,28 +81,6 @@ export default function AdminLeadsPage() {
       key: 'createdAt',
       header: 'Fecha',
       render: (item) => <span className="text-sm text-white/50">{formatDate(item.createdAt)}</span>,
-    },
-    {
-      key: 'results',
-      header: 'Resultados',
-      render: (item) => {
-        const hasResults = item.status !== 'SENT' && item.recommendations && (Array.isArray(item.recommendations) ? item.recommendations.length > 0 : true);
-        return hasResults ? (
-          <a
-            href={`https://pos.dperfumehouse.com/q/results/${item.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-accent-purple hover:text-accent-purple/80 transition-colors"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Sparkles className="h-3 w-3" />
-            Ver AI
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        ) : (
-          <span className="text-xs text-white/20">—</span>
-        );
-      },
     },
   ];
 

@@ -16,7 +16,7 @@ interface MyxSpendAuthResponse {
 @Injectable()
 export class MyxSpendService implements PaymentProvider {
   private readonly logger = new Logger(MyxSpendService.name);
-  private readonly baseUrl = 'https://api.myxspend.com/v1';
+  private readonly baseUrl: string;
   private readonly email: string;
   private readonly password: string;
 
@@ -24,6 +24,7 @@ export class MyxSpendService implements PaymentProvider {
   private authExpiresAt: number = 0;
 
   constructor(private readonly configService: ConfigService) {
+    this.baseUrl = this.configService.get<string>('MYXSPEND_BASE_URL', 'https://api.myxspend.com/v1');
     this.email = this.configService.get<string>('MYXSPEND_EMAIL', '');
     this.password = this.configService.get<string>('MYXSPEND_PASSWORD', '');
 

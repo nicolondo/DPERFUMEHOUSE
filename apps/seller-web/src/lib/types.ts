@@ -36,7 +36,6 @@ export interface Customer {
   name: string;
   email?: string;
   phone: string;
-  phoneCode?: string;
   documentType?: string;
   documentNumber?: string;
   notes?: string;
@@ -187,7 +186,6 @@ export interface CreateCustomerInput {
   documentType?: string;
   documentNumber?: string;
   notes?: string;
-  birthday?: string;
   address?: Omit<Address, 'id' | 'customerId'>;
 }
 

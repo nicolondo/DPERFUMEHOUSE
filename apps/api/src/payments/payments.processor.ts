@@ -56,15 +56,6 @@ export class PaymentsProcessor extends WorkerHost {
       throw new Error(`Order ${orderId} not found`);
     }
 
-    // --- Decrement local inventory on confirmed payment ---
-    for (const item of order.items) {
-      await this.prisma.productVariant.update({
-        where: { id: item.variantId },
-        data: { stock: { decrement: item.quantity } },
-      });
-    }
-    this.logger.log(`Stock decremented for order ${order.orderNumber}`);
-
     // --- Commissions first (independent of Odoo) ---
     // Step 1: Calculate commissions
     await this.calculateCommissions(order);
@@ -113,40 +104,26 @@ export class PaymentsProcessor extends WorkerHost {
         });
       }
 
-      // Step 5: Confirm the sale order and register payment in Odoo (with retry)
+      // Step 5: Confirm the sale order and register payment in Odoo
       let odooInvoiceId: number | undefined;
       let odooInvoiceName: string | undefined;
-      const maxRetries = 3;
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          const result = await this.odooService.confirmAndRegisterPayment(
-            odooSaleOrderId,
-            Number(order.total),
-            'Wompi',
-            'bank',
-          );
-          odooInvoiceId = result.invoiceId;
-          odooInvoiceName = result.invoiceName;
-          this.logger.log(
-            `Odoo SO ${odooSaleOrderId} confirmed, invoice ${odooInvoiceName} paid (attempt ${attempt})`,
-          );
-          break;
-        } catch (err) {
-          this.logger.warn(
-            `Attempt ${attempt}/${maxRetries} — Could not register Odoo payment for SO ${odooSaleOrderId}: ${err.message}`,
-          );
-          if (attempt < maxRetries) {
-            const delay = attempt * 2000;
-            await new Promise((r) => setTimeout(r, delay));
-          } else {
-            this.logger.error(
-              `All ${maxRetries} attempts failed for SO ${odooSaleOrderId}. Falling back to simple confirm (no invoice).`,
-            );
-            try {
-              await this.odooService.confirmSaleOrder(odooSaleOrderId);
-            } catch (_) {}
-          }
-        }
+      try {
+        const result = await this.odooService.confirmAndRegisterPayment(
+          odooSaleOrderId,
+          Number(order.total),
+          'Wompi',
+          'bank',
+        );
+        odooInvoiceId = result.invoiceId;
+        odooInvoiceName = result.invoiceName;
+        this.logger.log(
+          `Odoo SO ${odooSaleOrderId} confirmed, invoice ${odooInvoiceName} paid`,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Could not register Odoo payment for SO ${odooSaleOrderId}: ${err.message}. Falling back to simple confirm.`,
+        );
+        await this.odooService.confirmSaleOrder(odooSaleOrderId);
       }
 
       // Step 6: Create delivery

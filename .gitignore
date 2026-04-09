@@ -13,6 +13,7 @@ build/
 .env
 .env.local
 .env.*.local
+.env.production
 !.env.example
 
 # IDE
@@ -24,6 +25,7 @@ build/
 
 # OS
 .DS_Store
+._*
 Thumbs.db
 
 # Logs
@@ -51,21 +53,4 @@ uploads/
 # Temp
 tmp/
 temp/
-
-# Claude/AI toolkit (not project code)
-.claude/
-.claude-flow/
-.factory/
-.shared/
-.claude-plugin/
-src/ui-ux-pro-max/
-cli/
-.mcp.json
-
-# Design system docs
-design-system/
-
-# Project notes (local only)
-Notas*
-context.md
-prompt-*
+*.bak*

@@ -23,7 +23,7 @@ import { PhoneInput } from '@/components/ui/phone-input';
 import { FormField } from '@/components/ui/form-field';
 import { Modal } from '@/components/ui/modal';
 import { formatPercent } from '@/lib/utils';
-import { Plus, Search, Pencil, TrendingUp, X } from 'lucide-react';
+import { Plus, Search, Pencil, TrendingUp } from 'lucide-react';
 
 type CommissionScaleTier = {
   minSales: number;
@@ -65,9 +65,9 @@ function parseCommissionScaleSettings(settings: any[] | undefined): CommissionSc
 const createUserSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   email: z.string().email('Email invalido'),
+  password: z.string().min(8, 'La contrasena debe tener minimo 8 caracteres'),
   role: z.enum(['SELLER_L1', 'SELLER_L2']),
   parentId: z.string().optional(),
-  canManageSellers: z.boolean().optional(),
   commissionRate: z.preprocess(
     (value) => (value === '' || value === null || value === undefined ? undefined : Number(value)),
     z.number().min(0).max(100).optional(),
@@ -100,7 +100,6 @@ const editUserSchema = z.object({
   email: z.string().email('Email invalido'),
   phone: z.string().optional().or(z.literal('')),
   role: z.enum(['ADMIN', 'SELLER_L1', 'SELLER_L2']),
-  sellerCode: z.string().optional().or(z.literal('')),
   parentId: z.string().optional().or(z.literal('')),
   commissionRate: z.coerce.number().min(0).max(100).optional(),
   commissionRateL2: z.coerce.number().min(0).max(100).optional(),
@@ -392,16 +391,8 @@ export default function UsersPage() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            className="pl-9 pr-9"
+            className="pl-9"
           />
-          {search && (
-            <button
-              onClick={() => { setSearch(''); setPage(1); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-0.5 text-white/40 hover:text-white transition-colors"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
         </div>
         <Select
           value={roleFilter}
@@ -492,6 +483,10 @@ export default function UsersPage() {
 
           <FormField label="Email" error={createForm.formState.errors.email?.message} required>
             <Input {...createForm.register('email')} type="email" placeholder="email@ejemplo.com" error={!!createForm.formState.errors.email} />
+          </FormField>
+
+          <FormField label="Contrasena" error={createForm.formState.errors.password?.message} required>
+            <Input {...createForm.register('password')} type="password" placeholder="Minimo 8 caracteres" error={!!createForm.formState.errors.password} />
           </FormField>
 
           <FormField label="Rol" error={createForm.formState.errors.role?.message} required>
@@ -650,20 +645,7 @@ export default function UsersPage() {
             </p>
           </div>
 
-          {/* Can manage sellers */}
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="createCanManageSellers"
-              {...createForm.register('canManageSellers')}
-              className="h-4 w-4 rounded border-glass-border text-accent-purple focus:ring-accent-purple/50"
-            />
-            <label htmlFor="createCanManageSellers" className="text-sm font-medium text-white/70">
-              Puede gestionar sub-vendedores
-            </label>
-          </div>
-
-          <div className="sticky bottom-0 flex justify-end gap-3 pt-4 pb-[env(safe-area-inset-bottom,16px)] bg-surface-raised border-t border-glass-border -mx-4 sm:-mx-6 px-4 sm:px-6">
+          <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" type="button" onClick={() => setShowCreate(false)}>
               Cancelar
             </Button>
@@ -727,10 +709,9 @@ function EditUserModal({
       email: user.email || '',
       phone: user.phone || '',
       role: user.role || 'SELLER_L1',
-      sellerCode: (user as any).sellerCode || '',
       parentId: user.parentId || '',
-      commissionRate: user.commissionRate != null ? parseFloat((Number(user.commissionRate) * 100).toPrecision(10)) : 10,
-      commissionRateL2: user.commissionRateL2 != null ? parseFloat((Number(user.commissionRateL2) * 100).toPrecision(10)) : 5,
+      commissionRate: user.commissionRate != null ? Number(user.commissionRate) * 100 : 10,
+      commissionRateL2: user.commissionRateL2 != null ? Number(user.commissionRateL2) * 100 : 5,
       isActive: user.isActive ?? true,
       canManageSellers: user.canManageSellers ?? false,
       bankName: user.bankName || '',
@@ -802,10 +783,9 @@ function EditUserModal({
       const payload: any = {
         ...data,
         phoneCode,
-        commissionRate: parseFloat(((data.commissionRate || 0) / 100).toPrecision(10)),
-        commissionRateL2: parseFloat(((data.commissionRateL2 || 0) / 100).toPrecision(10)),
+        commissionRate: (data.commissionRate || 0) / 100,
+        commissionRateL2: (data.commissionRateL2 || 0) / 100,
         parentId: data.parentId || null,
-        sellerCode: data.sellerCode || null,
         bankName: data.bankName || null,
         bankAccountType: data.bankAccountType || null,
         bankAccountNumber: data.bankAccountNumber || null,
@@ -1062,13 +1042,6 @@ function EditUserModal({
           <p className="mt-2 text-xs text-white/50">
             Si no activas ninguna categoria, el usuario no tendra acceso a productos.
           </p>
-        </div>
-
-        <div className="border-t border-glass-border pt-4">
-          <p className="text-sm font-semibold text-white/70 mb-3">Configuracion del Vendedor</p>
-          <FormField label="Código de Vendedor" hint="Usado para los links del cuestionario de fragancias">
-            <Input {...form.register('sellerCode')} placeholder="ej: juanmedina-9f2c" />
-          </FormField>
         </div>
 
         <div className="border-t border-glass-border pt-4">

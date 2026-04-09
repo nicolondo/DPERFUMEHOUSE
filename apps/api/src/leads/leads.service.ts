@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnthropicService } from '../questionnaires/anthropic.service';
 import { FragranceProfilesService } from '../fragrance-profiles/fragrance-profiles.service';
@@ -10,6 +11,7 @@ import { SubmitQuestionnaireDto, CreateLeadForCustomerDto, UpdateAppointmentDto,
 @Injectable()
 export class LeadsService {
   private readonly logger = new Logger(LeadsService.name);
+  private readonly sellerAppUrl: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -18,7 +20,13 @@ export class LeadsService {
     private readonly fragellaService: FragellaService,
     private readonly emailService: EmailService,
     private readonly notificationsService: NotificationsService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.sellerAppUrl = this.configService.get<string>(
+      'SELLER_APP_URL',
+      'http://localhost:3000',
+    );
+  }
 
   // ── Public endpoints (no auth) ──
 
@@ -529,9 +537,8 @@ export class LeadsService {
     const validTransitions: Record<string, string[]> = {
       SENT: ['RESPONDED'],
       RESPONDED: ['APPOINTMENT'],
-      APPOINTMENT: ['VISITED', 'RESPONDED'],
-      VISITED: ['CONVERTED', 'APPOINTMENT'],
-      CONVERTED: ['VISITED'],
+      APPOINTMENT: ['VISITED'],
+      VISITED: ['CONVERTED'],
     };
 
     const allowed = validTransitions[lead.status];
@@ -762,7 +769,7 @@ export class LeadsService {
       ? 'If you have any questions, don\'t hesitate to contact your advisor.'
       : 'Si tienes alguna pregunta, no dudes en contactar a tu asesor(a).';
     const rightsText = isEn ? 'All rights reserved.' : 'Todos los derechos reservados.';
-    const logoUrl = 'https://pos.dperfumehouse.com/icons/logo-email.png';
+    const logoUrl = `${this.sellerAppUrl}/icons/logo-email.png`;
     const html = `
       <!DOCTYPE html>
       <html xmlns="http://www.w3.org/1999/xhtml">
@@ -842,8 +849,8 @@ export class LeadsService {
     const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;' }[c] || c));
     const firstName = sellerName.split(' ')[0];
     const client = clientName || 'Un nuevo cliente';
-    const leadUrl = `https://pos.dperfumehouse.com/leads`;
-    const logoUrl = 'https://pos.dperfumehouse.com/icons/logo-email.png';
+    const leadUrl = `${this.sellerAppUrl}/leads`;
+    const logoUrl = `${this.sellerAppUrl}/icons/logo-email.png`;
     const subject = `🎯 ¡${client.split(' ')[0]} completó el cuestionario de fragancias!`;
     const html = `
       <!DOCTYPE html>
@@ -956,8 +963,8 @@ export class LeadsService {
     const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;' }[c] || c));
     const firstName = sellerName.split(' ')[0];
     const client = clientName || 'Tu cliente';
-    const leadUrl = `https://pos.dperfumehouse.com/leads/${leadId}`;
-    const logoUrl = 'https://pos.dperfumehouse.com/icons/logo-email.png';
+    const leadUrl = `${this.sellerAppUrl}/leads/${leadId}`;
+    const logoUrl = `${this.sellerAppUrl}/icons/logo-email.png`;
     const subject = `📲 ${client.split(' ')[0]} está tratando de contactarte`;
     const html = `
       <!DOCTYPE html>

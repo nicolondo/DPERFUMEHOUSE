@@ -221,7 +221,7 @@ export default function OrdersPage() {
         pageSize={20}
         total={data?.meta?.total || 0}
         onPageChange={setPage}
-        onRowClick={(item) => router.push(`/orders/${item.orderNumber}`)}
+        onRowClick={(item) => router.push(`/orders/${item.id}`)}
         keyExtractor={(item) => item.id}
         emptyMessage="No se encontraron pedidos"
       />

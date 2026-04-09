@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -13,9 +13,6 @@ import {
   updateFragranceProfile,
   enrichFragranceProfile,
   bulkImportFragranceProfiles,
-  extractPyramidFromImage,
-  getFragellaFields,
-  uploadProductImage,
 } from '@/lib/api';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -23,7 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { FormField } from '@/components/ui/form-field';
 import { Modal } from '@/components/ui/modal';
-import { Plus, Search, Sparkles, Upload, FlaskConical, Pencil, X } from 'lucide-react';
+import { Plus, Search, Sparkles, Upload, FlaskConical, Pencil } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
 const profileSchema = z.object({
@@ -49,10 +46,8 @@ type ProfileForm = z.infer<typeof profileSchema>;
 const GENEROS = ['Masculino', 'Femenino', 'Unisex'];
 const INTENSIDADES = ['Suave', 'Moderada', 'Intensa', 'Muy Intensa'];
 const FAMILIAS = [
-  'Amaderado', 'Ambarado', 'Ambarado-Especiado', 'Ambarado-Floral', 'Ambarado-Oriental',
-  'Aromático', 'Chipre', 'Cítrico', 'Floral', 'Floral-Amaderado',
-  'Floriental-Frutal', 'Frutal', 'Frutal-Ambarado', 'Frutal-Gourmand',
-  'Gourmand', 'Gourmand-Lácteo', 'Oriental', 'Verde',
+  'Amaderado', 'Ambarado', 'Aromático', 'Chipre', 'Cítrico',
+  'Floral', 'Frutal', 'Gourmand', 'Oriental', 'Verde',
 ];
 
 export default function FragrancesPage() {
@@ -61,58 +56,10 @@ export default function FragrancesPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [createVariantName, setCreateVariantName] = useState('');
   const [editingProfile, setEditingProfile] = useState<any>(null);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [bulkData, setBulkData] = useState('');
   const [tab, setTab] = useState<'profiles' | 'variants'>('profiles');
-  const [profileFilter, setProfileFilter] = useState<'all' | 'configured' | 'unconfigured'>('all');
-
-  // Fragella autocomplete state
-  const [equivQuery, setEquivQuery] = useState('');
-  const [equivResults, setEquivResults] = useState<Array<{ id: string; name: string; brand: string }>>([]);
-  const [equivOpen, setEquivOpen] = useState(false);
-  const [equivLoading, setEquivLoading] = useState(false);
-  const equivRef = useRef<HTMLDivElement>(null);
-  const equivTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Pyramid image extraction state
-  const [pyramidFile, setPyramidFile] = useState<File | null>(null);
-  const [pyramidLoading, setPyramidLoading] = useState(false);
-  const [pyramidError, setPyramidError] = useState<string | null>(null);
-  const pyramidInputRef = useRef<HTMLInputElement>(null);
-
-  // Product photo upload state
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoLoading, setPhotoLoading] = useState(false);
-  const [photoSuccess, setPhotoSuccess] = useState(false);
-  const photoInputRef = useRef<HTMLInputElement>(null);
-
-  // Fragella fill state
-  const [fragellaLoading, setFragellaLoading] = useState(false);
-
-  const searchFragella = useCallback(async (q: string) => {
-    if (q.length < 3) { setEquivResults([]); setEquivOpen(false); return; }
-    setEquivLoading(true);
-    try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-      const res = await fetch(`${API_URL}/perfume-search?q=${encodeURIComponent(q.trim())}&limit=8`);
-      if (res.ok) {
-        const data = await res.json();
-        setEquivResults(data);
-        setEquivOpen(data.length > 0);
-      }
-    } catch { /* ignore */ }
-    setEquivLoading(false);
-  }, []);
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (equivRef.current && !equivRef.current.contains(e.target as Node)) setEquivOpen(false);
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
 
   // Profiles list
   const { data: profilesData, isLoading: profilesLoading } = useQuery({
@@ -135,9 +82,6 @@ export default function FragrancesPage() {
       queryClient.invalidateQueries({ queryKey: ['variants-profile-status'] });
       setShowCreate(false);
       createForm.reset();
-      setPyramidFile(null);
-      setPhotoFile(null);
-      setPhotoSuccess(false);
     },
   });
 
@@ -179,24 +123,12 @@ export default function FragrancesPage() {
     {
       key: 'product',
       header: 'Producto',
-      render: (item) => {
-        const img = item.productVariant?.images?.[0];
-        return (
-          <div className="flex items-center gap-3">
-            {img?.url ? (
-              <img src={img.url} alt="" className="h-10 w-10 rounded-lg object-cover" />
-            ) : (
-              <div className="h-10 w-10 rounded-lg bg-white/5 flex items-center justify-center">
-                <FlaskConical className="h-4 w-4 text-white/20" />
-              </div>
-            )}
-            <div>
-              <p className="font-medium text-white">{item.productVariant?.name || 'N/A'}</p>
-              <p className="text-xs text-white/40">{item.productVariant?.categoryName?.split(' / ')[2] || item.productVariant?.sku}</p>
-            </div>
-          </div>
-        );
-      },
+      render: (item) => (
+        <div>
+          <p className="font-medium text-white">{item.productVariant?.product?.name || 'N/A'}</p>
+          <p className="text-xs text-white/40">{item.productVariant?.name} — {item.productVariant?.size}</p>
+        </div>
+      ),
     },
     {
       key: 'familiaOlfativa',
@@ -275,24 +207,12 @@ export default function FragrancesPage() {
     {
       key: 'product',
       header: 'Producto',
-      render: (item) => {
-        const img = item.images?.[0];
-        return (
-          <div className="flex items-center gap-3">
-            {img?.url ? (
-              <img src={img.thumbnailUrl || img.url} alt="" className="h-10 w-10 rounded-lg object-cover shrink-0" />
-            ) : (
-              <div className="h-10 w-10 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
-                <FlaskConical className="h-4 w-4 text-white/20" />
-              </div>
-            )}
-            <div>
-              <p className="font-medium text-white">{item.name || 'N/A'}</p>
-              <p className="text-xs text-white/40">{item.categoryName?.split(' / ')[2] || item.sku}</p>
-            </div>
-          </div>
-        );
-      },
+      render: (item) => (
+        <div>
+          <p className="font-medium text-white">{item.product?.name || item.name || 'N/A'}</p>
+          <p className="text-xs text-white/40">{item.name} — {item.size}</p>
+        </div>
+      ),
     },
     {
       key: 'price',
@@ -320,7 +240,6 @@ export default function FragrancesPage() {
             onClick={(e) => {
               e.stopPropagation();
               createForm.reset({ productVariantId: item.id });
-              setCreateVariantName(item.name || '');
               setShowCreate(true);
             }}
             icon={<Plus className="h-3.5 w-3.5" />}
@@ -340,10 +259,9 @@ export default function FragrancesPage() {
 
   const handleEdit = (data: ProfileForm) => {
     if (!editingProfile) return;
-    const { productVariantId, ...rest } = data;
     updateMutation.mutate({
       id: editingProfile.id,
-      ...rest,
+      ...data,
       tagsNegativos: data.tagsNegativos ? data.tagsNegativos.split(',').map((s) => s.trim()).filter(Boolean) : [],
     });
   };
@@ -358,164 +276,14 @@ export default function FragrancesPage() {
     }
   };
 
-  const handleExtractFromPyramid = async (form: any) => {
-    if (!pyramidFile) return;
-    setPyramidLoading(true);
-    setPyramidError(null);
-    try {
-      const extracted = await extractPyramidFromImage(pyramidFile);
-      if (extracted) {
-        const fieldMap: Record<string, string> = {
-          familiaOlfativa: 'familiaOlfativa',
-          subfamilia: 'subfamilia',
-          genero: 'genero',
-          intensidad: 'intensidad',
-          notasDestacadas: 'notasDestacadas',
-          descripcionDetallada: 'descripcionDetallada',
-          contextoIdeal: 'contextoIdeal',
-          climaIdeal: 'climaIdeal',
-          perfilPersonalidad: 'perfilPersonalidad',
-          duracionEstimada: 'duracionEstimada',
-          frasePositionamiento: 'frasePositionamiento',
-        };
-        for (const [apiField, formField] of Object.entries(fieldMap)) {
-          if (extracted[apiField]) form.setValue(formField, extracted[apiField]);
-        }
-        if (Array.isArray(extracted.tagsNegativos) && extracted.tagsNegativos.length > 0) {
-          form.setValue('tagsNegativos', extracted.tagsNegativos.join(', '));
-        }
-      }
-    } catch (e: any) {
-      setPyramidError(e.message || 'Error al extraer información');
-    }
-    setPyramidLoading(false);
-  };
-
-  const handleFragellaFill = async (form: any) => {
-    const equivalencia = form.getValues('equivalencia');
-    if (!equivalencia) return;
-    setFragellaLoading(true);
-    try {
-      const fields = await getFragellaFields(equivalencia);
-      if (fields) {
-        const textFields = [
-          'familiaOlfativa', 'subfamilia', 'genero', 'intensidad',
-          'notasDestacadas', 'descripcionDetallada', 'contextoIdeal',
-          'climaIdeal', 'perfilPersonalidad', 'duracionEstimada',
-          'frasePositionamiento',
-        ] as const;
-        for (const f of textFields) {
-          if (fields[f]) form.setValue(f as any, fields[f]);
-        }
-        if (Array.isArray(fields.tagsNegativos) && fields.tagsNegativos.length > 0) {
-          form.setValue('tagsNegativos', fields.tagsNegativos.join(', '));
-        }
-      }
-    } catch { /* ignore */ }
-    setFragellaLoading(false);
-  };
-
-  const handlePhotoUpload = async (form: any) => {
-    if (!photoFile) return;
-    const variantId = form.getValues('productVariantId');
-    if (!variantId) return;
-    setPhotoLoading(true);
-    setPhotoSuccess(false);
-    try {
-      await uploadProductImage(variantId, photoFile);
-      setPhotoSuccess(true);
-      setPhotoFile(null);
-      if (photoInputRef.current) photoInputRef.current.value = '';
-    } catch { /* ignore */ }
-    setPhotoLoading(false);
-  };
-
   const renderProfileForm = (form: any, onSubmit: any, mutation: any) => (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-
-      {/* ── AI Tools section ── */}
-      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
-        <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">Herramientas AI</p>
-
-        {/* Pyramid image/PDF extraction */}
-        <div className="space-y-2">
-          <p className="text-sm text-white/70">Pirámide olfativa (imagen o PDF)</p>
-          <div className="flex items-center gap-2">
-            <input
-              ref={pyramidInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,application/pdf"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0] || null;
-                setPyramidFile(f);
-                setPyramidError(null);
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => pyramidInputRef.current?.click()}
-              className="flex-1 rounded-lg border border-dashed border-white/20 bg-white/5 px-3 py-2 text-left text-sm text-white/50 hover:border-white/30 hover:bg-white/[0.07] transition-colors"
-            >
-              {pyramidFile ? pyramidFile.name : 'Seleccionar archivo...'}
-            </button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={!pyramidFile || pyramidLoading}
-              loading={pyramidLoading}
-              icon={<Sparkles className="h-3.5 w-3.5" />}
-              onClick={() => handleExtractFromPyramid(form)}
-            >
-              Extraer con AI
-            </Button>
-          </div>
-          {pyramidError && <p className="text-xs text-status-danger">{pyramidError}</p>}
-        </div>
-
-        {/* Photo upload */}
-        <div className="space-y-2">
-          <p className="text-sm text-white/70">Foto del producto</p>
-          <div className="flex items-center gap-2">
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="hidden"
-              onChange={(e) => {
-                setPhotoFile(e.target.files?.[0] || null);
-                setPhotoSuccess(false);
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => photoInputRef.current?.click()}
-              className="flex-1 rounded-lg border border-dashed border-white/20 bg-white/5 px-3 py-2 text-left text-sm text-white/50 hover:border-white/30 hover:bg-white/[0.07] transition-colors"
-            >
-              {photoFile ? photoFile.name : 'Seleccionar foto...'}
-            </button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={!photoFile || photoLoading}
-              loading={photoLoading}
-              icon={<Upload className="h-3.5 w-3.5" />}
-              onClick={() => handlePhotoUpload(form)}
-            >
-              {photoSuccess ? '¡Subida!' : 'Subir foto'}
-            </Button>
-          </div>
-        </div>
-      </div>
-
       <div className="grid grid-cols-2 gap-4">
         <FormField label="Familia Olfativa" error={form.formState.errors.familiaOlfativa?.message}>
-          <Input {...form.register('familiaOlfativa')} list="familias-list" placeholder="Ej: Frutal-Ambarado" />
-          <datalist id="familias-list">
-            {FAMILIAS.map((f) => <option key={f} value={f} />)}
-          </datalist>
+          <Select {...form.register('familiaOlfativa')}>
+            <option value="">Seleccionar...</option>
+            {FAMILIAS.map((f) => <option key={f} value={f}>{f}</option>)}
+          </Select>
         </FormField>
         <FormField label="Subfamilia" error={form.formState.errors.subfamilia?.message}>
           <Input {...form.register('subfamilia')} placeholder="Ej: Amaderado-Especiado" />
@@ -538,72 +306,7 @@ export default function FragrancesPage() {
       </div>
 
       <FormField label="Equivalencia" error={form.formState.errors.equivalencia?.message}>
-        <div ref={equivRef} className="relative">
-          <Input
-            {...form.register('equivalencia')}
-            placeholder="Ej: Oud Maracujá Maison Crivelli"
-            onChange={(e) => {
-              form.setValue('equivalencia', e.target.value);
-              setEquivQuery(e.target.value);
-              if (equivTimeout.current) clearTimeout(equivTimeout.current);
-              equivTimeout.current = setTimeout(() => searchFragella(e.target.value), 400);
-            }}
-            autoComplete="off"
-          />
-          {equivOpen && equivResults.length > 0 && (
-            <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-lg border border-white/10 bg-[#1a1510] shadow-xl max-h-60 overflow-y-auto">
-              {equivResults.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  className="w-full text-left px-3 py-2.5 hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
-                  onClick={() => {
-                    // Normalize for accent-insensitive comparison
-                    const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-                    // Strip trailing gender labels Fragella sometimes appends to Name
-                    const stripGender = (s: string) =>
-                      s.replace(/\s+(unisex|for women|for men|masculine|feminine|masculino|femenino|para hombre|para mujer)\s*$/i, '').trim();
-                    // Remove duplicate brand repetition inside the name (Fragella quirk)
-                    const dedupBrand = (s: string, brand: string) => {
-                      const normBrand = norm(brand);
-                      // Strip exact brand occurrence that appears after the first fragment
-                      return s.replace(new RegExp(`\\s+${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'gi'), (match, offset) =>
-                        offset === 0 ? match : ''
-                      ).trim();
-                    };
-                    const nameCleaned = stripGender(dedupBrand(r.name, r.brand));
-                    const value = norm(nameCleaned).includes(norm(r.brand))
-                      ? nameCleaned
-                      : `${r.brand} ${nameCleaned}`;
-                    form.setValue('equivalencia', value);
-                    setEquivOpen(false);
-                    setEquivResults([]);
-                  }}
-                >
-                  <span className="text-sm text-white">{r.name}</span>
-                  <span className="text-xs text-white/40 ml-2">{r.brand}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          {equivLoading && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              <div className="h-4 w-4 border-2 border-white/20 border-t-amber-400 rounded-full animate-spin" />
-            </div>
-          )}
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="mt-1.5 text-amber-400 hover:text-amber-300"
-          disabled={fragellaLoading || !form.watch('equivalencia')}
-          loading={fragellaLoading}
-          icon={<Sparkles className="h-3.5 w-3.5" />}
-          onClick={() => handleFragellaFill(form)}
-        >
-          Completar campos vacíos desde Fragella
-        </Button>
+        <Input {...form.register('equivalencia')} placeholder="Ej: Oud Maracujá Maison Crivelli" />
       </FormField>
 
       <FormField label="Notas Destacadas" error={form.formState.errors.notasDestacadas?.message}>
@@ -649,7 +352,7 @@ export default function FragrancesPage() {
       )}
 
       <div className="flex justify-end gap-3">
-        <Button type="button" variant="ghost" onClick={() => { setShowCreate(false); setEditingProfile(null); setPyramidFile(null); setPhotoFile(null); setPhotoSuccess(false); }}>
+        <Button type="button" variant="ghost" onClick={() => { setShowCreate(false); setEditingProfile(null); }}>
           Cancelar
         </Button>
         <Button type="submit" loading={mutation.isPending}>
@@ -670,7 +373,7 @@ export default function FragrancesPage() {
           <Button variant="secondary" onClick={() => setShowBulkImport(true)} icon={<Upload className="h-4 w-4" />}>
             Importar
           </Button>
-          <Button onClick={() => { createForm.reset(); setCreateVariantName(''); setShowCreate(true); }} icon={<Plus className="h-4 w-4" />}>
+          <Button onClick={() => { createForm.reset(); setShowCreate(true); }} icon={<Plus className="h-4 w-4" />}>
             Crear Perfil
           </Button>
         </div>
@@ -704,28 +407,9 @@ export default function FragrancesPage() {
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="Buscar perfume..."
-            className="pl-10 pr-9"
+            className="pl-10"
           />
-          {search && (
-            <button
-              onClick={() => { setSearch(''); setPage(1); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-0.5 text-white/40 hover:text-white transition-colors"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
         </div>
-        {tab === 'variants' && (
-          <Select
-            value={profileFilter}
-            onChange={(e) => setProfileFilter(e.target.value as 'all' | 'configured' | 'unconfigured')}
-            className="w-auto min-w-[140px]"
-          >
-            <option value="all">Todos</option>
-            <option value="configured">Configurado</option>
-            <option value="unconfigured">Sin perfil</option>
-          </Select>
-        )}
       </div>
 
       {/* Table */}
@@ -742,22 +426,18 @@ export default function FragrancesPage() {
       ) : (
         <DataTable
           columns={variantColumns}
-          data={(variantsData?.data || variantsData || []).filter((item: any) => {
-            if (profileFilter === 'configured') return !!item.fragranceProfile;
-            if (profileFilter === 'unconfigured') return !item.fragranceProfile;
-            return true;
-          })}
+          data={variantsData?.data || variantsData || []}
           loading={variantsLoading}
         />
       )}
 
       {/* Create Modal */}
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title={createVariantName ? `Crear Perfil — ${createVariantName}` : 'Crear Perfil de Fragancia'} size="lg">
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Crear Perfil de Fragancia" size="lg">
         {renderProfileForm(createForm, handleCreate, createMutation)}
       </Modal>
 
       {/* Edit Modal */}
-      <Modal open={!!editingProfile} onClose={() => setEditingProfile(null)} title={`Editar Perfil — ${editingProfile?.productVariant?.name || editingProfile?.name || 'Fragancia'}`} size="lg">
+      <Modal open={!!editingProfile} onClose={() => setEditingProfile(null)} title="Editar Perfil de Fragancia" size="lg">
         {renderProfileForm(editForm, handleEdit, updateMutation)}
       </Modal>
 

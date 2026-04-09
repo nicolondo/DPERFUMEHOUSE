@@ -45,22 +45,13 @@ export function useLeadStats() {
 export function useCreateLeadForCustomer() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ customerId, selectedCategories }: { customerId: string; selectedCategories?: string[] }) => {
-      const { data } = await api.post('/leads/for-customer', { customerId, selectedCategories });
+    mutationFn: async (customerId: string) => {
+      const { data } = await api.post('/leads/for-customer', { customerId });
       return unwrap(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['lead-stats'] });
-    },
-  });
-}
-
-export function useSendQuestionnaireEmail() {
-  return useMutation({
-    mutationFn: async (leadId: string) => {
-      const { data } = await api.post(`/leads/${leadId}/send-email`);
-      return unwrap(data);
     },
   });
 }
@@ -109,26 +100,10 @@ export function useConvertLead() {
   });
 }
 
-export function useCreateCustomerFromLead() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (leadId: string) => {
-      const { data } = await api.post(`/leads/${leadId}/create-customer`);
-      return unwrap(data) as { customerId: string; customerName: string };
-    },
-    onSuccess: (_, leadId) => {
-      queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
-    },
-  });
-}
-
 export function useGenerateLeadLink() {
   return useMutation({
-    mutationFn: async (categories?: string[]) => {
-      const params = categories?.length ? `?categories=${encodeURIComponent(categories.join(','))}` : '';
-      const { data } = await api.get(`/leads/generate-link${params}`);
+    mutationFn: async () => {
+      const { data } = await api.get('/leads/generate-link');
       return unwrap(data) as { url: string; sellerCode: string };
     },
   });

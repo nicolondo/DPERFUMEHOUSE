@@ -6,6 +6,7 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { OdooService } from '../odoo/odoo.service';
 import { EmailService } from '../email/email.service';
@@ -27,11 +28,16 @@ export interface FindAllCustomersParams {
 export class CustomersService {
   private readonly logger = new Logger(CustomersService.name);
 
+  private readonly sellerAppUrl: string;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly odooService: OdooService,
     private readonly emailService: EmailService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.sellerAppUrl = this.configService.get<string>('SELLER_APP_URL', 'http://localhost:3000');
+  }
 
   async findAll(sellerId: string | null, params: FindAllCustomersParams) {
     const { page, pageSize, search } = params;
@@ -449,7 +455,7 @@ export class CustomersService {
     const firstName = name?.split(' ')[0] || '';
     const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;' }[c] || c));
     const escapedName = esc(firstName);
-    const logoUrl = 'https://pos.dperfumehouse.com/icons/logo-email.png';
+    const logoUrl = `${this.sellerAppUrl}/icons/logo-email.png`;
 
     const subject = isEn
       ? `Welcome to D Perfume House, ${firstName}! 🌸`

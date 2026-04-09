@@ -30,7 +30,6 @@ import {
   ShoppingBag,
   TrendingUp,
   Package,
-  Cake,
 } from 'lucide-react';
 
 const editSchema = z.object({
@@ -40,7 +39,6 @@ const editSchema = z.object({
   documentType: z.string().optional().or(z.literal('')),
   documentNumber: z.string().optional().or(z.literal('')),
   notes: z.string().optional().or(z.literal('')),
-  birthday: z.string().optional().or(z.literal('')),
 });
 
 type EditForm = z.infer<typeof editSchema>;
@@ -107,12 +105,6 @@ export default function CustomerDetailPage() {
                   {customer.documentType} {customer.documentNumber}
                 </div>
               )}
-              {customer.birthday && (
-                <div className="flex items-center gap-2 text-sm text-white/50">
-                  <Cake className="h-4 w-4" />
-                  {new Date(customer.birthday.toString().split('T')[0] + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </div>
-              )}
               <div className="flex items-center gap-2 pt-1 text-xs text-white/30">
                 Creado: {formatDate(customer.createdAt)}
               </div>
@@ -132,7 +124,6 @@ export default function CustomerDetailPage() {
                 if (window.confirm('¿Estas seguro de eliminar este cliente? Esta accion no se puede deshacer.')) {
                   try {
                     await api.delete(`/customers/${customerId}`);
-                    queryClient.invalidateQueries({ queryKey: ['customers'] });
                     router.push('/customers');
                   } catch (e: any) {
                     alert(e.response?.data?.message || 'Error al eliminar');
@@ -291,7 +282,7 @@ export default function CustomerDetailPage() {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <button
-                      onClick={() => router.push(`/orders/${order.orderNumber || order.id}`)}
+                      onClick={() => router.push(`/orders/${order.id}`)}
                       className="text-sm font-semibold text-accent-purple hover:underline cursor-pointer"
                     >
                       #{order.orderNumber}
@@ -362,7 +353,6 @@ export default function CustomerDetailPage() {
       {showNewAddress && (
         <AddressModal
           customerId={customerId}
-          addressCount={customer.addresses?.length || 0}
           onClose={() => setShowNewAddress(false)}
           onSuccess={() => {
             setShowNewAddress(false);
@@ -390,19 +380,17 @@ export default function CustomerDetailPage() {
 function AddressModal({
   customerId,
   address,
-  addressCount = 0,
   onClose,
   onSuccess,
 }: {
   customerId: string;
   address?: any;
-  addressCount?: number;
   onClose: () => void;
   onSuccess: () => void;
 }) {
   const isEdit = !!address;
   const [form, setForm] = useState({
-    label: address?.label || (!address ? `Dirección ${addressCount + 1}` : ''),
+    label: address?.label || '',
     street: address?.street || '',
     detail: address?.detail || '',
     phone: address?.phone || '',
@@ -530,7 +518,6 @@ function EditCustomerModal({
       documentType: customer.documentType || '',
       documentNumber: customer.documentNumber || '',
       notes: customer.notes || '',
-      birthday: customer.birthday ? customer.birthday.split('T')[0] : '',
     },
   });
 
@@ -590,10 +577,6 @@ function EditCustomerModal({
             className="w-full rounded-lg border border-glass-border bg-glass-50 px-3 py-2 text-sm text-white focus:border-accent-purple focus:outline-none focus:ring-1 focus:ring-accent-purple/50"
             placeholder="Notas sobre el cliente..."
           />
-        </FormField>
-
-        <FormField label="Fecha de Cumpleaños">
-          <Input type="date" {...form.register('birthday')} />
         </FormField>
 
         <div className="flex justify-end gap-3 border-t border-glass-border pt-4">

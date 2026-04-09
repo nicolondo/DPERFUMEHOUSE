@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { useToast } from '@/components/ui/toast';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,7 +11,7 @@ import { Modal } from '@/components/ui/modal';
 import { PageSpinner } from '@/components/ui/spinner';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { formatCurrency, formatDate, formatDateTime, formatPercent, formatPhone } from '@/lib/utils';
-import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck, MapPin, X, Calendar, Download, RefreshCw, Pencil, UserCheck } from 'lucide-react';
+import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck, MapPin, X, Calendar, Download, RefreshCw, Pencil } from 'lucide-react';
 
 const orderStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info' | 'orange' | 'brown'> = {
   DRAFT: 'default',
@@ -46,15 +45,12 @@ export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const orderSlug = params.id as string; // may be UUID or orderNumber like PH-20260408-0011
+  const orderId = params.id as string;
 
   const { data: order, isLoading, error } = useQuery({
-    queryKey: ['order', orderSlug],
-    queryFn: () => fetchOrder(orderSlug),
+    queryKey: ['order', orderId],
+    queryFn: () => fetchOrder(orderId),
   });
-
-  // Real UUID — used for all mutations once the order is loaded
-  const orderId = order?.id ?? orderSlug;
 
   const { data: odooSettings = [] } = useQuery({
     queryKey: ['settings', 'odoo', 'order-detail'],
@@ -77,20 +73,8 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
-    },
-  });
-
-  const syncOdooMutation = useMutation({
-    mutationFn: async () => {
-      const { data } = await api.post(`/orders/${orderId}/sync-odoo`);
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['commissions'] });
     },
   });
 
@@ -150,7 +134,7 @@ export default function OrderDetailPage() {
       return data?.data || data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       setShowAddressModal(false);
     },
@@ -170,7 +154,7 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       setShowRates(false);
     },
   });
@@ -181,11 +165,9 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
     },
   });
-
-  const { showToast } = useToast();
 
   const pickupMutation = useMutation({
     mutationFn: async () => {
@@ -197,13 +179,8 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       setShowPickup(false);
-      showToast('success', 'Recolección programada satisfactoriamente');
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message || err?.message || 'Error al programar recolección';
-      showToast('error', msg);
     },
   });
 
@@ -213,7 +190,7 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
     },
   });
 
@@ -223,26 +200,8 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
-    },
-  });
-
-  const [showManualDelivery, setShowManualDelivery] = useState(false);
-  const [manualDeliveryNotes, setManualDeliveryNotes] = useState('');
-
-  const manualDeliveryMutation = useMutation({
-    mutationFn: async () => {
-      const { data } = await api.patch(`/orders/${orderId}/deliver`, {
-        notes: manualDeliveryNotes || undefined,
-      });
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      setShowManualDelivery(false);
-      setManualDeliveryNotes('');
     },
   });
 
@@ -396,20 +355,6 @@ export default function OrderDetailPage() {
                 Error: {(markPaidMutation.error as any)?.response?.data?.message || 'No se pudo marcar como pagado'}
               </p>
             )}
-            {['PAID', 'SHIPPED', 'DELIVERED'].includes(order.status) && (!order.odooSaleOrderId || !order.odooInvoiceId) && (
-              <Button
-                variant="secondary"
-                onClick={() => syncOdooMutation.mutate()}
-                disabled={syncOdooMutation.isPending}
-              >
-                {syncOdooMutation.isPending ? 'Sincronizando...' : 'Sincronizar con Odoo'}
-              </Button>
-            )}
-            {syncOdooMutation.isError && (
-              <p className="text-xs text-status-danger">
-                Error: {(syncOdooMutation.error as any)?.response?.data?.message || 'No se pudo sincronizar'}
-              </p>
-            )}
           </div>
         </div>
       </Card>
@@ -521,10 +466,7 @@ export default function OrderDetailPage() {
             <div className="flex items-start gap-3">
               <div className="w-10 shrink-0" />
               <div>
-                {order.address.label && (
-                  <p className="text-sm font-semibold text-white">{order.address.label}</p>
-                )}
-                <p className="text-sm font-normal text-white/70">{order.address.street}</p>
+                <p className="text-sm font-semibold text-white">{order.address.label ? `${order.address.label} — ` : ''}{order.address.street}</p>
                 {order.address.detail && (
                   <p className="text-sm text-white/70">{order.address.detail}</p>
                 )}
@@ -667,15 +609,6 @@ export default function OrderDetailPage() {
                   disabled={ratesMutation.isPending}
                 >
                   {ratesMutation.isPending ? 'Cotizando...' : 'Cotizar Envío'}
-                </Button>
-              )}
-              {['PAID', 'SHIPPED'].includes(order.status) && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setShowManualDelivery(true)}
-                >
-                  <UserCheck className="h-4 w-4 mr-1" /> Entrega Manual
                 </Button>
               )}
             </div>
@@ -822,54 +755,42 @@ export default function OrderDetailPage() {
                         <h4 className="text-sm font-semibold text-white">Programar recolección</h4>
                         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                           <div>
-                            <label className="text-xs text-white/50">Fecha</label>
-                            <div className="mt-1 grid grid-cols-3 gap-2">
-                              <select
-                                value={pickupDay}
-                                onChange={(e) => setPickupDay(Number(e.target.value))}
-                                className="block h-11 w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-2 py-2 text-base text-white sm:text-sm"
-                                aria-label="Día"
-                              >
-                                {Array.from({ length: new Date(pickupYear, pickupMonth, 0).getDate() }, (_, i) => i + 1).map((day) => (
-                                  <option key={day} value={day}>{String(day).padStart(2, '0')}</option>
-                                ))}
-                              </select>
-                              <select
-                                value={pickupMonth}
-                                onChange={(e) => setPickupMonth(Number(e.target.value))}
-                                className="block h-11 w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-2 py-2 text-base text-white sm:text-sm"
-                                aria-label="Mes"
-                              >
-                                {[
-                                  { value: 1, label: 'Ene' },
-                                  { value: 2, label: 'Feb' },
-                                  { value: 3, label: 'Mar' },
-                                  { value: 4, label: 'Abr' },
-                                  { value: 5, label: 'May' },
-                                  { value: 6, label: 'Jun' },
-                                  { value: 7, label: 'Jul' },
-                                  { value: 8, label: 'Ago' },
-                                  { value: 9, label: 'Sep' },
-                                  { value: 10, label: 'Oct' },
-                                  { value: 11, label: 'Nov' },
-                                  { value: 12, label: 'Dic' },
-                                ].map((month) => (
-                                  <option key={month.value} value={month.value}>{month.label}</option>
-                                ))}
-                              </select>
-                              <select
-                                value={pickupYear}
-                                onChange={(e) => setPickupYear(Number(e.target.value))}
-                                className="block h-11 w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-2 py-2 text-base text-white sm:text-sm"
-                                aria-label="Año"
-                              >
-                                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() + i).map((year) => (
-                                  <option key={year} value={year}>{year}</option>
-                                ))}
-                              </select>
-                            </div>
+                            <label className="text-xs text-white/50">Día</label>
+                            <select
+                              value={pickupDay}
+                              onChange={(e) => setPickupDay(Number(e.target.value))}
+                              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white"
+                            >
+                              {Array.from({ length: new Date(pickupYear, pickupMonth, 0).getDate() }, (_, i) => i + 1).map((d) => (
+                                <option key={d} value={d}>{d}</option>
+                              ))}
+                            </select>
                           </div>
-                          <div className="sm:col-span-2">
+                          <div>
+                            <label className="text-xs text-white/50">Mes</label>
+                            <select
+                              value={pickupMonth}
+                              onChange={(e) => setPickupMonth(Number(e.target.value))}
+                              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white"
+                            >
+                              {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((m, i) => (
+                                <option key={i + 1} value={i + 1}>{m}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-white/50">Año</label>
+                            <select
+                              value={pickupYear}
+                              onChange={(e) => setPickupYear(Number(e.target.value))}
+                              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white"
+                            >
+                              {[new Date().getFullYear(), new Date().getFullYear() + 1].map((y) => (
+                                <option key={y} value={y}>{y}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="sm:col-span-1">
                             <label className="text-xs text-white/50">Ventana horaria</label>
                             <select
                               value={`${pickupFrom}-${pickupTo}`}
@@ -878,7 +799,7 @@ export default function OrderDetailPage() {
                                 setPickupFrom(f);
                                 setPickupTo(t);
                               }}
-              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white [color-scheme:dark]"
+                              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white"
                             >
                               {PICKUP_WINDOWS.map((w) => (
                                 <option key={w.label} value={`${w.from}-${w.to}`}>{w.label}</option>
@@ -1007,50 +928,8 @@ export default function OrderDetailPage() {
               </div>
             )}
           </div>
-
         </Card>
       )}
-
-      {/* Manual Delivery Modal */}
-      <Modal
-        open={showManualDelivery}
-        onClose={() => setShowManualDelivery(false)}
-        title="Entrega Manual"
-        size="sm"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-white/70">
-            Marcar este pedido como entregado en persona. El pedido pasará directamente a estado <strong className="text-white">DELIVERED</strong> sin envío por transportadora.
-          </p>
-          <div>
-            <label className="text-xs text-white/50">Notas (opcional)</label>
-            <textarea
-              value={manualDeliveryNotes}
-              onChange={(e) => setManualDeliveryNotes(e.target.value)}
-              placeholder="Ej: Recogido por el cliente en oficina"
-              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white placeholder:text-white/30 [color-scheme:dark]"
-              rows={2}
-            />
-          </div>
-          {manualDeliveryMutation.isError && (
-            <p className="text-xs text-status-danger">
-              {(manualDeliveryMutation.error as any)?.response?.data?.message || 'No se pudo marcar como entregado'}
-            </p>
-          )}
-          <div className="flex gap-2 pt-2">
-            <Button variant="ghost" className="w-full" onClick={() => setShowManualDelivery(false)}>
-              Cancelar
-            </Button>
-            <Button
-              className="w-full"
-              onClick={() => manualDeliveryMutation.mutate()}
-              loading={manualDeliveryMutation.isPending}
-            >
-              <UserCheck className="h-4 w-4 mr-1" /> Confirmar Entrega
-            </Button>
-          </div>
-        </div>
-      </Modal>
 
       {/* Payment Events Timeline */}
       <Card padding={false}>

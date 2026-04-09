@@ -30,8 +30,6 @@ const USER_SELECT: Prisma.UserSelect = {
   email: true,
   name: true,
   phone: true,
-  phoneCode: true,
-  sellerCode: true,
   role: true,
   parentId: true,
   commissionRate: true,
@@ -172,17 +170,7 @@ export class UsersService {
       }
     }
 
-    const passwordHash = await bcrypt.hash(dto.password || crypto.randomBytes(16).toString('hex'), 12);
-
-    // Generate reset token for password-less creation
-    let resetToken: string | undefined;
-    let hashedResetToken: string | undefined;
-    let tokenExpiry: Date | undefined;
-    if (!dto.password && (dto.role === 'SELLER_L1' || dto.role === 'SELLER_L2')) {
-      resetToken = crypto.randomBytes(32).toString('hex');
-      hashedResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-      tokenExpiry = new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000); // no practical expiry
-    }
+    const passwordHash = await bcrypt.hash(dto.password, 12);
 
     // Use provided rates or fall back to settings defaults
     const defaults = await this.getDefaultCommissionRates();
@@ -217,7 +205,6 @@ export class UsersService {
         ...(commissionScaleOverride ? { commissionScaleOverride } : {}),
         canManageSellers: dto.canManageSellers,
         odooCompanyId: dto.odooCompanyId,
-        ...(hashedResetToken ? { resetToken: hashedResetToken, resetTokenExpiry: tokenExpiry } : {}),
         sellerCode: (dto.role === 'SELLER_L1' || dto.role === 'SELLER_L2')
           ? `${dto.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '').slice(0, 20)}-${crypto.randomBytes(2).toString('hex')}`
           : undefined,
@@ -229,18 +216,6 @@ export class UsersService {
       },
       select: USER_SELECT,
     });
-
-    // Send welcome email with set-password link for seller roles without password
-    if ((dto.role === 'SELLER_L1' || dto.role === 'SELLER_L2') && resetToken) {
-      const frontendUrl = this.configService.get<string>('SELLER_APP_URL', 'https://pos.dperfumehouse.com');
-      const setPasswordUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
-      await this.emailService.sendWelcomeEmail(dto.email, dto.name, 'D Perfume House', setPasswordUrl);
-    }
-
-    // Send onboarding video email for seller roles
-    if (dto.role === 'SELLER_L1' || dto.role === 'SELLER_L2') {
-      await this.emailService.sendOnboardingVideoEmail(dto.email, dto.name);
-    }
 
     return user;
   }
@@ -499,14 +474,12 @@ export class UsersService {
     const nowApprovedAndActive = user.pendingApproval === false && user.isActive === true;
 
     if (wasPending && nowApprovedAndActive) {
-      const loginUrl = this.configService.get<string>('SELLER_APP_URL', 'https://pos.dperfumehouse.com/login');
+      const loginUrl = this.configService.get<string>('SELLER_APP_URL', 'http://localhost:3000') + '/login';
       await this.emailService.sendRegistrationApprovedWelcome(
         user.email,
         user.name,
         loginUrl,
       );
-      // Send onboarding video email
-      await this.emailService.sendOnboardingVideoEmail(user.email, user.name);
     }
 
     return user;
@@ -561,18 +534,6 @@ export class UsersService {
 
   async getProfile(userId: string) {
     return this.findOne(userId);
-  }
-
-  async updateProfile(userId: string, dto: { name?: string; phone?: string; phoneCode?: string }) {
-    const data: any = {};
-    if (dto.name !== undefined) data.name = dto.name.trim();
-    if (dto.phone !== undefined) data.phone = dto.phone.trim();
-    if (dto.phoneCode !== undefined) data.phoneCode = dto.phoneCode.trim();
-    return this.prisma.user.update({
-      where: { id: userId },
-      data,
-      select: USER_SELECT,
-    });
   }
 
   async getDownline(userId: string) {
@@ -713,7 +674,7 @@ export class UsersService {
     });
 
     // Send welcome email with set-password link
-    const frontendUrl = this.configService.get<string>('SELLER_APP_URL', 'https://pos.dperfumehouse.com');
+    const frontendUrl = this.configService.get<string>('SELLER_APP_URL', 'http://localhost:3000');
     const setPasswordUrl = `${frontendUrl}/reset-password?token=${token}`;
 
     await this.emailService.sendWelcomeEmail(
@@ -722,9 +683,6 @@ export class UsersService {
       parent.name,
       setPasswordUrl,
     );
-
-    // Send onboarding video email
-    await this.emailService.sendOnboardingVideoEmail(dto.email, dto.name);
 
     return user;
   }

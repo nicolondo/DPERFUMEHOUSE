@@ -44,7 +44,7 @@ export function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60]">
+    <div className="fixed inset-0 z-50">
       {/* Backdrop */}
       <div
         className="backdrop animate-fade-in"
@@ -55,10 +55,10 @@ export function Modal({
       {/* Bottom sheet on mobile, centered on desktop */}
       <div
         className={cn(
-          'fixed z-[60] animate-slide-up bg-surface-raised border border-glass-border shadow-glass backdrop-blur-xl',
-          'inset-x-0 bottom-0 rounded-t-3xl',
-          'sm:inset-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:w-full sm:max-w-lg',
-          fullHeight ? 'top-12 sm:top-1/2 sm:max-h-[85dvh]' : 'max-h-[92dvh]',
+          'fixed z-50 animate-slide-up bg-surface-raised border border-glass-border shadow-glass backdrop-blur-xl',
+          'inset-x-0 bottom-0 rounded-t-3xl pb-safe-bottom',
+          'sm:inset-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:pb-0 sm:w-full sm:max-w-lg',
+          fullHeight ? 'top-12 sm:top-1/2 sm:max-h-[85vh]' : 'max-h-[85vh]',
           className
         )}
       >
@@ -86,8 +86,7 @@ export function Modal({
         )}
 
         {/* Content */}
-        <div className={cn('overflow-y-auto overflow-x-visible px-4', fullHeight ? 'flex-1' : 'max-h-[calc(92dvh-8rem)]')}
-          style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))' }}>
+        <div className={cn('overflow-y-auto overflow-x-visible px-4 pb-6', fullHeight ? 'flex-1' : 'max-h-[70vh]')}>
           {children}
         </div>
       </div>

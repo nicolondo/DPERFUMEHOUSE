@@ -73,38 +73,11 @@ export class FragellaService {
     if (!query || query.trim().length < 3) return [];
 
     try {
-      // Fetch more results than needed so we can re-rank and surface exact matches
-      const fetchLimit = Math.max(limit * 4, 20);
-      const url = `${FRAGELLA_BASE}/fragrances?search=${encodeURIComponent(query.trim())}&limit=${fetchLimit}`;
+      const url = `${FRAGELLA_BASE}/fragrances?search=${encodeURIComponent(query.trim())}&limit=${limit}`;
       const data = await this.fetchApi<FragellaFragrance[]>(url);
       if (!data) return [];
 
-      const q = query.trim().toLowerCase();
-      const qWords = q.split(/\s+/);
-
-      // Re-rank: prioritize results where the query appears as a contiguous substring in the name
-      const scored = data.map((f) => {
-        const name = f.Name.toLowerCase();
-        const fullName = `${f.Brand} ${f.Name}`.toLowerCase();
-        let score = 0;
-
-        // Exact full name match
-        if (name === q || fullName === q) score += 100;
-        // Name contains the full query as substring
-        else if (name.includes(q)) score += 50;
-        // Brand + Name contains the full query
-        else if (fullName.includes(q)) score += 40;
-        // All query words appear in name
-        else if (qWords.every((w) => name.includes(w))) score += 30;
-        // All query words appear in brand+name
-        else if (qWords.every((w) => fullName.includes(w))) score += 20;
-
-        return { fragrance: f, score };
-      });
-
-      scored.sort((a, b) => b.score - a.score);
-
-      return scored.slice(0, limit).map(({ fragrance: f }, i) => ({
+      return data.map((f, i) => ({
         id: `fragella-${i}-${f.Name.replace(/\s+/g, '-').toLowerCase()}`,
         name: f.Name,
         brand: f.Brand,

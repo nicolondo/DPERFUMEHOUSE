@@ -1,0 +1,101 @@
+# RuFlo V3.5 Runtime Configuration
+# Project: D Perfume House
+# Updated: 2026-03-26
+
+version: "3.5.0"
+
+project:
+  name: dperfumehouse
+  type: ecommerce
+  stack:
+    backend: nestjs
+    frontend: nextjs
+    orm: prisma
+    erp: odoo-18
+    payments: myxspend
+    queue: bullmq
+
+swarm:
+  topology: hierarchical-mesh
+  maxAgents: 15
+  autoScale: true
+  coordinationStrategy: consensus
+  antiDrift:
+    enabled: true
+    checkpointFrequency: 5
+    goalValidation: true
+
+memory:
+  backend: hybrid
+  enableHNSW: true
+  persistPath: .claude-flow/data
+  cacheSize: 200
+  learningBridge:
+    enabled: true
+    sonaMode: balanced
+    confidenceDecayRate: 0.005
+    accessBoostAmount: 0.03
+    consolidationThreshold: 10
+  memoryGraph:
+    enabled: true
+    pageRankDamping: 0.85
+    maxNodes: 5000
+    similarityThreshold: 0.8
+  agentScopes:
+    enabled: true
+    defaultScope: project
+
+neural:
+  enabled: true
+  modelPath: .claude-flow/neural
+
+hooks:
+  enabled: true
+  autoExecute: true
+
+agents:
+  domains:
+    - name: dperfumehouse
+      path: .claude/agents/dperfumehouse
+      agents:
+        - orchestrator
+        - api-backend
+        - frontend-seller
+        - frontend-admin
+        - odoo-integrator
+        - payments-specialist
+        - database-architect
+        - testing-engineer
+        - devops-engineer
+        - security-auditor
+        - commission-engine
+        - ui-designer
+
+routing:
+  rules:
+    - pattern: "odoo|erp|sync|inventory|xml-rpc"
+      agent: odoo-integrator
+    - pattern: "payment|myxspend|webhook|hmac"
+      agent: payments-specialist
+    - pattern: "commission|payout|hierarchy|multi-level"
+      agent: commission-engine
+    - pattern: "prisma|schema|migration|seed|database"
+      agent: database-architect
+    - pattern: "test|jest|vitest|coverage|e2e"
+      agent: testing-engineer
+    - pattern: "ci|cd|github action|deploy|docker"
+      agent: devops-engineer
+    - pattern: "security|auth|jwt|cors|rate-limit|vulnerability"
+      agent: security-auditor
+    - pattern: "seller.*ui|seller.*page|pwa|cart|catalog"
+      agent: frontend-seller
+    - pattern: "admin.*ui|admin.*dashboard|admin.*panel"
+      agent: frontend-admin
+    - pattern: "nest|module|guard|pipe|dto|controller|service"
+      agent: api-backend
+    - pattern: "design|style|color|font|component|tailwind"
+      agent: ui-designer
+
+mcp:
+  autoStart: false
+  port: 3000
