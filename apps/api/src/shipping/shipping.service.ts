@@ -1,8 +1,13 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { EnviaService, EnviaRateRequest, EnviaGenerateRequest, EnviaPickupRequest } from './envia.service';
 import { OdooService } from '../odoo/odoo.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { ShipmentStatus } from '@prisma/client';
 
 @Injectable()
@@ -14,6 +19,8 @@ export class ShippingService {
     private settings: SettingsService,
     private envia: EnviaService,
     private odoo: OdooService,
+    private notificationsService: NotificationsService,
+    @InjectQueue('email-send') private readonly emailQueue: Queue,
   ) {}
 
   private async getOriginAddress() {
@@ -334,6 +341,31 @@ export class ShippingService {
       this.logger.warn(`Could not validate Odoo delivery for order ${orderId}: ${err.message}`);
     }
 
+    // Send customer shipping email & seller push notification
+    const fullOrder = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { customer: true, seller: true },
+    });
+    if (fullOrder?.customer?.email) {
+      this.emailQueue.add('send-shipping-notification', {
+        customerEmail: fullOrder.customer.email,
+        customerName: fullOrder.customer.name,
+        orderNumber: fullOrder.orderNumber,
+        trackingNumber: labelData.trackingNumber || '',
+        trackUrl: labelData.trackUrl || '',
+        carrier: labelData.carrier || '',
+      }).catch(() => {});
+    }
+    if (fullOrder?.sellerId) {
+      this.notificationsService.sendToUser(
+        fullOrder.sellerId,
+        '📦 Pedido enviado',
+        `El pedido ${fullOrder.orderNumber} fue enviado. Guía: ${labelData.trackingNumber || 'N/A'}`,
+        { orderId, orderNumber: fullOrder.orderNumber, trackingNumber: labelData.trackingNumber },
+        `/orders/${orderId}`,
+      ).catch(() => {});
+    }
+
     return shipment;
   }
 
@@ -511,6 +543,27 @@ export class ShippingService {
         where: { id: shipment.orderId },
         data: { status: 'DELIVERED' },
       });
+
+      // Send customer delivered email & seller push notification
+      const fullOrder = await this.prisma.order.findUnique({
+        where: { id: shipment.orderId },
+        include: { customer: true, seller: true },
+      });
+      if (fullOrder?.customer?.email) {
+        this.emailQueue.add('send-delivered-notification', {
+          customerEmail: fullOrder.customer.email,
+          customerName: fullOrder.customer.name,
+          orderNumber: fullOrder.orderNumber,
+        }).catch(() => {});
+      }
+      if (fullOrder?.sellerId) {
+        this.pushService.sendToUser(fullOrder.sellerId, {
+          title: '✅ Pedido entregado',
+          body: `El pedido ${fullOrder?.orderNumber} fue entregado exitosamente al cliente.`,
+          icon: '/icons/dp-logo-full.png',
+          data: { orderId: shipment.orderId, orderNumber: fullOrder?.orderNumber },
+        }).catch(() => {});
+      }
     }
 
     this.logger.log(`Webhook processed: ${trackingNumber} → ${shipmentStatus}`);

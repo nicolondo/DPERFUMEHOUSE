@@ -820,7 +820,7 @@ export default function OrderDetailPage() {
                     ) : (
                       <div className="space-y-3">
                         <h4 className="text-sm font-semibold text-white">Programar recolección</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                           <div>
                             <label className="text-xs text-white/50">Fecha</label>
                             <div className="mt-1 grid grid-cols-3 gap-2">
@@ -878,7 +878,7 @@ export default function OrderDetailPage() {
                                 setPickupFrom(f);
                                 setPickupTo(t);
                               }}
-                              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white [color-scheme:dark]"
+              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white [color-scheme:dark]"
                             >
                               {PICKUP_WINDOWS.map((w) => (
                                 <option key={w.label} value={`${w.from}-${w.to}`}>{w.label}</option>
