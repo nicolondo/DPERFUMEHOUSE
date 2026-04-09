@@ -29,7 +29,7 @@ interface OrderPublicData {
 async function getOrder(orderNumber: string): Promise<OrderPublicData | null> {
   try {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api$/, '') || 'http://localhost:3001';
-    const res = await fetch(`${apiUrl}/api/orders/public/number/${encodeURIComponent(orderNumber)}`, {
+    const res = await fetch(`${apiUrl}/api/orders/public/${encodeURIComponent(orderNumber)}`, {
       cache: 'no-store',
     });
     if (!res.ok) return null;

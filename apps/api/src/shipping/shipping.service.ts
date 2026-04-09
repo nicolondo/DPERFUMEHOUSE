@@ -6,8 +6,6 @@ import { SettingsService } from '../settings/settings.service';
 import { EnviaService, EnviaRateRequest, EnviaGenerateRequest, EnviaPickupRequest } from './envia.service';
 import { OdooService } from '../odoo/odoo.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
 import { ShipmentStatus } from '@prisma/client';
 
 @Injectable()
@@ -557,12 +555,11 @@ export class ShippingService {
         }).catch(() => {});
       }
       if (fullOrder?.sellerId) {
-        this.pushService.sendToUser(fullOrder.sellerId, {
-          title: '✅ Pedido entregado',
-          body: `El pedido ${fullOrder?.orderNumber} fue entregado exitosamente al cliente.`,
-          icon: '/icons/dp-logo-full.png',
-          data: { orderId: shipment.orderId, orderNumber: fullOrder?.orderNumber },
-        }).catch(() => {});
+        this.notificationsService.sendToUser(
+          fullOrder.sellerId,
+          '✅ Pedido entregado',
+          `El pedido ${fullOrder?.orderNumber} fue entregado exitosamente al cliente.`,
+        ).catch(() => {});
       }
     }
 

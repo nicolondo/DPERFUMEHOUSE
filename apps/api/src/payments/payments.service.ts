@@ -755,8 +755,8 @@ export class PaymentsService {
       await this.prisma.paymentLink.update({
         where: { id: order.paymentLink.id },
         data: {
-          transactionId: transaction.id,
-          paymentMethodType: dto.paymentMethodType,
+          transaction_id: transaction.id,
+          payment_method_type: dto.paymentMethodType,
           externalId: reference,
           provider: 'wompi',
           status: 'PENDING',
@@ -770,8 +770,8 @@ export class PaymentsService {
       await this.prisma.paymentLink.create({
         data: {
           orderId,
-          transactionId: transaction.id,
-          paymentMethodType: dto.paymentMethodType,
+          transaction_id: transaction.id,
+          payment_method_type: dto.paymentMethodType,
           externalId: reference,
           amount: order.total,
           currency: 'COP',
@@ -859,15 +859,15 @@ export class PaymentsService {
       throw new NotFoundException(`No payment link found for order ${orderId}`);
     }
 
-    if (!paymentLink.transactionId) {
+    if (!paymentLink.transaction_id) {
       return {
         status: paymentLink.status,
         transactionId: null,
-        paymentMethodType: paymentLink.paymentMethodType,
+        paymentMethodType: paymentLink.payment_method_type,
       };
     }
 
-    const transaction = await this.wompiService.getTransactionById(paymentLink.transactionId);
+    const transaction = await this.wompiService.getTransactionById(paymentLink.transaction_id);
 
     return {
       status: transaction.status,

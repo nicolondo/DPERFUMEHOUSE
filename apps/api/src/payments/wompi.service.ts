@@ -33,14 +33,6 @@ export class WompiService implements PaymentProvider {
     return key;
   }
 
-  private async getIntegritySecret(): Promise<string> {
-    const secret = await this.settingsService.get('wompi_integrity_secret');
-    if (!secret) {
-      throw new Error('Wompi integrity secret not configured');
-    }
-    return secret;
-  }
-
   private async generatePaymentLinkIntegritySignature(
     amountInCents: number,
     currency: string,
