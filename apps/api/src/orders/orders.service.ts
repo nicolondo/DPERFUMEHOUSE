@@ -172,12 +172,16 @@ export class OrdersService {
   }
 
   async findOnePublic(identifier: string) {
+    // Only include id in OR if identifier looks like a valid UUID
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+    const whereConditions: any[] = [{ orderNumber: identifier }];
+    // Also try with PH- prefix if not already present
+    if (!identifier.startsWith('PH-')) whereConditions.push({ orderNumber: `PH-${identifier}` });
+    if (isUUID) whereConditions.push({ id: identifier });
+
     const order = await this.prisma.order.findFirst({
       where: {
-        OR: [
-          { orderNumber: identifier },
-          { id: identifier },
-        ],
+        OR: whereConditions,
       },
       select: {
         id: true,
