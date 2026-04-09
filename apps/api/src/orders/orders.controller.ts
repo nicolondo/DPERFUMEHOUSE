@@ -61,7 +61,7 @@ export class OrdersController {
 
   @Get(':id')
   async findOne(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @CurrentUser() user: CurrentUserPayload,
   ) {
     const isAdmin = user.role === 'ADMIN';

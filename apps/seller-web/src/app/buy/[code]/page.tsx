@@ -1,18 +1,23 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import {
+  PaymentMethodSelector,
+  AcceptanceCheckbox,
+  CardForm,
+  PSEForm,
+  NequiForm,
+  BancolombiaTransferForm,
+  BancolombiaCollectForm,
+  DaviplataForm,
+  PaymentPolling,
+} from '@/components/payments';
+import type { PaymentMethodType } from '@/components/payments';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
-declare global {
-  interface Window { WidgetCheckout: any; }
-}
-
-// ──────────────────────────────────────────────
-// Country phone codes
-// ──────────────────────────────────────────────
 const PHONE_CODES = [
   { code: '+57', country: 'Colombia', flag: '🇨🇴' },
   { code: '+1', country: 'Estados Unidos', flag: '🇺🇸' },
@@ -46,7 +51,6 @@ const PHONE_CODES = [
   { code: '+64', country: 'Nueva Zelanda', flag: '🇳🇿' },
 ];
 
-// ID document types (Wompi Colombia)
 const ID_TYPES = [
   { value: 'CC', label: 'CC · Cédula de Ciudadanía' },
   { value: 'CE', label: 'CE · Cédula de Extranjería' },
@@ -60,11 +64,7 @@ type PhoneCode = typeof PHONE_CODES[0];
 interface ProductLink {
   id: string;
   code: string;
-  seller: {
-    name: string;
-    phone: string | null;
-    phoneCode: string | null;
-  };
+  seller: { name: string; phone: string | null; phoneCode: string | null };
   variant: {
     id: string;
     name: string;
@@ -85,19 +85,18 @@ interface ProductLink {
   };
 }
 
-// ──────────────────────────────────────────────
-// Load Google Maps script once
-// ──────────────────────────────────────────────
+interface Bank {
+  financial_institution_code: string;
+  financial_institution_name: string;
+}
+
 function useGoogleMaps() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined' || !MAPS_KEY) return;
     if ((window as any).google?.maps?.places) { setReady(true); return; }
     const existing = document.getElementById('gm-script');
-    if (existing) {
-      existing.addEventListener('load', () => setReady(true));
-      return;
-    }
+    if (existing) { existing.addEventListener('load', () => setReady(true)); return; }
     const script = document.createElement('script');
     script.id = 'gm-script';
     script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places&language=es&region=CO`;
@@ -109,73 +108,46 @@ function useGoogleMaps() {
   return ready;
 }
 
-// ──────────────────────────────────────────────
-// Phone country code dropdown with search
-// ──────────────────────────────────────────────
 function PhoneCodeDropdown({ value, onChange }: { value: PhoneCode; onChange: (c: PhoneCode) => void }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const ref = useRef<HTMLDivElement>(null);
-
   const filtered = PHONE_CODES.filter(
-    (c) =>
-      c.country.toLowerCase().includes(search.toLowerCase()) ||
-      c.code.includes(search),
+    (c) => c.country.toLowerCase().includes(search.toLowerCase()) || c.code.includes(search),
   );
-
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-        setSearch('');
-      }
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setSearch(''); }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
-
   return (
     <div ref={ref} className="relative flex-shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 h-full px-3 py-2.5 rounded-l-xl bg-[#1a1610] border border-r-0 border-[#d3a86f]/15 text-sm hover:bg-[#d3a86f]/10 transition-colors"
-      >
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 h-full px-3 py-2.5 rounded-l-xl bg-[#1a1610] border border-r-0 border-[#d3a86f]/15 text-sm hover:bg-[#d3a86f]/10 transition-colors">
         <span className="text-base leading-none">{value.flag}</span>
         <span className="text-white/60 font-mono text-xs">{value.code}</span>
         <svg className="w-3 h-3 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
         </svg>
       </button>
-
       {open && (
         <div className="absolute top-full left-0 z-50 mt-1 w-64 rounded-xl bg-[#1a1610] border border-[#d3a86f]/20 shadow-2xl overflow-hidden">
           <div className="p-2 border-b border-white/5">
-            <input
-              type="text"
-              placeholder="Buscar país..."
-              autoFocus
-              value={search}
+            <input type="text" placeholder="Buscar país..." autoFocus value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-white/5 text-white text-sm placeholder:text-white/25 focus:outline-none"
-            />
+              className="w-full px-2.5 py-1.5 rounded-lg bg-white/5 text-white text-sm placeholder:text-white/25 focus:outline-none" />
           </div>
           <div className="max-h-52 overflow-y-auto">
-            {filtered.length === 0 && (
-              <p className="px-3 py-3 text-white/30 text-sm text-center">Sin resultados</p>
-            )}
+            {filtered.length === 0 && <p className="px-3 py-3 text-white/30 text-sm text-center">Sin resultados</p>}
             {filtered.map((c) => (
-              <button
-                key={`${c.code}-${c.country}`}
-                type="button"
+              <button key={`${c.code}-${c.country}`} type="button"
                 onClick={() => { onChange(c); setOpen(false); setSearch(''); }}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-[#d3a86f]/10 transition-colors ${
-                  value.code === c.code && value.country === c.country
-                    ? 'bg-[#d3a86f]/10 text-[#d3a86f]'
-                    : 'text-white/70'
-                }`}
-              >
+                  value.code === c.code && value.country === c.country ? 'bg-[#d3a86f]/10 text-[#d3a86f]' : 'text-white/70'
+                }`}>
                 <span className="text-base leading-none">{c.flag}</span>
                 <span className="flex-1 truncate text-left">{c.country}</span>
                 <span className="text-white/40 text-xs font-mono">{c.code}</span>
@@ -188,22 +160,18 @@ function PhoneCodeDropdown({ value, onChange }: { value: PhoneCode; onChange: (c
   );
 }
 
-// ──────────────────────────────────────────────
-// Main page
-// ──────────────────────────────────────────────
 export default function BuyPage() {
   const params = useParams<{ code: string }>();
   const router = useRouter();
+
   const [link, setLink] = useState<ProductLink | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
 
-  // Form state
+  // Phase 1 form state
   const [quantity, setQuantity] = useState(1);
   const [name, setName] = useState('');
-  const [phoneCode, setPhoneCode] = useState<PhoneCode>(PHONE_CODES[0]); // Colombia default
+  const [phoneCode, setPhoneCode] = useState<PhoneCode>(PHONE_CODES[0]);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [idType, setIdType] = useState('CC');
@@ -212,31 +180,44 @@ export default function BuyPage() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [detail, setDetail] = useState('');
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethodType | null>(null);
+  const [creatingOrder, setCreatingOrder] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
-  // Wompi widget
-  const [wompiLoaded, setWompiLoaded] = useState(false);
+  // Phase 2 state
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [wompiPublicKey, setWompiPublicKey] = useState('');
+  const [acceptanceToken, setAcceptanceToken] = useState('');
+  const [acceptPermalink, setAcceptPermalink] = useState('');
+  const [accepted, setAccepted] = useState(true);
+  const [pseBanks, setPseBanks] = useState<Bank[]>([]);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [nequiWaiting, setNequiWaiting] = useState(false);
+  const [collectRef, setCollectRef] = useState<{ businessAgreementCode: string; paymentIntentionIdentifier: string } | null>(null);
+  const [pseWidgetReady, setPseWidgetReady] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Google Maps
   const mapsReady = useGoogleMaps();
   const streetInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<any>(null);
 
-  // Load Wompi widget script on mount
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.WidgetCheckout) { setWompiLoaded(true); return; }
-    if (document.querySelector('script[src*="widget.js"]')) {
-      const s = document.querySelector<HTMLScriptElement>('script[src*="widget.js"]');
-      s?.addEventListener('load', () => setWompiLoaded(true));
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://checkout.wompi.co/widget.js';
-    script.async = true;
-    script.onload = () => setWompiLoaded(true);
-    document.head.appendChild(script);
+    fetch(`${API_URL}/seller-product-links/public/${params.code}`)
+      .then((r) => { if (!r.ok) throw new Error('Not found'); return r.json(); })
+      .then((d) => { const data = d.data || d; if (data.variant) setLink(data); else setError('Producto no disponible'); })
+      .catch(() => setError('Link no encontrado'))
+      .finally(() => setLoading(false));
+  }, [params.code]);
+
+  useEffect(() => {
+    fetch(`${API_URL}/payments/pse/banks`)
+      .then((r) => r.json())
+      .then((data) => setPseBanks(Array.isArray(data) ? data : []))
+      .catch(() => {});
   }, []);
 
-  // Google Maps autocomplete — restrict to Colombia
   useEffect(() => {
     if (!mapsReady || !streetInputRef.current || autocompleteRef.current) return;
     const ac = new (window as any).google.maps.places.Autocomplete(streetInputRef.current, {
@@ -256,48 +237,44 @@ export default function BuyPage() {
       setCity(get('locality') || get('administrative_area_level_2'));
       setState(get('administrative_area_level_1'));
     });
-  }, [mapsReady]);
+  }, [mapsReady, link]);
 
   useEffect(() => {
-    fetch(`${API_URL}/seller-product-links/public/${params.code}`)
-      .then((r) => {
-        if (!r.ok) throw new Error('Not found');
-        return r.json();
-      })
-      .then((d) => {
-        const data = d.data || d;
-        if (data.variant) setLink(data);
-        else setError('Producto no disponible');
-      })
-      .catch(() => setError('Link no encontrado'))
-      .finally(() => setLoading(false));
-  }, [params.code]);
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+  }, []);
+
+  // Load Wompi widget script for PSE
+  useEffect(() => {
+    if (!orderId || selectedMethod !== 'PSE') return;
+    if ((window as any).WidgetCheckout) { setPseWidgetReady(true); return; }
+    const existing = document.getElementById('wompi-widget-script');
+    if (existing) { existing.addEventListener('load', () => setPseWidgetReady(true)); return; }
+    const script = document.createElement('script');
+    script.id = 'wompi-widget-script';
+    script.src = 'https://checkout.wompi.co/widget.js';
+    script.async = true;
+    script.onload = () => setPseWidgetReady(true);
+    document.head.appendChild(script);
+  }, [orderId, selectedMethod]);
 
   const formatPrice = (price: string | number) =>
     new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(
       typeof price === 'string' ? parseFloat(price) : price,
     );
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handlePhase1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!link) return;
-    setSubmitting(true);
+    if (!link || !selectedMethod) return;
+    setCreatingOrder(true);
     setSubmitError('');
-
     try {
       const fullPhone = `${phoneCode.code}${phone}`;
-
-      // Step 1: Create the order
       const res = await fetch(`${API_URL}/seller-product-links/public/${params.code}/purchase`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name,
-          phone: fullPhone,
-          email,
-          quantity,
-          street,
-          city,
+          name, phone: fullPhone, email, quantity,
+          street, city,
           state: state || undefined,
           detail: detail || undefined,
           addressPhone: fullPhone,
@@ -305,68 +282,146 @@ export default function BuyPage() {
           legalId: idNumber || undefined,
         }),
       });
-
       if (!res.ok) {
         const err = await res.json().catch(() => null);
-        throw new Error(err?.message || 'Error al procesar la compra');
+        throw new Error(err?.message || 'Error al crear el pedido');
       }
-
       const data = await res.json();
       const result = data.data || data;
-      const orderId = result.orderId;
-      if (!orderId) throw new Error('No se pudo crear el pedido');
+      const oid = result.orderId;
+      if (!oid) throw new Error('No se pudo crear el pedido');
 
-      // Step 2: Fetch Wompi widget config (signature + keys from backend)
-      const configRes = await fetch(`${API_URL}/payments/widget-config/${orderId}`);
-      if (!configRes.ok) throw new Error('Error al preparar el pago');
-      const configData = await configRes.json();
-      const wConf = configData.data || configData;
+      const wompiRes = await fetch(`${API_URL}/payments/wompi-public-data/${oid}`);
+      if (!wompiRes.ok) throw new Error('Error al preparar el pago');
+      const wompiData = await wompiRes.json();
 
-      // Step 3: Open Wompi widget pre-filled with all form data
-      if (!window.WidgetCheckout) throw new Error('Widget de pago no disponible. Intenta recargar la página.');
+      setOrderId(oid);
+      setWompiPublicKey(wompiData.publicKey || '');
+      setAcceptanceToken(wompiData.acceptanceToken || '');
+      setAcceptPermalink(wompiData.acceptPermalink || 'https://wompi.com/assets/downloadble/reglamento.pdf');
+    } catch (err: any) {
+      setSubmitError(err.message || 'Error inesperado');
+    } finally {
+      setCreatingOrder(false);
+    }
+  };
 
-      const checkoutConfig: any = {
-        currency: wConf.currency,
-        amountInCents: wConf.amountInCents,
-        reference: wConf.reference,
-        publicKey: wConf.publicKey,
-        signature: { integrity: wConf.signature },
-        redirectUrl: wConf.redirectUrl,
-        customerData: {
-          fullName: name,
-          email: email,
-          phoneNumber: phone.replace(/\D/g, ''),
-          phoneNumberPrefix: phoneCode.code,
-          ...(idNumber ? { legalId: idNumber, legalIdType: idType } : {}),
-        },
-        shippingAddress: {
-          addressLine1: street,
-          country: 'CO',
-          city: city,
-          region: state || city,
-          phoneNumber: phone.replace(/\D/g, ''),
-          ...(detail ? { addressLine2: detail } : {}),
-        },
-      };
+  const processPayment = useCallback(async (methodData: Record<string, any>) => {
+    if (!orderId || !acceptanceToken) return;
+    if (!accepted) { setPaymentError('Debes aceptar los términos y condiciones de Wompi.'); return; }
+    setPaymentProcessing(true);
+    setPaymentError('');
+    try {
+      const res = await fetch(`${API_URL}/payments/direct-transaction/${orderId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentMethodType: selectedMethod, acceptanceToken, ...methodData }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.message || 'Error al procesar el pago');
+      }
+      const result = await res.json();
+      const { status, redirectUrl, paymentMethod } = result;
 
-      setSubmitting(false);
+      switch (selectedMethod) {
 
-      new window.WidgetCheckout(checkoutConfig).open((widgetResult: any) => {
-        if (widgetResult?.transaction?.status === 'APPROVED') {
-          router.push(`/pay/${orderId}?payment=done`);
+        case 'BANCOLOMBIA_TRANSFER':
+        case 'DAVIPLATA':
+          if (redirectUrl) { window.location.href = redirectUrl; }
+          else throw new Error('No se recibió URL de redirección. Intenta de nuevo.');
+          break;
+        case 'BANCOLOMBIA_COLLECT': {
+          const pm = paymentMethod || {};
+          setCollectRef({
+            businessAgreementCode: pm.business_agreement_code || pm.extra?.business_agreement_code || '—',
+            paymentIntentionIdentifier: pm.payment_intention_identifier || pm.extra?.payment_intention_identifier || '—',
+          });
+          setPaymentStatus('COLLECT_READY');
+          break;
+        }
+        case 'NEQUI':
+          setNequiWaiting(true);
+          setPaymentStatus('PENDING');
+          pollingRef.current = setInterval(async () => {
+            try {
+              const pollRes = await fetch(`${API_URL}/payments/transaction-status/${orderId}`);
+              if (!pollRes.ok) return;
+              const pollData = await pollRes.json();
+              const s = pollData.status;
+              if (s === 'APPROVED' || s === 'DECLINED' || s === 'ERROR' || s === 'VOIDED') {
+                clearInterval(pollingRef.current!); pollingRef.current = null;
+                setPaymentStatus(s); setNequiWaiting(false);
+              }
+            } catch {}
+          }, 4000);
+          break;
+        case 'CARD':
+          setPaymentStatus(status || 'PENDING');
+          if (status === 'APPROVED') {
+            setTimeout(() => router.push(`/pay/${orderId}?payment=done`), 1500);
+          } else if (status === 'PENDING') {
+            pollingRef.current = setInterval(async () => {
+              try {
+                const pollRes = await fetch(`${API_URL}/payments/transaction-status/${orderId}`);
+                if (!pollRes.ok) return;
+                const pollData = await pollRes.json();
+                const s = pollData.status;
+                if (s !== 'PENDING') {
+                  clearInterval(pollingRef.current!); pollingRef.current = null;
+                  setPaymentStatus(s);
+                  if (s === 'APPROVED') setTimeout(() => router.push(`/pay/${orderId}?payment=done`), 1500);
+                }
+              } catch {}
+            }, 3000);
+          }
+          break;
+      }
+    } catch (err: any) {
+      setPaymentError(err.message || 'Error al procesar el pago');
+    } finally {
+      setPaymentProcessing(false);
+    }
+  }, [orderId, acceptanceToken, accepted, selectedMethod, router]);
+
+  const openPseWidget = useCallback(async () => {
+    if (!orderId || !accepted) {
+      if (!accepted) setPaymentError('Debes aceptar los términos y condiciones de Wompi.');
+      return;
+    }
+    setPaymentProcessing(true);
+    setPaymentError('');
+    try {
+      const res = await fetch(`${API_URL}/payments/widget-config/${orderId}`);
+      if (!res.ok) throw new Error('Error al preparar el pago PSE');
+      const cfg = await res.json();
+      const checkout = new (window as any).WidgetCheckout({
+        currency: 'COP',
+        amountInCents: cfg.amountInCents,
+        reference: cfg.reference,
+        publicKey: cfg.publicKey,
+        redirectUrl: cfg.redirectUrl,
+        ...(cfg.customerData && Object.keys(cfg.customerData).length > 0 ? { customerData: cfg.customerData } : {}),
+        ...(cfg.shippingAddress ? { shippingAddress: cfg.shippingAddress } : {}),
+      });
+      checkout.open((result: any) => {
+        const t = result?.transaction;
+        if (t?.status === 'APPROVED') {
+          setPaymentStatus('APPROVED');
         }
       });
     } catch (err: any) {
-      setSubmitError(err.message || 'Error inesperado');
-      setSubmitting(false);
+      setPaymentError(err.message || 'Error al abrir PSE');
+    } finally {
+      setPaymentProcessing(false);
     }
-  };
+  }, [orderId, accepted]);
 
   if (loading) {
     return (
       <div className="min-h-dvh bg-[#0c0a06] flex items-center justify-center">
         <div className="text-center space-y-4">
-          <img src="/icons/logo-final.svg" alt="D Perfume House" className="w-16 h-16 mx-auto animate-pulse" />
+          <img src="/icons/logo-final.svg" alt="D Perfume House" style={{ width: '200px', height: 'auto' }} className="mx-auto animate-pulse" />
           <p className="text-[#d3a86f]/60 text-lg">Cargando producto...</p>
         </div>
       </div>
@@ -397,69 +452,38 @@ export default function BuyPage() {
 
   return (
     <div className="min-h-dvh bg-[#0c0a06]">
-      {/* Header — logo 300px centered, seller name below */}
       <div className="sticky top-0 z-10 bg-[#0c0a06]/95 backdrop-blur-xl border-b border-[#d3a86f]/10 px-4 py-3">
         <div className="max-w-lg mx-auto flex flex-col items-center gap-1">
-          <img
-            src="/icons/logo-final.svg"
-            alt="D Perfume House"
-            style={{ width: '300px', height: 'auto' }}
-          />
-          <p className="text-xs text-white/40">Vendedor: {link.seller.name}</p>
+          <img src="/icons/logo-final.svg" alt="D Perfume House" style={{ width: '200px', height: 'auto' }} />
         </div>
       </div>
 
       <div className="max-w-lg mx-auto">
-        {/* Product Image */}
         {mainImage && (
           <div className="aspect-square bg-[#1a1610]">
             <img src={mainImage} alt={variant.name} className="w-full h-full object-cover" />
           </div>
         )}
 
-        {/* Product Info */}
         <div className="px-4 py-5 space-y-4">
           <div>
             <h1 className="text-xl font-bold text-white">{variant.name}</h1>
             <p className="text-2xl font-bold text-[#d3a86f] mt-1">{formatPrice(variant.price)}</p>
             {variant.categoryName && (
-              <p className="text-xs text-white/40 mt-1">
-                {variant.categoryName.split(' / ').slice(2).join(' / ')}
-              </p>
+              <p className="text-xs text-white/40 mt-1">{variant.categoryName.split(' / ').slice(2).join(' / ')}</p>
             )}
           </div>
 
-          {/* Fragrance profile pills */}
           {fp && (
             <div className="space-y-3">
               <div className="flex flex-wrap gap-2">
-                {fp.familiaOlfativa && (
-                  <span className="px-2.5 py-1 rounded-full bg-[#d3a86f]/10 text-[#d3a86f] text-xs font-medium border border-[#d3a86f]/20">
-                    {fp.familiaOlfativa}
-                  </span>
-                )}
-                {fp.intensidad && (
-                  <span className="px-2.5 py-1 rounded-full bg-white/5 text-white/60 text-xs font-medium border border-white/10">
-                    Intensidad: {fp.intensidad}
-                  </span>
-                )}
-                {fp.duracionEstimada && (
-                  <span className="px-2.5 py-1 rounded-full bg-white/5 text-white/60 text-xs font-medium border border-white/10">
-                    {fp.duracionEstimada}
-                  </span>
-                )}
-                {fp.genero && fp.genero !== 'unisex' && (
-                  <span className="px-2.5 py-1 rounded-full bg-white/5 text-white/60 text-xs font-medium border border-white/10">
-                    {fp.genero === 'masculino' ? 'Masculino' : 'Femenino'}
-                  </span>
-                )}
+                {fp.familiaOlfativa && <span className="px-2.5 py-1 rounded-full bg-[#d3a86f]/10 text-[#d3a86f] text-xs font-medium border border-[#d3a86f]/20">{fp.familiaOlfativa}</span>}
+                {fp.intensidad && <span className="px-2.5 py-1 rounded-full bg-white/5 text-white/60 text-xs font-medium border border-white/10">Intensidad: {fp.intensidad}</span>}
+                {fp.duracionEstimada && <span className="px-2.5 py-1 rounded-full bg-white/5 text-white/60 text-xs font-medium border border-white/10">{fp.duracionEstimada}</span>}
+                {fp.genero && fp.genero !== 'unisex' && <span className="px-2.5 py-1 rounded-full bg-white/5 text-white/60 text-xs font-medium border border-white/10">{fp.genero === 'masculino' ? 'Masculino' : 'Femenino'}</span>}
               </div>
-              {fp.descripcionDetallada && (
-                <p className="text-sm text-white/50 leading-relaxed">{fp.descripcionDetallada}</p>
-              )}
-              {fp.frasePositionamiento && (
-                <p className="text-sm text-[#d3a86f]/70 italic">&ldquo;{fp.frasePositionamiento}&rdquo;</p>
-              )}
+              {fp.descripcionDetallada && <p className="text-sm text-white/50 leading-relaxed">{fp.descripcionDetallada}</p>}
+              {fp.frasePositionamiento && <p className="text-sm text-[#d3a86f]/70 italic">&ldquo;{fp.frasePositionamiento}&rdquo;</p>}
             </div>
           )}
 
@@ -468,152 +492,149 @@ export default function BuyPage() {
               <p className="text-red-400 font-medium">Producto agotado</p>
               <p className="text-white/40 text-sm mt-1">Este producto no está disponible en este momento.</p>
             </div>
+          ) : orderId ? (
+            <div className="space-y-5">
+              <div className="rounded-xl bg-[#d3a86f]/5 border border-[#d3a86f]/20 p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-white/60">{variant.name}{quantity > 1 ? ` × ${quantity}` : ''}</span>
+                  <span className="text-lg font-bold text-[#d3a86f]">{formatPrice(total)}</span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-xs text-white/30">Pedido creado</span>
+                  <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  <span className="text-xs text-green-400">Listo</span>
+                </div>
+              </div>
+
+              {paymentStatus === 'APPROVED' && (
+                <PaymentPolling status="APPROVED" onContinue={() => router.push(`/pay/${orderId}?payment=done`)} />
+              )}
+              {(paymentStatus === 'DECLINED' || paymentStatus === 'ERROR' || paymentStatus === 'VOIDED') && (
+                <PaymentPolling status={paymentStatus} onRetry={() => { setPaymentStatus(null); setNequiWaiting(false); setPaymentError(''); }} />
+              )}
+              {nequiWaiting && paymentStatus === 'PENDING' && <PaymentPolling status="PENDING" methodLabel="Nequi" />}
+              {paymentStatus === 'COLLECT_READY' && collectRef && (
+                <BancolombiaCollectForm onSubmit={() => {}} loading={false} reference={collectRef} amount={total} />
+              )}
+
+              {!paymentStatus && !nequiWaiting && (
+                <>
+                  <AcceptanceCheckbox checked={accepted} onChange={setAccepted} permalink={acceptPermalink} />
+                  {paymentError && (
+                    <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-2">
+                      <p className="text-red-400 text-sm">{paymentError}</p>
+                    </div>
+                  )}
+                  {selectedMethod === 'CARD' && (
+                    <CardForm publicKey={wompiPublicKey} loading={paymentProcessing}
+                      onToken={(cardToken, installments) => processPayment({ cardToken, installments })} />
+                  )}
+                  {selectedMethod === 'PSE' && (
+                    <div className="space-y-3">
+                      <p className="text-sm text-white/50 text-center">El pago PSE se procesa a través de Wompi. Serás redirigido a tu banco para confirmar.</p>
+                      <button
+                        type="button"
+                        onClick={openPseWidget}
+                        disabled={paymentProcessing || !accepted || !pseWidgetReady}
+                        className="w-full py-3.5 rounded-xl bg-[#d3a86f] text-black font-bold text-base hover:bg-[#c4976a] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {paymentProcessing ? 'Preparando...' : pseWidgetReady ? 'Pagar con PSE' : 'Cargando...'}
+                      </button>
+                    </div>
+                  )}
+                  {selectedMethod === 'NEQUI' && (
+                    <NequiForm defaultPhone={phone} loading={paymentProcessing} waiting={false}
+                      onSubmit={(phoneNumber) => processPayment({ phoneNumber })} />
+                  )}
+                  {selectedMethod === 'BANCOLOMBIA_TRANSFER' && (
+                    <BancolombiaTransferForm loading={paymentProcessing} onSubmit={() => processPayment({})} />
+                  )}
+                  {selectedMethod === 'BANCOLOMBIA_COLLECT' && (
+                    <BancolombiaCollectForm loading={paymentProcessing} onSubmit={() => processPayment({})} />
+                  )}
+                  {selectedMethod === 'DAVIPLATA' && (
+                    <DaviplataForm defaultIdType={idType} defaultId={idNumber} loading={paymentProcessing}
+                      onSubmit={(d) => processPayment({ legalId: d.legalId, legalIdType: d.legalIdType })} />
+                  )}
+                  <button type="button" onClick={() => setOrderId(null)}
+                    className="w-full text-center text-xs text-white/30 hover:text-white/50 transition-colors py-1">
+                    ← Volver y cambiar método de pago
+                  </button>
+                </>
+              )}
+            </div>
           ) : (
             <>
-              {/* Divider */}
               <div className="border-t border-white/5 pt-4">
                 <h2 className="text-base font-semibold text-white mb-4">Completa tu compra</h2>
               </div>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Quantity */}
+              <form onSubmit={handlePhase1Submit} className="space-y-5">
                 <div>
                   <label className="text-xs font-medium text-white/50 mb-2 block">Cantidad</label>
                   <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="w-10 h-10 rounded-lg bg-[#1a1610] border border-[#d3a86f]/20 flex items-center justify-center text-white hover:bg-[#d3a86f]/10 transition-colors"
-                    >
+                    <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      className="w-10 h-10 rounded-lg bg-[#1a1610] border border-[#d3a86f]/20 flex items-center justify-center text-white hover:bg-[#d3a86f]/10 transition-colors">
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" d="M5 12h14" /></svg>
                     </button>
                     <span className="text-xl font-bold text-white w-12 text-center">{quantity}</span>
-                    <button
-                      type="button"
-                      onClick={() => setQuantity(Math.min(maxQty, quantity + 1))}
-                      disabled={quantity >= maxQty}
-                      className="w-10 h-10 rounded-lg bg-[#1a1610] border border-[#d3a86f]/20 flex items-center justify-center text-white hover:bg-[#d3a86f]/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
+                    <button type="button" onClick={() => setQuantity(Math.min(maxQty, quantity + 1))} disabled={quantity >= maxQty}
+                      className="w-10 h-10 rounded-lg bg-[#1a1610] border border-[#d3a86f]/20 flex items-center justify-center text-white hover:bg-[#d3a86f]/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" d="M12 5v14m-7-7h14" /></svg>
                     </button>
-                    <span className="text-sm text-white/30 ml-2">
-                      ({variant.stock} disponibles)
-                    </span>
+                    <span className="text-sm text-white/30 ml-2">({variant.stock} disponibles)</span>
                   </div>
                 </div>
 
-                {/* Total */}
                 <div className="rounded-xl bg-[#d3a86f]/5 border border-[#d3a86f]/15 p-3 flex items-center justify-between">
                   <span className="text-sm text-white/60">Total</span>
                   <span className="text-lg font-bold text-[#d3a86f]">{formatPrice(total)}</span>
                 </div>
 
-                {/* Personal Info */}
                 <div className="space-y-3">
                   <h3 className="text-sm font-medium text-white/70">Datos personales</h3>
-
-                  {/* Full name */}
-                  <input
-                    type="text"
-                    placeholder="Nombre completo *"
-                    required
-                    minLength={2}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
-                  />
-
-                  {/* Phone with country code picker */}
+                  <input type="text" placeholder="Nombre completo *" required minLength={2}
+                    value={name} onChange={(e) => setName(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors" />
                   <div className="flex">
                     <PhoneCodeDropdown value={phoneCode} onChange={setPhoneCode} />
-                    <input
-                      type="tel"
-                      placeholder="Número de teléfono *"
-                      required
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="flex-1 min-w-0 px-3 py-2.5 rounded-r-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
-                    />
+                    <input type="tel" placeholder="Número de teléfono *" required
+                      value={phone} onChange={(e) => setPhone(e.target.value)}
+                      className="flex-1 min-w-0 px-3 py-2.5 rounded-r-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors" />
                   </div>
-
-                  {/* Email */}
-                  <input
-                    type="email"
-                    placeholder="Email *"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
-                  />
-
-                  {/* Identification */}
+                  <input type="email" placeholder="Email *" required
+                    value={email} onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors" />
                   <div className="flex gap-2">
-                    <select
-                      value={idType}
-                      onChange={(e) => setIdType(e.target.value)}
-                      className="px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm focus:outline-none focus:border-[#d3a86f]/40 transition-colors flex-shrink-0 appearance-none"
-                    >
-                      {ID_TYPES.map((t) => (
-                        <option key={t.value} value={t.value} style={{ background: '#1a1610' }}>{t.label}</option>
-                      ))}
+                    <select value={idType} onChange={(e) => setIdType(e.target.value)}
+                      className="px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm focus:outline-none focus:border-[#d3a86f]/40 transition-colors flex-shrink-0 appearance-none">
+                      {ID_TYPES.map((t) => <option key={t.value} value={t.value} style={{ background: '#1a1610' }}>{t.label}</option>)}
                     </select>
-                    <input
-                      type="text"
-                      placeholder="Número de identificación"
-                      value={idNumber}
-                      onChange={(e) => setIdNumber(e.target.value)}
-                      className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
-                    />
+                    <input type="text" placeholder="Número de identificación"
+                      value={idNumber} onChange={(e) => setIdNumber(e.target.value)}
+                      className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors" />
                   </div>
                 </div>
 
-                {/* Address — Colombia only */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-medium text-white/70">Dirección de envío</h3>
-                    <span className="flex items-center gap-1 text-xs text-white/35">
-                      <span>🇨🇴</span>
-                      <span>Solo Colombia</span>
-                    </span>
+                    <span className="flex items-center gap-1 text-xs text-white/35"><span>🇨🇴</span><span>Solo Colombia</span></span>
                   </div>
-
-                  {/* Street with Google Maps Autocomplete */}
-                  <input
-                    ref={streetInputRef}
-                    type="text"
-                    placeholder="Dirección *"
-                    required
-                    value={street}
-                    onChange={(e) => setStreet(e.target.value)}
-                    autoComplete="off"
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
-                  />
-
+                  <input ref={streetInputRef} type="text" placeholder="Dirección *" required
+                    value={street} onChange={(e) => setStreet(e.target.value)} autoComplete="off"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors" />
                   <div className="grid grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      placeholder="Ciudad *"
-                      required
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Departamento"
-                      value={state}
-                      onChange={(e) => setState(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
-                    />
+                    <input type="text" placeholder="Ciudad *" required value={city} onChange={(e) => setCity(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors" />
+                    <input type="text" placeholder="Departamento" value={state} onChange={(e) => setState(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors" />
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Apartamento, oficina, piso (opcional)"
-                    value={detail}
-                    onChange={(e) => setDetail(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors"
-                  />
+                  <input type="text" placeholder="Apartamento, oficina, piso (opcional)"
+                    value={detail} onChange={(e) => setDetail(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#d3a86f]/40 transition-colors" />
                 </div>
+
+                <PaymentMethodSelector selected={selectedMethod} onSelect={setSelectedMethod} />
 
                 {submitError && (
                   <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-2">
@@ -621,29 +642,22 @@ export default function BuyPage() {
                   </div>
                 )}
 
-                {/* Submit */}
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full py-3.5 rounded-xl bg-[#d3a86f] text-black font-bold text-base hover:bg-[#c49a63] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {submitting ? (
+                <button type="submit" disabled={creatingOrder || !selectedMethod}
+                  className="w-full py-3.5 rounded-xl bg-[#d3a86f] text-black font-bold text-base hover:bg-[#c49a63] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                  {creatingOrder ? (
                     <span className="flex items-center justify-center gap-2">
                       <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      Procesando...
+                      Creando pedido...
                     </span>
-                  ) : (
-                    `Pagar ${formatPrice(total)}`
-                  )}
+                  ) : !selectedMethod ? 'Selecciona un método de pago' : `Continuar al pago → ${formatPrice(total)}`}
                 </button>
               </form>
             </>
           )}
 
-          {/* Footer */}
           <div className="text-center pt-4 pb-8">
             <p className="text-xs text-white/20">D Perfume House · Perfumería Artesanal Árabe</p>
           </div>
@@ -652,4 +666,3 @@ export default function BuyPage() {
     </div>
   );
 }
-

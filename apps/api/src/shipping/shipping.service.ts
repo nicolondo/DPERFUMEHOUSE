@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { EnviaService, EnviaRateRequest, EnviaGenerateRequest, EnviaPickupRequest } from './envia.service';
+import { OdooService } from '../odoo/odoo.service';
 import { ShipmentStatus } from '@prisma/client';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class ShippingService {
     private prisma: PrismaService,
     private settings: SettingsService,
     private envia: EnviaService,
+    private odoo: OdooService,
   ) {}
 
   private async getOriginAddress() {
@@ -183,14 +185,24 @@ export class ShippingService {
     const pkg = await this.getDefaultPackage();
     const totalItems = order.items.reduce((sum, i) => sum + i.quantity, 0);
 
+    // Weight tiers: 1-4 items = 1kg, 5-9 items = 2kg, 10+ = default weight * items
+    let weight: number;
+    if (totalItems <= 4) {
+      weight = 1;
+    } else if (totalItems <= 9) {
+      weight = 2;
+    } else {
+      weight = pkg.weight * totalItems;
+    }
+
     return [{
       type: 'box',
       content: 'Perfumes',
-      amount: totalItems,
-      declaredValue: Number(order.subtotal),
+      amount: 1,
+      declaredValue: totalItems * 20000,
       lengthUnit: 'CM',
       weightUnit: 'KG',
-      weight: pkg.weight * totalItems,
+      weight,
       dimensions: pkg.dimensions,
     }];
   }
@@ -308,6 +320,20 @@ export class ShippingService {
       data: { status: 'SHIPPED', shipping: labelData.totalPrice },
     });
 
+    // Validate delivery in Odoo (best-effort)
+    try {
+      const order = await this.prisma.order.findUnique({ where: { id: orderId }, select: { odooSaleOrderId: true } });
+      if (order?.odooSaleOrderId) {
+        const deliveryId = await this.odoo.createDelivery(order.odooSaleOrderId);
+        if (deliveryId) {
+          await this.prisma.order.update({ where: { id: orderId }, data: { odooDeliveryId: deliveryId } });
+          this.logger.log(`Odoo delivery ${deliveryId} validated for order ${orderId}`);
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`Could not validate Odoo delivery for order ${orderId}: ${err.message}`);
+    }
+
     return shipment;
   }
 
@@ -405,7 +431,7 @@ export class ShippingService {
     await this.prisma.shipment.update({
       where: { orderId },
       data: {
-        pickupConfirmation: response.data?.confirmation,
+        pickupConfirmation: response.data?.pickupNumber != null ? String(response.data.pickupNumber) : response.data?.confirmation != null ? String(response.data.confirmation) : null,
         status: ShipmentStatus.PICKUP_SCHEDULED,
       },
     });

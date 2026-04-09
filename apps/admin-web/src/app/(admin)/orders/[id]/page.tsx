@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { useToast } from '@/components/ui/toast';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,12 +46,15 @@ export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const orderId = params.id as string;
+  const orderSlug = params.id as string; // may be UUID or orderNumber like PH-20260408-0011
 
   const { data: order, isLoading, error } = useQuery({
-    queryKey: ['order', orderId],
-    queryFn: () => fetchOrder(orderId),
+    queryKey: ['order', orderSlug],
+    queryFn: () => fetchOrder(orderSlug),
   });
+
+  // Real UUID — used for all mutations once the order is loaded
+  const orderId = order?.id ?? orderSlug;
 
   const { data: odooSettings = [] } = useQuery({
     queryKey: ['settings', 'odoo', 'order-detail'],
@@ -73,7 +77,7 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
   });
@@ -84,7 +88,7 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['commissions'] });
     },
@@ -95,9 +99,21 @@ export default function OrderDetailPage() {
   const [showPickup, setShowPickup] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState('');
-  const [pickupDate, setPickupDate] = useState('');
-  const [pickupFrom, setPickupFrom] = useState(9);
-  const [pickupTo, setPickupTo] = useState(17);
+  const [pickupDate, setPickupDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [pickupYear, setPickupYear] = useState(() => new Date().getFullYear());
+  const [pickupMonth, setPickupMonth] = useState(() => new Date().getMonth() + 1);
+  const [pickupDay, setPickupDay] = useState(() => new Date().getDate());
+  const [pickupFrom, setPickupFrom] = useState(8);
+  const [pickupTo, setPickupTo] = useState(19);
+
+  const PICKUP_WINDOWS = [
+    { label: '08:00 - 12:00', from: 8, to: 12 },
+    { label: '08:00 - 19:00', from: 8, to: 19 },
+    { label: '09:00 - 13:00', from: 9, to: 13 },
+    { label: '10:00 - 14:00', from: 10, to: 14 },
+    { label: '12:00 - 17:00', from: 12, to: 17 },
+    { label: '14:00 - 19:00', from: 14, to: 19 },
+  ];
 
   const { data: customer } = useQuery({
     queryKey: ['customer', order?.customerId],
@@ -114,13 +130,27 @@ export default function OrderDetailPage() {
     }
   }, [order?.addressId]);
 
+  useEffect(() => {
+    const maxDay = new Date(pickupYear, pickupMonth, 0).getDate();
+    if (pickupDay > maxDay) {
+      setPickupDay(maxDay);
+    }
+  }, [pickupYear, pickupMonth, pickupDay]);
+
+  useEffect(() => {
+    const y = String(pickupYear);
+    const m = String(pickupMonth).padStart(2, '0');
+    const d = String(pickupDay).padStart(2, '0');
+    setPickupDate(`${y}-${m}-${d}`);
+  }, [pickupYear, pickupMonth, pickupDay]);
+
   const updateAddressMutation = useMutation({
     mutationFn: async ({ id, addressId }: { id: string; addressId: string }) => {
       const { data } = await api.patch(`/orders/${id}/address`, { addressId });
       return data?.data || data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       setShowAddressModal(false);
     },
@@ -140,7 +170,7 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
       setShowRates(false);
     },
   });
@@ -151,9 +181,11 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
     },
   });
+
+  const { showToast } = useToast();
 
   const pickupMutation = useMutation({
     mutationFn: async () => {
@@ -165,8 +197,13 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
       setShowPickup(false);
+      showToast('success', 'Recolección programada satisfactoriamente');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || err?.message || 'Error al programar recolección';
+      showToast('error', msg);
     },
   });
 
@@ -176,7 +213,7 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
     },
   });
 
@@ -186,7 +223,7 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
   });
@@ -202,7 +239,7 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order', orderSlug] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       setShowManualDelivery(false);
       setManualDeliveryNotes('');
@@ -484,7 +521,10 @@ export default function OrderDetailPage() {
             <div className="flex items-start gap-3">
               <div className="w-10 shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-white">{order.address.label ? `${order.address.label} — ` : ''}{order.address.street}</p>
+                {order.address.label && (
+                  <p className="text-sm font-semibold text-white">{order.address.label}</p>
+                )}
+                <p className="text-sm font-normal text-white/70">{order.address.street}</p>
                 {order.address.detail && (
                   <p className="text-sm text-white/70">{order.address.detail}</p>
                 )}
@@ -783,34 +823,67 @@ export default function OrderDetailPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div>
                             <label className="text-xs text-white/50">Fecha</label>
-                            <input
-                              type="date"
-                              value={pickupDate}
-                              onChange={(e) => setPickupDate(e.target.value)}
-                              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white [color-scheme:dark]"
-                            />
+                            <div className="mt-1 grid grid-cols-3 gap-2">
+                              <select
+                                value={pickupDay}
+                                onChange={(e) => setPickupDay(Number(e.target.value))}
+                                className="block h-11 w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-2 py-2 text-base text-white sm:text-sm"
+                                aria-label="Día"
+                              >
+                                {Array.from({ length: new Date(pickupYear, pickupMonth, 0).getDate() }, (_, i) => i + 1).map((day) => (
+                                  <option key={day} value={day}>{String(day).padStart(2, '0')}</option>
+                                ))}
+                              </select>
+                              <select
+                                value={pickupMonth}
+                                onChange={(e) => setPickupMonth(Number(e.target.value))}
+                                className="block h-11 w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-2 py-2 text-base text-white sm:text-sm"
+                                aria-label="Mes"
+                              >
+                                {[
+                                  { value: 1, label: 'Ene' },
+                                  { value: 2, label: 'Feb' },
+                                  { value: 3, label: 'Mar' },
+                                  { value: 4, label: 'Abr' },
+                                  { value: 5, label: 'May' },
+                                  { value: 6, label: 'Jun' },
+                                  { value: 7, label: 'Jul' },
+                                  { value: 8, label: 'Ago' },
+                                  { value: 9, label: 'Sep' },
+                                  { value: 10, label: 'Oct' },
+                                  { value: 11, label: 'Nov' },
+                                  { value: 12, label: 'Dic' },
+                                ].map((month) => (
+                                  <option key={month.value} value={month.value}>{month.label}</option>
+                                ))}
+                              </select>
+                              <select
+                                value={pickupYear}
+                                onChange={(e) => setPickupYear(Number(e.target.value))}
+                                className="block h-11 w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-2 py-2 text-base text-white sm:text-sm"
+                                aria-label="Año"
+                              >
+                                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() + i).map((year) => (
+                                  <option key={year} value={year}>{year}</option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
-                          <div>
-                            <label className="text-xs text-white/50">Desde (hora)</label>
-                            <input
-                              type="number"
-                              min={0}
-                              max={23}
-                              value={pickupFrom}
-                              onChange={(e) => setPickupFrom(Number(e.target.value))}
+                          <div className="sm:col-span-2">
+                            <label className="text-xs text-white/50">Ventana horaria</label>
+                            <select
+                              value={`${pickupFrom}-${pickupTo}`}
+                              onChange={(e) => {
+                                const [f, t] = e.target.value.split('-').map(Number);
+                                setPickupFrom(f);
+                                setPickupTo(t);
+                              }}
                               className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white [color-scheme:dark]"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs text-white/50">Hasta (hora)</label>
-                            <input
-                              type="number"
-                              min={0}
-                              max={23}
-                              value={pickupTo}
-                              onChange={(e) => setPickupTo(Number(e.target.value))}
-                              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white [color-scheme:dark]"
-                            />
+                            >
+                              {PICKUP_WINDOWS.map((w) => (
+                                <option key={w.label} value={`${w.from}-${w.to}`}>{w.label}</option>
+                              ))}
+                            </select>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">

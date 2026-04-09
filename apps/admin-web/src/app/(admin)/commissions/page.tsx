@@ -409,7 +409,7 @@ export default function CommissionsPage() {
       header: 'Pedido',
       render: (comm) => (
         <button
-          onClick={() => router.push(`/orders/${comm.orderId}`)}
+          onClick={() => router.push(`/orders/${comm.orderNumber || comm.orderId}`)}
           className="font-medium text-accent-purple hover:underline cursor-pointer"
         >
           #{comm.order?.orderNumber || comm.orderNumber || comm.orderId?.slice(0, 8)}

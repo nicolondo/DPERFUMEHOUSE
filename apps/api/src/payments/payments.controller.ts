@@ -17,6 +17,7 @@ import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { PaymentsService } from './payments.service';
+import { CreateDirectTransactionDto } from './dto/create-direct-transaction.dto';
 
 class CreatePaymentLinkBodyDto {
   orderId: string;
@@ -108,5 +109,48 @@ export class PaymentsController {
     @Param('orderId', ParseUUIDPipe) orderId: string,
   ) {
     return this.paymentsService.getWidgetConfig(orderId);
+  }
+
+  /**
+   * Public endpoint: get Wompi public key + acceptance token for an order.
+   * Frontend uses the acceptance_token in the direct-transaction body.
+   */
+  @Get('wompi-public-data/:orderId')
+  async getWompiPublicData(
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ) {
+    return this.paymentsService.getWompiPublicData(orderId);
+  }
+
+  /**
+   * Public endpoint: return the cached list of PSE financial institutions.
+   */
+  @Get('pse/banks')
+  async getPseBanks() {
+    return this.paymentsService.getPseBanks();
+  }
+
+  /**
+   * Public endpoint: create a direct Wompi transaction for an order.
+   * Supports CARD, PSE, NEQUI, BANCOLOMBIA_TRANSFER, BANCOLOMBIA_COLLECT, DAVIPLATA.
+   */
+  @Post('direct-transaction/:orderId')
+  @HttpCode(HttpStatus.CREATED)
+  async createDirectTransaction(
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Body() dto: CreateDirectTransactionDto,
+  ) {
+    return this.paymentsService.createDirectTransaction(orderId, dto);
+  }
+
+  /**
+   * Public endpoint: poll current transaction status for an order.
+   * Proxies to Wompi API — use for NEQUI polling and post-redirect status checks.
+   */
+  @Get('transaction-status/:orderId')
+  async getTransactionStatus(
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ) {
+    return this.paymentsService.pollTransactionStatus(orderId);
   }
 }

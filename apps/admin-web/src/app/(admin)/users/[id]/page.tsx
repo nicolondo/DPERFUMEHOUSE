@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import api, { fetchUser, updateUser, toggleUserStatus, fetchUsers, fetchProductCategories, fetchSettings } from '@/lib/api';
+import api, { fetchUser, updateUser, toggleUserStatus, fetchUsers, fetchProductCategories, fetchSettings, fetchCustomers } from '@/lib/api';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { FormField } from '@/components/ui/form-field';
 import { PageSpinner } from '@/components/ui/spinner';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { formatCurrency, formatDate, formatPercent } from '@/lib/utils';
-import { ArrowLeft, Mail, Shield, Users, TrendingUp, User, Pencil, Save, Phone, Building2, Wallet, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Mail, Shield, Users, TrendingUp, User, Pencil, Save, Phone, Building2, Wallet, Plus, Trash2, UserCircle2 } from 'lucide-react';
 
 type CommissionScaleTier = {
   minSales: number;
@@ -496,6 +496,9 @@ export default function UserDetailPage() {
         </Card>
       )}
 
+      {/* Customers */}
+      <CustomersList sellerId={userId} />
+
       {/* Edit Modal */}
       {showEdit && (
         <EditUserModal
@@ -509,6 +512,115 @@ export default function UserDetailPage() {
         />
       )}
     </div>
+  );
+}
+
+function CustomersList({ sellerId }: { sellerId: string }) {
+  const router = useRouter();
+  const [page, setPage] = useState(1);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['customers', 'by-seller', sellerId, page],
+    queryFn: () => fetchCustomers({ sellerId, page, pageSize: 20 }),
+  });
+
+  const customers = data?.data ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.ceil(total / 20);
+
+  const columns: Column<any>[] = [
+    {
+      key: 'name',
+      header: 'Cliente',
+      render: (item) => (
+        <div>
+          <p className="font-medium text-white">{item.name}</p>
+          <div className="flex items-center gap-3 mt-0.5">
+            {item.email && (
+              <span className="flex items-center gap-1 text-xs text-white/50">
+                <Mail className="h-3 w-3" />
+                {item.email}
+              </span>
+            )}
+            {item.phone && (
+              <span className="flex items-center gap-1 text-xs text-white/50">
+                <Phone className="h-3 w-3" />
+                {item.phone}
+              </span>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'document',
+      header: 'Documento',
+      render: (item) => (
+        <span className="text-sm text-white/70">
+          {item.documentType && item.documentNumber
+            ? `${item.documentType} ${item.documentNumber}`
+            : '-'}
+        </span>
+      ),
+    },
+    {
+      key: 'totalOrders',
+      header: 'Pedidos',
+      render: (item) => (
+        <span className="text-sm text-white/70">{item._count?.orders ?? item.totalOrders ?? 0}</span>
+      ),
+    },
+    {
+      key: 'createdAt',
+      header: 'Creado',
+      render: (item) => <span className="text-xs text-white/50">{formatDate(item.createdAt)}</span>,
+    },
+  ];
+
+  return (
+    <Card padding={false}>
+      <div className="border-b border-glass-border px-6 py-4 flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+          <UserCircle2 className="h-5 w-5" />
+          Clientes
+          {total > 0 && (
+            <span className="ml-1 rounded-full bg-accent-purple-muted px-2 py-0.5 text-xs text-accent-purple">
+              {total}
+            </span>
+          )}
+        </h3>
+      </div>
+      <div className="p-4">
+        <DataTable
+          columns={columns}
+          data={customers}
+          emptyMessage="No tiene clientes registrados"
+          keyExtractor={(item) => item.id}
+          onRowClick={(item) => router.push(`/customers/${item.id}`)}
+        />
+        {totalPages > 1 && (
+          <div className="mt-4 flex items-center justify-between text-sm text-white/50">
+            <span>Página {page} de {totalPages}</span>
+            <div className="flex gap-2">
+              <button
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+                className="rounded px-3 py-1 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+                className="rounded px-3 py-1 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }
 

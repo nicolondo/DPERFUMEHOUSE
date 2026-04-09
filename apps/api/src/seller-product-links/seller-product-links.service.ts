@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrdersService } from '../orders/orders.service';
+import { OdooService } from '../odoo/odoo.service';
 import { randomBytes } from 'crypto';
 import { GenerateLinkDto, PurchaseDto } from './dto';
 
@@ -19,6 +20,7 @@ export class SellerProductLinksService {
     private readonly prisma: PrismaService,
     private readonly ordersService: OrdersService,
     private readonly configService: ConfigService,
+    private readonly odooService: OdooService,
   ) {
     this.sellerAppUrl = this.configService.get<string>(
       'SELLER_APP_URL',
@@ -157,6 +159,7 @@ export class SellerProductLinksService {
             name: true,
             price: true,
             stock: true,
+            odooProductId: true,
             categoryName: true,
             attributes: true,
             images: { orderBy: { sortOrder: 'asc' } },
@@ -186,7 +189,29 @@ export class SellerProductLinksService {
       data: { views: { increment: 1 } },
     });
 
-    return link;
+    // Fetch real-time stock from Odoo
+    let liveStock = link.variant.stock;
+    if (link.variant.odooProductId) {
+      try {
+        const stockMap = await this.odooService.getStock([link.variant.odooProductId]);
+        const odooStock = stockMap.get(link.variant.odooProductId);
+        if (odooStock !== undefined) {
+          liveStock = Math.max(0, Math.floor(odooStock));
+          // Keep local DB in sync
+          await this.prisma.productVariant.update({
+            where: { id: link.variant.id },
+            data: { stock: liveStock },
+          });
+        }
+      } catch {
+        this.logger.warn(`Could not fetch live stock for variant ${link.variant.id}, using local value`);
+      }
+    }
+
+    return {
+      ...link,
+      variant: { ...link.variant, stock: liveStock },
+    };
   }
 
   async purchase(code: string, dto: PurchaseDto) {
@@ -204,10 +229,28 @@ export class SellerProductLinksService {
 
     const variant = link.variant;
 
-    // Validate stock
-    if (variant.stock < dto.quantity) {
+    // Validate stock: check real-time Odoo stock first
+    let availableStock = variant.stock;
+    if (variant.odooProductId) {
+      try {
+        const stockMap = await this.odooService.getStock([variant.odooProductId]);
+        const odooStock = stockMap.get(variant.odooProductId);
+        if (odooStock !== undefined) {
+          availableStock = Math.max(0, Math.floor(odooStock));
+          // Keep local DB in sync
+          await this.prisma.productVariant.update({
+            where: { id: variant.id },
+            data: { stock: availableStock },
+          });
+        }
+      } catch {
+        this.logger.warn(`Could not fetch live stock for variant ${variant.id}, using local value`);
+      }
+    }
+
+    if (availableStock < dto.quantity) {
       throw new BadRequestException(
-        `Stock insuficiente: disponible ${variant.stock}, solicitado ${dto.quantity}`,
+        `Stock insuficiente: disponible ${availableStock}, solicitado ${dto.quantity}`,
       );
     }
 
@@ -245,15 +288,26 @@ export class SellerProductLinksService {
       }
     }
 
-    // Create address
-    const address = await this.prisma.customerAddress.create({
+    // Find existing address (match by street+city+state+detail, ignoring phone) or create a new one
+    const addressPhone = dto.addressPhone || dto.phone || null;
+    const existingAddress = await this.prisma.customerAddress.findFirst({
+      where: {
+        customerId: customer.id,
+        street: dto.street,
+        city: dto.city,
+        state: dto.state || null,
+        detail: dto.detail || null,
+      },
+    });
+
+    const address = existingAddress ?? await this.prisma.customerAddress.create({
       data: {
         customerId: customer.id,
         street: dto.street,
         city: dto.city,
         state: dto.state || null,
         detail: dto.detail || null,
-        phone: dto.addressPhone || dto.phone,
+        phone: addressPhone,
         label: 'Dirección de envío',
       },
     });

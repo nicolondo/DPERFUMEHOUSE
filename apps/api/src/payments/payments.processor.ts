@@ -56,6 +56,15 @@ export class PaymentsProcessor extends WorkerHost {
       throw new Error(`Order ${orderId} not found`);
     }
 
+    // --- Decrement local inventory on confirmed payment ---
+    for (const item of order.items) {
+      await this.prisma.productVariant.update({
+        where: { id: item.variantId },
+        data: { stock: { decrement: item.quantity } },
+      });
+    }
+    this.logger.log(`Stock decremented for order ${order.orderNumber}`);
+
     // --- Commissions first (independent of Odoo) ---
     // Step 1: Calculate commissions
     await this.calculateCommissions(order);

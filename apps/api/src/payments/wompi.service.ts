@@ -11,6 +11,11 @@ import * as crypto from 'crypto';
 export class WompiService implements PaymentProvider {
   private readonly logger = new Logger(WompiService.name);
 
+  // In-memory cache for acceptance token (valid ~1 day, refresh every 30min)
+  private acceptanceTokenCache: { token: string; permalink: string; expiresAt: number } | null = null;
+  // In-memory cache for PSE financial institutions (refresh every 1h)
+  private pseBanksCache: { data: WompiFinancialInstitution[]; expiresAt: number } | null = null;
+
   constructor(private readonly settingsService: SettingsService) {}
 
   private async getBaseUrl(): Promise<string> {
@@ -204,6 +209,144 @@ export class WompiService implements PaymentProvider {
       return false;
     }
   }
+
+  /**
+   * Fetch a fresh Wompi acceptance token required for direct transactions.
+   * NOT cached — Wompi acceptance tokens are single-use.
+   */
+  async getAcceptanceToken(): Promise<{ token: string; permalink: string }> {
+    const baseUrl = await this.getBaseUrl();
+    const publicKey = await this.getPublicKey();
+
+    const response = await fetch(`${baseUrl}/merchants/${publicKey}`);
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Wompi merchant fetch failed: ${response.status} - ${body}`);
+    }
+
+    const result = (await response.json()) as any;
+    const token: string = result.data?.presigned_acceptance?.acceptance_token;
+    const permalink: string = result.data?.presigned_acceptance?.permalink;
+
+    if (!token) {
+      throw new Error('Wompi acceptance token not found in merchant response');
+    }
+
+    this.logger.debug('Wompi acceptance token fetched (fresh)');
+    return { token, permalink };
+  }
+
+  /**
+   * Fetch PSE financial institutions list from Wompi.
+   * Cached in-memory for 1 hour.
+   */
+  async getFinancialInstitutions(): Promise<WompiFinancialInstitution[]> {
+    const now = Date.now();
+    if (this.pseBanksCache && this.pseBanksCache.expiresAt > now) {
+      return this.pseBanksCache.data;
+    }
+
+    const baseUrl = await this.getBaseUrl();
+    const publicKey = await this.getPublicKey();
+
+    const response = await fetch(`${baseUrl}/pse/financial_institutions`, {
+      headers: { Authorization: `Bearer ${publicKey}` },
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Wompi PSE banks fetch failed: ${response.status} - ${body}`);
+    }
+
+    const result = (await response.json()) as any;
+    const data: WompiFinancialInstitution[] = result.data || [];
+    this.pseBanksCache = { data, expiresAt: now + 60 * 60 * 1000 };
+    this.logger.debug(`Wompi PSE banks refreshed: ${data.length} institutions`);
+    return data;
+  }
+
+  /**
+   * Create a direct Wompi transaction (bypasses widget).
+   * acceptance_token must be obtained from getAcceptanceToken() and included.
+   */
+  async createTransaction(payload: WompiTransactionPayload): Promise<WompiTransactionResult> {
+    const baseUrl = await this.getBaseUrl();
+    const privateKey = await this.getPrivateKey();
+
+    const response = await fetch(`${baseUrl}/transactions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${privateKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = (await response.json()) as any;
+
+    if (!response.ok) {
+      this.logger.error(
+        `Wompi transaction creation failed: ${response.status} - ${JSON.stringify(result)}`,
+      );
+      throw new Error(result?.error?.messages
+        ? Object.values(result.error.messages).flat().join(', ')
+        : `Wompi transaction failed: ${response.status}`,
+      );
+    }
+
+    return result.data as WompiTransactionResult;
+  }
+
+  /**
+   * Get a Wompi transaction by its ID.
+   */
+  async getTransactionById(transactionId: string): Promise<WompiTransactionResult> {
+    const baseUrl = await this.getBaseUrl();
+    const privateKey = await this.getPrivateKey();
+
+    const response = await fetch(`${baseUrl}/transactions/${transactionId}`, {
+      headers: { Authorization: `Bearer ${privateKey}` },
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Wompi get transaction failed: ${response.status} - ${body}`);
+    }
+
+    const result = (await response.json()) as any;
+    return result.data as WompiTransactionResult;
+  }
+}
+
+export interface WompiFinancialInstitution {
+  financial_institution_code: string;
+  financial_institution_name: string;
+}
+
+export interface WompiTransactionPayload {
+  amount_in_cents: number;
+  currency: string;
+  customer_email: string;
+  reference: string;
+  acceptance_token: string;
+  signature: string;
+  payment_method: Record<string, any>;
+  customer_data?: Record<string, any>;
+  shipping_address?: Record<string, any>;
+  redirect_url?: string;
+}
+
+export interface WompiTransactionResult {
+  id: string;
+  status: string; // PENDING, APPROVED, DECLINED, VOIDED, ERROR
+  reference: string;
+  amount_in_cents: number;
+  currency: string;
+  payment_method_type: string;
+  payment_method?: Record<string, any>;
+  redirect_url?: string;
+  async_payment_url?: string;
+  [key: string]: any;
 }
 
 export interface WompiWebhookEvent {

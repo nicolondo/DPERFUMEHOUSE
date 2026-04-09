@@ -291,7 +291,7 @@ export default function CustomerDetailPage() {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <button
-                      onClick={() => router.push(`/orders/${order.id}`)}
+                      onClick={() => router.push(`/orders/${order.orderNumber || order.id}`)}
                       className="text-sm font-semibold text-accent-purple hover:underline cursor-pointer"
                     >
                       #{order.orderNumber}

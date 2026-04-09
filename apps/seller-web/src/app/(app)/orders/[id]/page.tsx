@@ -20,6 +20,7 @@ import { Badge, OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/bad
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { PaymentLinkModal } from '@/components/ui/payment-link-modal';
+import { DirectPaymentModal } from '@/components/payments';
 import { PageSpinner } from '@/components/ui/spinner';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
@@ -72,6 +73,7 @@ export default function OrderDetailPage() {
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const [isPaymentLinkModalOpen, setIsPaymentLinkModalOpen] = useState(false);
+  const [isDirectPayModalOpen, setIsDirectPayModalOpen] = useState(false);
   const { data: order, isLoading } = useOrder(id);
   const processOrder = useProcessOrder();
   const updateOrderAddress = useUpdateOrderAddress();
@@ -149,6 +151,7 @@ export default function OrderDetailPage() {
   }
 
   const isCash = order.paymentMethod === 'CASH';
+  const isPaid = order.paymentStatus === 'COMPLETED' || ['PAID', 'SHIPPED', 'DELIVERED'].includes(order.status.toUpperCase());
   const statusUpper = String(order.status || '').toUpperCase();
   const canEditAddress = !['SHIPPED', 'DELIVERED', 'CANCELLED'].includes(statusUpper);
   const customerAddresses = customer?.addresses || [];
@@ -407,7 +410,7 @@ export default function OrderDetailPage() {
           <CardBody>
             {isCash ? (
               <p className="text-sm text-white/50">Pago recibido en efectivo</p>
-            ) : order.paymentLink?.url ? (
+            ) : isPaid ? null : order.paymentLink?.url ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-2 rounded-xl bg-glass-50 p-3">
                   <Link2 className="h-4 w-4 text-white/30 flex-shrink-0" />
@@ -423,16 +426,25 @@ export default function OrderDetailPage() {
                 >
                   Ver / Compartir Link de Pago
                 </Button>
+                <Button
+                  fullWidth
+                  onClick={() => setIsDirectPayModalOpen(true)}
+                  leftIcon={<CreditCard className="h-4 w-4" />}
+                >
+                  Cobrar ahora
+                </Button>
               </div>
             ) : (
-              <Button
-                fullWidth
-                onClick={handleGeneratePaymentLink}
-                loading={processOrder.isPending}
-                leftIcon={<Link2 className="h-4 w-4" />}
-              >
-                Generar Link de Pago
-              </Button>
+              <div className="space-y-3">
+                <Button
+                  fullWidth
+                  onClick={handleGeneratePaymentLink}
+                  loading={processOrder.isPending}
+                  leftIcon={<Link2 className="h-4 w-4" />}
+                >
+                  Generar Link de Pago
+                </Button>
+              </div>
             )}
 
             {order.paymentMethod && (
@@ -576,10 +588,25 @@ export default function OrderDetailPage() {
         <PaymentLinkModal
           isOpen={isPaymentLinkModalOpen}
           onClose={() => setIsPaymentLinkModalOpen(false)}
-          paymentUrl={order.paymentLink.url}
+          paymentUrl={`${process.env.NEXT_PUBLIC_APP_URL || 'https://pos.dperfumehouse.com'}/pay/${order.orderNumber.replace(/^PH-/, '')}`}
           orderNumber={order.orderNumber}
           total={Number(order.total)}
           customerName={order.customer?.name}
+        />
+      )}
+
+      {/* Direct Payment Modal */}
+      {!isCash && !isPaid && !isCancelled && (
+        <DirectPaymentModal
+          isOpen={isDirectPayModalOpen}
+          onClose={() => setIsDirectPayModalOpen(false)}
+          orderId={order.id}
+          orderNumber={order.orderNumber}
+          total={Number(order.total)}
+          customerDocumentType={order.customer?.documentType}
+          customerDocumentNumber={order.customer?.documentNumber}
+          customerPhone={order.customer?.phone}
+          onSuccess={() => { setIsDirectPayModalOpen(false); window.location.reload(); }}
         />
       )}
     </div>

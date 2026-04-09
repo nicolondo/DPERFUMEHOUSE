@@ -10,9 +10,11 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentProviderFactory } from './payment-provider.factory';
-import { WompiWebhookEvent, WompiService } from './wompi.service';
+import { WompiWebhookEvent, WompiService, WompiTransactionPayload } from './wompi.service';
 import { SettingsService } from '../settings/settings.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EmailService } from '../email/email.service';
+import { CreateDirectTransactionDto } from './dto/create-direct-transaction.dto';
 
 export interface WebhookData {
   customerOrderId: string;
@@ -38,6 +40,7 @@ export class PaymentsService {
     private readonly wompiService: WompiService,
     private readonly settingsService: SettingsService,
     private readonly notificationsService: NotificationsService,
+    private readonly emailService: EmailService,
     @InjectQueue('payment-process')
     private readonly paymentQueue: Queue,
   ) {
@@ -604,6 +607,274 @@ export class PaymentsService {
       redirectUrl,
       customerData,
       shippingAddress,
+    };
+  }
+
+  /**
+   * Return Wompi public key + acceptance token for a given order.
+   * Frontend uses these to render the acceptance checkbox and send the token
+   * back in the direct-transaction body.
+   */
+  async getWompiPublicData(orderId: string) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException(`Order ${orderId} not found`);
+
+    if (order.paymentStatus === 'COMPLETED' || order.status === 'PAID') {
+      throw new BadRequestException('Order already paid');
+    }
+    if (order.status === 'CANCELLED') {
+      throw new BadRequestException('Order is cancelled');
+    }
+
+    const publicKey = await this.wompiService.getPublicKey();
+    const { token: acceptanceToken, permalink: acceptPermalink } =
+      await this.wompiService.getAcceptanceToken();
+
+    return { publicKey, acceptanceToken, acceptPermalink };
+  }
+
+  /**
+   * Return the cached list of PSE financial institutions.
+   */
+  async getPseBanks() {
+    return this.wompiService.getFinancialInstitutions();
+  }
+
+  /**
+   * Create a direct Wompi transaction for an order (bypasses widget).
+   * Validates the order, builds the transaction payload, calls Wompi API,
+   * and saves the transactionId + paymentMethodType to the PaymentLink record.
+   */
+  async createDirectTransaction(orderId: string, dto: CreateDirectTransactionDto) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { customer: true, address: true, paymentLink: true },
+    });
+
+    if (!order) throw new NotFoundException(`Order ${orderId} not found`);
+    if (order.paymentStatus === 'COMPLETED' || order.status === 'PAID') {
+      throw new BadRequestException('Order already paid');
+    }
+    if (order.status === 'CANCELLED') {
+      throw new BadRequestException('Order is cancelled');
+    }
+
+    const amountInCents = Math.round(Number(order.total) * 100);
+    // Use a timestamp-based suffix to guarantee unique references across retries
+    const reference = `${order.orderNumber}-${Date.now()}`;
+
+    const sellerUrl = this.configService.get<string>('SELLER_APP_URL', 'http://localhost:3000');
+    const redirectUrl = `${sellerUrl}/pay/${orderId}?payment=done`;
+
+    // Always fetch a fresh acceptance token — Wompi tokens are single-use
+    const { token: freshAcceptanceToken } = await this.wompiService.getAcceptanceToken();
+
+    // Generate integrity signature (required by Wompi direct API)
+    const integritySignature = await this.wompiService.generateIntegritySignature(
+      reference,
+      amountInCents,
+      'COP',
+    );
+
+    // Build payment_method object based on type
+    let paymentMethod: Record<string, any>;
+    switch (dto.paymentMethodType) {
+      case 'CARD':
+        paymentMethod = {
+          type: 'CARD',
+          token: dto.cardToken,
+          installments: dto.installments ?? 1,
+        };
+        break;
+      case 'PSE':
+        paymentMethod = {
+          type: 'PSE',
+          user_type: dto.userType,
+          user_legal_id: dto.legalId,
+          user_legal_id_type: dto.legalIdType,
+          financial_institution_code: dto.bankCode,
+          payment_description: `D Perfume House - Orden ${order.orderNumber}`,
+        };
+        break;
+      case 'NEQUI':
+        paymentMethod = {
+          type: 'NEQUI',
+          phone_number: dto.phoneNumber!.replace(/\D/g, ''),
+        };
+        break;
+      case 'BANCOLOMBIA_TRANSFER':
+        paymentMethod = {
+          type: 'BANCOLOMBIA_TRANSFER',
+          user_type: 'PERSON',
+          payment_description: `D Perfume House - Orden ${order.orderNumber}`,
+        };
+        break;
+      case 'BANCOLOMBIA_COLLECT':
+        paymentMethod = { type: 'BANCOLOMBIA_COLLECT' };
+        break;
+      case 'DAVIPLATA':
+        paymentMethod = {
+          type: 'DAVIPLATA',
+          user_legal_id: dto.legalId,
+          user_legal_id_type: dto.legalIdType,
+        };
+        break;
+      default:
+        throw new BadRequestException(`Unsupported payment method: ${dto.paymentMethodType}`);
+    }
+
+    const customerData: Record<string, any> = {
+      phone_number: (order.customer.phone || '').replace(/\D/g, ''),
+      full_name: order.customer.name,
+    };
+    if (order.customer.documentNumber && order.customer.documentType) {
+      customerData.legal_id = order.customer.documentNumber;
+      customerData.legal_id_type = order.customer.documentType;
+    }
+
+    const transactionPayload: WompiTransactionPayload = {
+      amount_in_cents: amountInCents,
+      currency: 'COP',
+      customer_email: order.customer.email || '',
+      reference,
+      acceptance_token: freshAcceptanceToken,
+      signature: integritySignature,
+      payment_method: paymentMethod,
+      customer_data: customerData,
+      redirect_url: redirectUrl,
+    };
+
+    this.logger.log(
+      `Creating direct Wompi transaction for order ${order.orderNumber}, method: ${dto.paymentMethodType}`,
+    );
+
+    const transaction = await this.wompiService.createTransaction(transactionPayload);
+
+    // Upsert PaymentLink with transactionId + method type
+    if (order.paymentLink) {
+      await this.prisma.paymentLink.update({
+        where: { id: order.paymentLink.id },
+        data: {
+          transactionId: transaction.id,
+          paymentMethodType: dto.paymentMethodType,
+          externalId: reference,
+          provider: 'wompi',
+          status: 'PENDING',
+          metadata: {
+            ...(order.paymentLink.metadata as any || {}),
+            widgetReference: reference,
+          },
+        },
+      });
+    } else {
+      await this.prisma.paymentLink.create({
+        data: {
+          orderId,
+          transactionId: transaction.id,
+          paymentMethodType: dto.paymentMethodType,
+          externalId: reference,
+          amount: order.total,
+          currency: 'COP',
+          provider: 'wompi',
+          status: 'PENDING',
+          metadata: { widgetReference: reference },
+        },
+      });
+    }
+
+    // Ensure order is PENDING_PAYMENT
+    if (order.status === 'DRAFT') {
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: { status: 'PENDING_PAYMENT', paymentStatus: 'PENDING' },
+      });
+    }
+
+    this.logger.log(
+      `Wompi transaction ${transaction.id} created for order ${order.orderNumber}, status: ${transaction.status}`,
+    );
+
+    // For BANCOLOMBIA_COLLECT, Wompi assigns business_agreement_code and payment_intention_identifier
+    // asynchronously — they are not present immediately after creation. Retry up to 4 times.
+    let resolvedPaymentMethod = transaction.payment_method;
+    if (dto.paymentMethodType === 'BANCOLOMBIA_COLLECT') {
+      const getExtra = (pm: Record<string, any> | undefined) => pm?.extra as Record<string, any> | undefined;
+      const hasCodes = (pm: Record<string, any> | undefined) => {
+        const extra = getExtra(pm);
+        return !!(extra?.business_agreement_code && extra?.payment_intention_identifier);
+      };
+
+      if (!hasCodes(resolvedPaymentMethod)) {
+        const delays = [1500, 2000, 2500, 3000];
+        for (const delay of delays) {
+          await new Promise((r) => setTimeout(r, delay));
+          try {
+            const full = await this.wompiService.getTransactionById(transaction.id);
+            resolvedPaymentMethod = full.payment_method ?? resolvedPaymentMethod;
+            if (hasCodes(resolvedPaymentMethod)) {
+              this.logger.log(`BANCOLOMBIA_COLLECT codes ready for ${transaction.id}: ${JSON.stringify(getExtra(resolvedPaymentMethod))}`);
+              break;
+            }
+          } catch (e) {
+            this.logger.warn(`Re-fetch attempt failed for BANCOLOMBIA_COLLECT ${transaction.id}: ${e}`);
+          }
+        }
+      }
+
+      if (!hasCodes(resolvedPaymentMethod)) {
+        this.logger.warn(`BANCOLOMBIA_COLLECT codes not available after retries for ${transaction.id}`);
+      } else {
+        // Send email to customer with corresponsal payment info
+        const extra = getExtra(resolvedPaymentMethod)!;
+        this.emailService.sendBancolombiaCollect(
+          order.customer.email || '',
+          order.customer.name,
+          order.orderNumber,
+          String(extra.business_agreement_code),
+          String(extra.payment_intention_identifier),
+          Number(order.total),
+        ).catch((e) => this.logger.warn(`Failed to send corresponsal email for ${order.orderNumber}: ${e}`));
+      }
+    }
+
+    return {
+      transactionId: transaction.id,
+      status: transaction.status,
+      paymentMethodType: dto.paymentMethodType,
+      redirectUrl: transaction.async_payment_url || transaction.redirect_url,
+      paymentMethod: resolvedPaymentMethod,
+    };
+  }
+
+  /**
+   * Poll the current status of a direct Wompi transaction for an order.
+   * Returns live status from Wompi (does NOT update DB — webhook handles that).
+   */
+  async pollTransactionStatus(orderId: string) {
+    const paymentLink = await this.prisma.paymentLink.findUnique({
+      where: { orderId },
+    });
+
+    if (!paymentLink) {
+      throw new NotFoundException(`No payment link found for order ${orderId}`);
+    }
+
+    if (!paymentLink.transactionId) {
+      return {
+        status: paymentLink.status,
+        transactionId: null,
+        paymentMethodType: paymentLink.paymentMethodType,
+      };
+    }
+
+    const transaction = await this.wompiService.getTransactionById(paymentLink.transactionId);
+
+    return {
+      status: transaction.status,
+      transactionId: transaction.id,
+      paymentMethodType: transaction.payment_method_type,
+      redirectUrl: transaction.redirect_url || transaction.async_payment_url,
+      paymentMethod: transaction.payment_method,
     };
   }
 }

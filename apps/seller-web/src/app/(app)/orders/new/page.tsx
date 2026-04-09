@@ -77,6 +77,13 @@ export default function NewOrderPage() {
   const setOrderConfig = useCartStore((s) => s.setOrderConfig);
   const createOrder = useCreateOrder();
 
+  // Guard: if customer is lost (e.g. router cache after order creation), reset to step 1
+  useEffect(() => {
+    if (step > 1 && !selectedCustomer) {
+      setStep(1);
+    }
+  }, [step, selectedCustomer]);
+
   // Fetch order config (tax, shipping) from backend
   useEffect(() => {
     const fetchConfig = async () => {
