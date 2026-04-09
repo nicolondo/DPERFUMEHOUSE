@@ -28,6 +28,23 @@ export class WompiService implements PaymentProvider {
     return key;
   }
 
+  private async getIntegritySecret(): Promise<string> {
+    const secret = await this.settingsService.get('wompi_integrity_secret');
+    if (!secret) {
+      throw new Error('Wompi integrity secret not configured');
+    }
+    return secret;
+  }
+
+  private async generatePaymentLinkIntegritySignature(
+    amountInCents: number,
+    currency: string,
+  ): Promise<string> {
+    const integritySecret = await this.getIntegritySecret();
+    const concatenated = `${amountInCents}${currency}${integritySecret}`;
+    return crypto.createHash('sha256').update(concatenated).digest('hex');
+  }
+
   async createPaymentLink(
     data: CreatePaymentLinkData,
   ): Promise<PaymentLinkResult> {
@@ -40,6 +57,10 @@ export class WompiService implements PaymentProvider {
 
     // Wompi expects amount in centavos (multiply by 100)
     const amountInCents = Math.round(data.amount * 100);
+    const integritySignature = await this.generatePaymentLinkIntegritySignature(
+      amountInCents,
+      'COP',
+    );
 
     const payload = {
       name: `Orden ${data.orderId.substring(0, 8)}`,
@@ -49,6 +70,9 @@ export class WompiService implements PaymentProvider {
       currency: 'COP',
       amount_in_cents: amountInCents,
       redirect_url: data.successUrl,
+      signature: {
+        integrity: integritySignature,
+      },
       // Store orderId in sku field for webhook reference
       sku: data.orderId,
     };

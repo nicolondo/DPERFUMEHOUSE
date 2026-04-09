@@ -564,6 +564,146 @@ export class EmailService implements EmailProvider {
     return this.send(customerEmail, subject, html);
   }
 
+  async sendShippingNotification(
+    customerEmail: string,
+    customerName: string,
+    orderNumber: string,
+    trackingNumber: string,
+    trackUrl: string,
+    carrier: string,
+  ): Promise<boolean> {
+    const subject = `Tu pedido ${orderNumber} está en camino 🚚 - D Perfume House`;
+    const logoUrl = 'https://pos.dperfumehouse.com/icons/logo-email.png';
+    const html = `
+      <!DOCTYPE html>
+      <html xmlns="http://www.w3.org/1999/xhtml">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="color-scheme" content="light only">
+        <meta name="supported-color-schemes" content="light only">
+        <style>
+          :root { color-scheme: light only; }
+          body { margin:0; padding:0; font-family: 'Outfit','Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background-color:#0f0b05 !important; }
+        </style>
+      </head>
+      <body style="margin:0;padding:0;background-color:#0f0b05;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#0f0b05;">
+          <tr><td align="center" style="padding:24px 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" width="620" style="max-width:620px;width:100%;background-color:#16110a;">
+              <!-- Header -->
+              <tr><td align="center" style="padding:30px 32px 20px;background-color:#16110a;">
+                <img src="${logoUrl}" alt="D Perfume House" width="320" style="display:block;width:320px;max-width:80%;height:auto;" />
+                <p style="margin:12px 0 0 0;color:#bfa685;letter-spacing:2px;font-size:11px;text-transform:uppercase;">Tienda en línea</p>
+              </td></tr>
+              <!-- Content -->
+              <tr><td style="padding:28px 32px 14px;color:#f4ece1;background-color:#16110a;">
+                <span style="display:inline-block;margin-bottom:14px;padding:6px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#a8e6cf;border:1px solid #2d7a5a;background-color:rgba(46,160,100,.14);">📦 Pedido enviado</span>
+                <p style="margin:0 0 12px 0;font-size:25px;line-height:1.2;color:#fff7eb;font-weight:700;">¡Hola ${this.escapeHtml(customerName)}!</p>
+                <p style="margin:0 0 10px 0;font-size:15px;color:#d6c3a8;">
+                  Tu pedido <strong style="color:#fff7eb;">${this.escapeHtml(orderNumber)}</strong> ya está en camino. 
+                  <strong style="color:#fff7eb;">${this.escapeHtml(carrier)}</strong> está transportando tu fragancia.
+                </p>
+                <!-- Tracking card -->
+                <div style="margin:22px 0;border:1px solid #2d7a5a;border-radius:12px;background-color:#0e1e16;padding:20px;">
+                  <p style="margin:0 0 6px 0;color:#9c8568;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Número de guía</p>
+                  <p style="margin:0 0 16px 0;font-size:22px;font-weight:800;color:#a8e6cf;letter-spacing:2px;">${this.escapeHtml(trackingNumber)}</p>
+                  <p style="margin:0 0 6px 0;color:#9c8568;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Transportadora</p>
+                  <p style="margin:0 0 0 0;font-size:15px;font-weight:600;color:#f4ece1;">${this.escapeHtml(carrier)}</p>
+                </div>
+                <!-- CTA -->
+                <div style="text-align:center;margin:0 0 24px 0;">
+                  <a href="${this.escapeHtml(trackUrl)}" style="display:inline-block;background-color:#2e9e64;color:#ffffff;padding:16px 40px;text-decoration:none;border-radius:999px;font-weight:700;font-size:16px;letter-spacing:.5px;">Rastrear mi pedido</a>
+                </div>
+                <p style="margin:0 0 10px 0;font-size:13px;color:#9c8568;">
+                  Si el botón no funciona, copia y pega este enlace:
+                </p>
+                <p style="margin:0 0 20px 0;word-break:break-all;font-size:12px;color:#7a5b2f;">${this.escapeHtml(trackUrl)}</p>
+                <div style="border-top:1px solid #3b2c17;padding-top:16px;margin-top:10px;">
+                  <p style="margin:0;font-size:13px;color:#9c8568;">
+                    Pronto recibirás tu fragancia. ¡Gracias por confiar en D Perfume House!
+                  </p>
+                </div>
+              </td></tr>
+              <!-- Footer -->
+              <tr><td style="padding:18px 32px 24px;color:#9c8568;font-size:12px;text-align:center;background-color:#16110a;">
+                <p style="margin:4px 0;"><strong>D Perfume House</strong></p>
+                <p style="margin:4px 0;">&copy; ${new Date().getFullYear()} Todos los derechos reservados.</p>
+              </td></tr>
+            </table>
+          </td></tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    return this.send(customerEmail, subject, html);
+  }
+
+  async sendDeliveredNotification(
+    customerEmail: string,
+    customerName: string,
+    orderNumber: string,
+  ): Promise<boolean> {
+    const subject = `Tu pedido ${orderNumber} fue entregado ✅ - D Perfume House`;
+    const logoUrl = 'https://pos.dperfumehouse.com/icons/logo-email.png';
+    const html = `
+      <!DOCTYPE html>
+      <html xmlns="http://www.w3.org/1999/xhtml">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="color-scheme" content="light only">
+        <meta name="supported-color-schemes" content="light only">
+        <style>
+          :root { color-scheme: light only; }
+          body { margin:0; padding:0; font-family: 'Outfit','Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background-color:#0f0b05 !important; }
+        </style>
+      </head>
+      <body style="margin:0;padding:0;background-color:#0f0b05;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#0f0b05;">
+          <tr><td align="center" style="padding:24px 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" width="620" style="max-width:620px;width:100%;background-color:#16110a;">
+              <!-- Header -->
+              <tr><td align="center" style="padding:30px 32px 20px;background-color:#16110a;">
+                <img src="${logoUrl}" alt="D Perfume House" width="320" style="display:block;width:320px;max-width:80%;height:auto;" />
+                <p style="margin:12px 0 0 0;color:#bfa685;letter-spacing:2px;font-size:11px;text-transform:uppercase;">Tienda en línea</p>
+              </td></tr>
+              <!-- Content -->
+              <tr><td style="padding:28px 32px 14px;color:#f4ece1;background-color:#16110a;">
+                <span style="display:inline-block;margin-bottom:14px;padding:6px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#ffd700;border:1px solid #7a6500;background-color:rgba(255,215,0,.10);">✅ Pedido entregado</span>
+                <p style="margin:0 0 12px 0;font-size:25px;line-height:1.2;color:#fff7eb;font-weight:700;">¡Tu fragancia llegó, ${this.escapeHtml(customerName)}!</p>
+                <p style="margin:0 0 10px 0;font-size:15px;color:#d6c3a8;">
+                  Tu pedido <strong style="color:#fff7eb;">${this.escapeHtml(orderNumber)}</strong> fue entregado exitosamente. 
+                  Esperamos que disfrutes tu nueva fragancia.
+                </p>
+                <!-- Delivered icon card -->
+                <div style="margin:22px 0;border:1px solid #7a6500;border-radius:12px;background-color:#1a1500;padding:28px;text-align:center;">
+                  <p style="margin:0 0 8px 0;font-size:48px;">🎁</p>
+                  <p style="margin:0;font-size:17px;font-weight:700;color:#ffd700;">¡Bienvenida a casa, fragancia!</p>
+                  <p style="margin:8px 0 0 0;font-size:14px;color:#9c8568;">Pedido <strong>${this.escapeHtml(orderNumber)}</strong> entregado</p>
+                </div>
+                <div style="border-top:1px solid #3b2c17;padding-top:16px;margin-top:10px;">
+                  <p style="margin:0;font-size:13px;color:#9c8568;">
+                    Si tienes alguna duda sobre tu pedido, escríbenos. ¡Gracias por elegir D Perfume House!
+                  </p>
+                </div>
+              </td></tr>
+              <!-- Footer -->
+              <tr><td style="padding:18px 32px 24px;color:#9c8568;font-size:12px;text-align:center;background-color:#16110a;">
+                <p style="margin:4px 0;"><strong>D Perfume House</strong></p>
+                <p style="margin:4px 0;">&copy; ${new Date().getFullYear()} Todos los derechos reservados.</p>
+              </td></tr>
+            </table>
+          </td></tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    return this.send(customerEmail, subject, html);
+  }
+
   private escapeHtml(text: string): string {
     const map: Record<string, string> = {
       '&': '&amp;',

@@ -83,9 +83,21 @@ export default function OrderDetailPage() {
   const [showPickup, setShowPickup] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState('');
-  const [pickupDate, setPickupDate] = useState('');
-  const [pickupFrom, setPickupFrom] = useState(9);
-  const [pickupTo, setPickupTo] = useState(17);
+  const [pickupDate, setPickupDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [pickupYear, setPickupYear] = useState(() => new Date().getFullYear());
+  const [pickupMonth, setPickupMonth] = useState(() => new Date().getMonth() + 1);
+  const [pickupDay, setPickupDay] = useState(() => new Date().getDate());
+  const [pickupFrom, setPickupFrom] = useState(8);
+  const [pickupTo, setPickupTo] = useState(19);
+
+  const PICKUP_WINDOWS = [
+    { label: '08:00 - 12:00', from: 8, to: 12 },
+    { label: '08:00 - 19:00', from: 8, to: 19 },
+    { label: '09:00 - 13:00', from: 9, to: 13 },
+    { label: '10:00 - 14:00', from: 10, to: 14 },
+    { label: '12:00 - 17:00', from: 12, to: 17 },
+    { label: '14:00 - 19:00', from: 14, to: 19 },
+  ];
 
   const { data: customer } = useQuery({
     queryKey: ['customer', order?.customerId],
@@ -101,6 +113,20 @@ export default function OrderDetailPage() {
       setSelectedAddressId(order.addressId);
     }
   }, [order?.addressId]);
+
+  useEffect(() => {
+    const maxDay = new Date(pickupYear, pickupMonth, 0).getDate();
+    if (pickupDay > maxDay) {
+      setPickupDay(maxDay);
+    }
+  }, [pickupYear, pickupMonth, pickupDay]);
+
+  useEffect(() => {
+    const y = String(pickupYear);
+    const m = String(pickupMonth).padStart(2, '0');
+    const d = String(pickupDay).padStart(2, '0');
+    setPickupDate(`${y}-${m}-${d}`);
+  }, [pickupYear, pickupMonth, pickupDay]);
 
   const updateAddressMutation = useMutation({
     mutationFn: async ({ id, addressId }: { id: string; addressId: string }) => {
@@ -727,37 +753,58 @@ export default function OrderDetailPage() {
                     ) : (
                       <div className="space-y-3">
                         <h4 className="text-sm font-semibold text-white">Programar recolección</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                           <div>
-                            <label className="text-xs text-white/50">Fecha</label>
-                            <input
-                              type="date"
-                              value={pickupDate}
-                              onChange={(e) => setPickupDate(e.target.value)}
-                              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white [color-scheme:dark]"
-                            />
+                            <label className="text-xs text-white/50">Día</label>
+                            <select
+                              value={pickupDay}
+                              onChange={(e) => setPickupDay(Number(e.target.value))}
+                              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white"
+                            >
+                              {Array.from({ length: new Date(pickupYear, pickupMonth, 0).getDate() }, (_, i) => i + 1).map((d) => (
+                                <option key={d} value={d}>{d}</option>
+                              ))}
+                            </select>
                           </div>
                           <div>
-                            <label className="text-xs text-white/50">Desde (hora)</label>
-                            <input
-                              type="number"
-                              min={0}
-                              max={23}
-                              value={pickupFrom}
-                              onChange={(e) => setPickupFrom(Number(e.target.value))}
-                              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white [color-scheme:dark]"
-                            />
+                            <label className="text-xs text-white/50">Mes</label>
+                            <select
+                              value={pickupMonth}
+                              onChange={(e) => setPickupMonth(Number(e.target.value))}
+                              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white"
+                            >
+                              {['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].map((m, i) => (
+                                <option key={i + 1} value={i + 1}>{m}</option>
+                              ))}
+                            </select>
                           </div>
                           <div>
-                            <label className="text-xs text-white/50">Hasta (hora)</label>
-                            <input
-                              type="number"
-                              min={0}
-                              max={23}
-                              value={pickupTo}
-                              onChange={(e) => setPickupTo(Number(e.target.value))}
-                              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white [color-scheme:dark]"
-                            />
+                            <label className="text-xs text-white/50">Año</label>
+                            <select
+                              value={pickupYear}
+                              onChange={(e) => setPickupYear(Number(e.target.value))}
+                              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white"
+                            >
+                              {[new Date().getFullYear(), new Date().getFullYear() + 1].map((y) => (
+                                <option key={y} value={y}>{y}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="sm:col-span-1">
+                            <label className="text-xs text-white/50">Ventana horaria</label>
+                            <select
+                              value={`${pickupFrom}-${pickupTo}`}
+                              onChange={(e) => {
+                                const [f, t] = e.target.value.split('-').map(Number);
+                                setPickupFrom(f);
+                                setPickupTo(t);
+                              }}
+                              className="mt-1 block w-full rounded-lg border border-glass-border bg-[#1a1a1a] px-3 py-2 text-sm text-white"
+                            >
+                              {PICKUP_WINDOWS.map((w) => (
+                                <option key={w.label} value={`${w.from}-${w.to}`}>{w.label}</option>
+                              ))}
+                            </select>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">

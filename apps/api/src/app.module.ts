@@ -21,6 +21,7 @@ import { ProductRequestsModule } from './product-requests/product-requests.modul
 import { ShippingModule } from './shipping/shipping.module';
 import { FragranceProfilesModule } from './fragrance-profiles/fragrance-profiles.module';
 import { LeadsModule } from './leads/leads.module';
+import { PushModule } from './push/push.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { LeadsModule } from './leads/leads.module';
     ShippingModule,
     FragranceProfilesModule,
     LeadsModule,
+    PushModule,
   ],
 })
 export class AppModule {}

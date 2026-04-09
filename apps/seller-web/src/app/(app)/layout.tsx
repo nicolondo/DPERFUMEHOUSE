@@ -5,11 +5,14 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { PageSpinner } from '@/components/ui/spinner';
+import { usePushNotifications } from '@/hooks/use-push-notifications';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated, isLoading, hydrate } = useAuthStore();
+
+  usePushNotifications();
 
   useEffect(() => {
     hydrate();
