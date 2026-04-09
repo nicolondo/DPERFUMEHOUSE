@@ -171,9 +171,14 @@ export class OrdersService {
     return order;
   }
 
-  async findOnePublic(id: string) {
-    const order = await this.prisma.order.findUnique({
-      where: { id },
+  async findOnePublic(identifier: string) {
+    const order = await this.prisma.order.findFirst({
+      where: {
+        OR: [
+          { orderNumber: identifier },
+          { id: identifier },
+        ],
+      },
       select: {
         id: true,
         orderNumber: true,
@@ -494,7 +499,7 @@ export class OrdersService {
 
     // Queue email to customer with payment link
     if (order.customer.email) {
-      const summaryUrl = `${this.sellerAppUrl}/pay/${orderId}`;
+      const summaryUrl = `${this.sellerAppUrl}/pay/${order.orderNumber}`;
       await this.emailQueue.add(
         'send-payment-link',
         {
