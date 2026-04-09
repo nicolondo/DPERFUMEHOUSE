@@ -50,6 +50,16 @@ export function truncate(str: string, length: number): string {
   return str.slice(0, length) + '...';
 }
 
+export function getWhatsAppPhone(phone: string, phoneCode?: string | null): string {
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (phoneCode) {
+    const code = phoneCode.replace(/[^0-9]/g, '');
+    return `${code}${digits}`;
+  }
+  // Default Colombia +57
+  return digits.startsWith('57') ? digits : `57${digits}`;
+}
+
 export function formatPhone(phone: string | null | undefined): string {
   if (!phone) return '-';
   const cleaned = phone.replace(/[\s-]/g, '');
