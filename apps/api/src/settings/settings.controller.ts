@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
+  Logger,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,14 +24,18 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { OdooService } from '../odoo/odoo.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @ApiTags('Settings')
 @ApiBearerAuth('access-token')
 @Controller('settings')
 export class SettingsController {
+  private readonly logger = new Logger(SettingsController.name);
+
   constructor(
     private readonly settingsService: SettingsService,
     private readonly odooService: OdooService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get('public/order-config')
@@ -175,7 +180,53 @@ export class SettingsController {
         results.push({ key: setting.key, status: 'error', message: error.message });
       }
     }
+    // Auto-update users when global commission rates change
+    await this.syncCommissionRatesToUsers(body.settings);
+
     return { success: true, results };
+  }
+
+  /**
+   * When commission_l1_rate or commission_l2_rate settings change,
+   * update all users who use the global scale so their base rates stay in sync.
+   */
+  private async syncCommissionRatesToUsers(
+    settings: { key: string; value: string }[],
+  ) {
+    const l1Setting = settings.find((s) => s.key === 'commission_l1_rate');
+    const l2Setting = settings.find((s) => s.key === 'commission_l2_rate');
+
+    if (!l1Setting && !l2Setting) return;
+
+    try {
+      const parseRate = (val: string, fallback: number): number => {
+        const n = parseFloat(val);
+        if (!Number.isFinite(n) || n < 0) return fallback;
+        return n > 1 ? n / 100 : n;
+      };
+
+      const updateData: Record<string, any> = {};
+      if (l1Setting) updateData.commissionRate = parseRate(l1Setting.value, 0.1);
+      if (l2Setting) updateData.commissionRateL2 = parseRate(l2Setting.value, 0.03);
+
+      const { count } = await this.prisma.user.updateMany({
+        where: {
+          commissionScaleEnabled: true,
+          commissionScaleUseGlobal: true,
+        },
+        data: updateData,
+      });
+
+      if (count > 0) {
+        this.logger.log(
+          `Auto-updated commission rates for ${count} users (global scale)`,
+        );
+      }
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to sync commission rates to users: ${error.message}`,
+      );
+    }
   }
 
   @Put(':key')
