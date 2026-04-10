@@ -591,7 +591,8 @@ export class PaymentsService {
 
     const amountInCents = Math.round(Number(order.total) * 100);
     const currency = 'COP';
-    const reference = order.orderNumber;
+    // Wompi requires unique reference per transaction attempt — append timestamp suffix
+    const reference = `${order.orderNumber}-${Date.now()}`;
     const sellerUrl = this.configService.get<string>(
       'SELLER_APP_URL',
       'http://localhost:3000',
