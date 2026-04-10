@@ -217,7 +217,20 @@ export default function BuyPage() {
   useEffect(() => {
     fetch(`${API_URL}/payments/pse/banks`)
       .then((r) => r.json())
-      .then((data) => setPseBanks(Array.isArray(data) ? data : []))
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data.data || data.banks || []);
+        const filtered = list.filter((b: any) => b.financial_institution_code !== '0');
+        const PRIORITY = ['bancolombia', 'davivienda'];
+        filtered.sort((a: any, b: any) => {
+          const ai = PRIORITY.findIndex((p) => a.financial_institution_name.toLowerCase().includes(p));
+          const bi = PRIORITY.findIndex((p) => b.financial_institution_name.toLowerCase().includes(p));
+          if (ai !== -1 && bi !== -1) return ai - bi;
+          if (ai !== -1) return -1;
+          if (bi !== -1) return 1;
+          return a.financial_institution_name.localeCompare(b.financial_institution_name);
+        });
+        setPseBanks(filtered);
+      })
       .catch(() => {});
   }, []);
 
