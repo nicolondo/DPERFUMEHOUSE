@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Link2, Copy, CheckCircle, Share2, MessageCircle, Mail } from 'lucide-react';
+import { Link2, Copy, CheckCircle, Share2, MessageCircle, Mail, ExternalLink } from 'lucide-react';
 import { Modal } from './modal';
 import { Button } from './button';
 import { cn } from '@/lib/utils';
@@ -92,6 +92,15 @@ export function PaymentLinkModal({
             }
           >
             {copied ? 'Link Copiado!' : 'Copiar Link'}
+          </Button>
+
+          <Button
+            fullWidth
+            variant="outline"
+            onClick={() => window.open(paymentUrl, '_blank')}
+            leftIcon={<ExternalLink className="h-4 w-4" />}
+          >
+            Abrir Link
           </Button>
 
           <Button

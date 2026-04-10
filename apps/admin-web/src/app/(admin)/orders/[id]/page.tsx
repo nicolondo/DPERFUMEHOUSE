@@ -11,7 +11,7 @@ import { Modal } from '@/components/ui/modal';
 import { PageSpinner } from '@/components/ui/spinner';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { formatCurrency, formatDate, formatDateTime, formatPercent } from '@/lib/utils';
-import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck, ExternalLink, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck, ExternalLink, X, Trash2, MapPin, ChevronDown } from 'lucide-react';
 
 const orderStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
   DRAFT: 'default',
@@ -83,6 +83,28 @@ export default function OrderDetailPage() {
 
   const [shippingModalOpen, setShippingModalOpen] = useState(false);
   const [selectedRate, setSelectedRate] = useState<{ carrier: string; service: string; serviceDescription: string; deliveryEstimate: string; totalPrice: string } | null>(null);
+
+  const [changeAddressOpen, setChangeAddressOpen] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+
+  const customerId = order?.customer?.id || order?.customerId;
+  const { data: customerData } = useQuery({
+    queryKey: ['customer', customerId],
+    queryFn: async () => { const { data } = await api.get(`/customers/${customerId}`); return data; },
+    enabled: !!(changeAddressOpen && customerId),
+  });
+
+  const updateAddressMutation = useMutation({
+    mutationFn: async (addressId: string) => {
+      const { data } = await api.patch(`/orders/${orderId}/address`, { addressId });
+      return data;
+    },
+    onSuccess: () => {
+      setChangeAddressOpen(false);
+      setSelectedAddressId(null);
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+    },
+  });
 
   const quoteRatesMutation = useMutation({
     mutationFn: async () => {
@@ -434,6 +456,110 @@ export default function OrderDetailPage() {
         </div>
       </Card>
 
+      {/* Shipping Info */}
+      <Card padding={false}>
+        <div className="flex items-center justify-between border-b border-glass-border px-6 py-4">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Truck className="h-5 w-5 text-white/40" /> Envío
+          </h3>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<MapPin className="h-4 w-4" />}
+              onClick={() => setChangeAddressOpen(true)}
+            >
+              Cambiar dirección
+            </Button>
+            {order.status === 'PAID' && !order.shipment && (
+              <Button
+                variant="primary"
+                size="sm"
+                icon={<Package className="h-4 w-4" />}
+                onClick={() => { setShippingModalOpen(true); quoteRatesMutation.mutate(); }}
+              >
+                Cotizar Envío
+              </Button>
+            )}
+          </div>
+        </div>
+        <div className="p-6 space-y-5">
+          {/* Shipping address */}
+          <div>
+            <p className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5" /> Dirección de entrega
+            </p>
+            {order.address ? (
+              <div className="rounded-xl bg-glass-50 border border-glass-border p-4 space-y-1">
+                {order.address.label && (
+                  <p className="text-xs font-semibold text-accent-gold uppercase tracking-wider">{order.address.label}</p>
+                )}
+                <p className="text-sm text-white font-medium">{order.address.street}{order.address.detail ? `, ${order.address.detail}` : ''}</p>
+                <p className="text-sm text-white/60">{order.address.city}{order.address.state ? `, ${order.address.state}` : ''}</p>
+                {order.address.phone && (
+                  <p className="text-xs text-white/40">Tel: {order.address.phoneCode || '+57'} {order.address.phone}</p>
+                )}
+                {order.address.notes && (
+                  <p className="text-xs text-white/40 italic">{order.address.notes}</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-white/40">Sin dirección de entrega asignada.</p>
+            )}
+          </div>
+
+          {/* Shipment info */}
+          {order.shipment ? (
+            <div className="space-y-3 border-t border-glass-border pt-4">
+              <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Guía generada</p>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div>
+                  <p className="text-xs text-white/40">Transportadora</p>
+                  <p className="text-sm font-medium text-white capitalize">{order.shipment.carrier || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/40">Servicio</p>
+                  <p className="text-sm font-medium text-white">{order.shipment.service || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/40">Guía</p>
+                  <p className="text-sm font-medium text-white font-mono">{order.shipment.trackingNumber || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/40">Costo</p>
+                  <p className="text-sm font-medium text-white">{order.shipment.totalPrice ? formatCurrency(order.shipment.totalPrice) : '-'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                {order.shipment.trackUrl && (
+                  <a href={order.shipment.trackUrl} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-accent-purple hover:underline">
+                    <ExternalLink className="h-3.5 w-3.5" /> Rastrear envío
+                  </a>
+                )}
+                {order.shipment.labelUrl && (
+                  <a href={order.shipment.labelUrl} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-accent-purple hover:underline">
+                    <ExternalLink className="h-3.5 w-3.5" /> Ver guía PDF
+                  </a>
+                )}
+              </div>
+              {cancelShipmentMutation.isError && (
+                <p className="text-xs text-status-danger">
+                  Error: {(cancelShipmentMutation.error as any)?.response?.data?.message || 'No se pudo cancelar la guía'}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-white/40 border-t border-glass-border pt-4">
+              {order.status === 'PAID'
+                ? 'Sin guía generada. Usa "Cotizar Envío" para generar una.'
+                : 'Sin guía de envío.'}
+            </p>
+          )}
+        </div>
+      </Card>
+
       {/* Payment Events Timeline */}
       <Card padding={false}>
         <div className="border-b border-glass-border px-6 py-4">
@@ -490,81 +616,6 @@ export default function OrderDetailPage() {
             emptyMessage="No hay comisiones generadas para este pedido"
             keyExtractor={(item) => item.id}
           />
-        </div>
-      </Card>
-
-      {/* Shipping Info */}
-      <Card padding={false}>
-        <div className="flex items-center justify-between border-b border-glass-border px-6 py-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Truck className="h-5 w-5 text-white/40" /> Envío
-          </h3>
-          {order.status === 'PAID' && !order.shipment && (
-            <Button
-              variant="primary"
-              icon={<Package className="h-4 w-4" />}
-              onClick={() => { setShippingModalOpen(true); quoteRatesMutation.mutate(); }}
-            >
-              Cotizar Envío
-            </Button>
-          )}
-        </div>
-        <div className="p-6">
-          {order.shipment ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div>
-                  <p className="text-xs text-white/40">Transportadora</p>
-                  <p className="text-sm font-medium text-white capitalize">{order.shipment.carrier || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-white/40">Servicio</p>
-                  <p className="text-sm font-medium text-white">{order.shipment.service || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-white/40">Guía</p>
-                  <p className="text-sm font-medium text-white font-mono">{order.shipment.trackingNumber || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-white/40">Costo</p>
-                  <p className="text-sm font-medium text-white">{order.shipment.totalPrice ? formatCurrency(order.shipment.totalPrice) : '-'}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 pt-2">
-                {order.shipment.trackUrl && (
-                  <a
-                    href={order.shipment.trackUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-accent-purple hover:underline"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" /> Rastrear envío
-                  </a>
-                )}
-                {order.shipment.labelUrl && (
-                  <a
-                    href={order.shipment.labelUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-accent-purple hover:underline"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" /> Ver guía PDF
-                  </a>
-                )}
-              </div>
-              {cancelShipmentMutation.isError && (
-                <p className="text-xs text-status-danger">
-                  Error: {(cancelShipmentMutation.error as any)?.response?.data?.message || 'No se pudo cancelar la guía'}
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="text-center text-sm text-white/40">
-              {order.status === 'PAID'
-                ? 'Sin guía generada. Usa "Cotizar Envío" para generar una.'
-                : 'Sin información de envío.'}
-            </p>
-          )}
         </div>
       </Card>
 
@@ -641,6 +692,73 @@ export default function OrderDetailPage() {
                   {(createLabelMutation.error as any)?.response?.data?.message || 'No se pudo generar la guía'}
                 </p>
               )}
+            </>
+          )}
+        </div>
+      </Modal>
+
+      {/* Change Address Modal */}
+      <Modal
+        open={changeAddressOpen}
+        onClose={() => { setChangeAddressOpen(false); setSelectedAddressId(null); }}
+        title="Cambiar Dirección de Entrega"
+        size="md"
+      >
+        <div className="space-y-4">
+          {!customerData ? (
+            <div className="flex items-center justify-center gap-3 py-8">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent-purple border-t-transparent" />
+              <p className="text-sm text-white/50">Cargando direcciones...</p>
+            </div>
+          ) : !customerData.addresses?.length ? (
+            <p className="py-6 text-center text-sm text-white/50">Este cliente no tiene direcciones guardadas.</p>
+          ) : (
+            <>
+              <div className="space-y-2">
+                {customerData.addresses.map((addr: any) => (
+                  <button
+                    key={addr.id}
+                    onClick={() => setSelectedAddressId(addr.id)}
+                    className={`w-full rounded-xl border p-4 text-left transition-colors ${
+                      selectedAddressId === addr.id
+                        ? 'border-accent-purple bg-accent-purple/10'
+                        : order.address?.id === addr.id
+                        ? 'border-accent-gold/40 bg-accent-gold/5'
+                        : 'border-glass-border bg-glass-50 hover:border-accent-purple/40'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-0.5">
+                        {addr.label && <p className="text-xs font-semibold text-accent-gold uppercase tracking-wider">{addr.label}</p>}
+                        <p className="text-sm font-medium text-white">{addr.street}{addr.detail ? `, ${addr.detail}` : ''}</p>
+                        <p className="text-xs text-white/50">{addr.city}{addr.state ? `, ${addr.state}` : ''}</p>
+                        {addr.phone && <p className="text-xs text-white/40">{addr.phoneCode || '+57'} {addr.phone}</p>}
+                      </div>
+                      {order.address?.id === addr.id && (
+                        <span className="text-xs text-accent-gold whitespace-nowrap mt-0.5">Actual</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              {updateAddressMutation.isError && (
+                <p className="text-xs text-status-danger">
+                  {(updateAddressMutation.error as any)?.response?.data?.message || 'No se pudo actualizar la dirección'}
+                </p>
+              )}
+              <div className="flex justify-end gap-3 border-t border-glass-border pt-4">
+                <Button variant="ghost" onClick={() => { setChangeAddressOpen(false); setSelectedAddressId(null); }} disabled={updateAddressMutation.isPending}>
+                  Cancelar
+                </Button>
+                <Button
+                  variant="primary"
+                  icon={<MapPin className="h-4 w-4" />}
+                  onClick={() => selectedAddressId && updateAddressMutation.mutate(selectedAddressId)}
+                  disabled={!selectedAddressId || updateAddressMutation.isPending}
+                >
+                  {updateAddressMutation.isPending ? 'Guardando...' : 'Confirmar dirección'}
+                </Button>
+              </div>
             </>
           )}
         </div>

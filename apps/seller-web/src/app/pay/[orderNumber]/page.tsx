@@ -723,18 +723,6 @@ export default function PayPage() {
           </div>
         )}
 
-        {/* Fallback: Wompi widget button (if no direct method selected) */}
-        {!paymentMethod && widgetConfig && (
-          <button
-            type="button"
-            onClick={openWompiWidget}
-            disabled={submitting}
-            className="w-full py-4 rounded-2xl font-extrabold text-base tracking-wide text-[#0a0703] transition-all active:scale-[0.98] disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg, #c9a96e 0%, #a07840 100%)' }}
-          >
-            {submitting ? 'Abriendo pasarela...' : 'Pagar ahora →'}
-          </button>
-        )}
 
         {/* Footer */}
         <div className="text-center pt-2 pb-6 space-y-1">
