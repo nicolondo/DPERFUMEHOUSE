@@ -875,7 +875,7 @@ function Step3SelectProducts({
           description="No se encontraron productos"
         />
       ) : (
-        <div className={`grid grid-cols-2 gap-3 ${count > 0 ? 'pb-24' : ''}`}>
+        <div className={`grid grid-cols-2 gap-3 ${count > 0 ? 'pb-40' : ''}`}>
           {products.map((product: any) => {
             const inStock = product.stock > 0;
             const price = typeof product.price === 'string' ? parseFloat(product.price) : product.price;
