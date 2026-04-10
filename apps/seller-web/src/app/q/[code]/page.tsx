@@ -233,7 +233,7 @@ function PerfumeAutocomplete({ value, onChange, onTyping, placeholder }: { value
               className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#8B7355]/10 transition-colors text-left"
             >
               {p.image && (
-                <img src={p.image} alt="" className="w-10 h-10 rounded-lg object-cover bg-white/10 flex-shrink-0" />
+                <img src={p.image} alt="" className="w-10 h-10 rounded-lg object-cover bg-white/10 flex-shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
               )}
               <div className="min-w-0">
                 <p className="text-white text-sm font-medium truncate">{p.name}</p>
