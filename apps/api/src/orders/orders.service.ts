@@ -1011,4 +1011,46 @@ export class OrdersService {
 
     return `${prefix}-${sequence.toString().padStart(4, '0')}`;
   }
+
+  async deleteOrder(orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true, paymentLink: true, commissions: true, shipment: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order ${orderId} not found`);
+    }
+
+    if (order.status !== 'PENDING') {
+      throw new BadRequestException(
+        `Only PENDING orders can be deleted. Current status: ${order.status}`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Restore stock
+      for (const item of order.items) {
+        await tx.productVariant.update({
+          where: { id: item.variantId },
+          data: { stock: { increment: item.quantity } },
+        });
+      }
+      // Delete related records without cascade
+      if (order.commissions.length > 0) {
+        await tx.commission.deleteMany({ where: { orderId } });
+      }
+      if (order.shipment) {
+        await tx.shipment.delete({ where: { id: order.shipment.id } });
+      }
+      if (order.paymentLink) {
+        await tx.paymentLink.delete({ where: { id: order.paymentLink.id } });
+      }
+      // Delete order (items cascade)
+      await tx.order.delete({ where: { id: orderId } });
+    });
+
+    this.logger.log(`Admin deleted PENDING order ${order.orderNumber}`);
+    return { success: true, orderNumber: order.orderNumber };
+  }
 }

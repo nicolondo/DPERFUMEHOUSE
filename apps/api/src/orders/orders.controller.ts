@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -148,5 +149,17 @@ export class OrdersController {
       throw new ForbiddenException('Only admins can mark orders as delivered');
     }
     return this.ordersService.markAsDelivered(id, body?.notes);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  async deleteOrder(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only admins can delete orders');
+    }
+    return this.ordersService.deleteOrder(id);
   }
 }

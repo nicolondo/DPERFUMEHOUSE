@@ -11,7 +11,7 @@ import { Modal } from '@/components/ui/modal';
 import { PageSpinner } from '@/components/ui/spinner';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { formatCurrency, formatDate, formatDateTime, formatPercent } from '@/lib/utils';
-import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck, ExternalLink, X } from 'lucide-react';
+import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck, ExternalLink, X, Trash2 } from 'lucide-react';
 
 const orderStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
   DRAFT: 'default',
@@ -112,6 +112,17 @@ export default function OrderDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
+
+  const deleteOrderMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.delete(`/orders/${orderId}`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      router.push('/orders');
     },
   });
 
@@ -289,6 +300,25 @@ export default function OrderDetailPage() {
               >
                 {cancelShipmentMutation.isPending ? 'Cancelando...' : 'Cancelar Guía'}
               </Button>
+            )}
+            {order.status === 'PENDING' && (
+              <Button
+                variant="danger"
+                icon={<Trash2 className="h-4 w-4" />}
+                onClick={() => {
+                  if (confirm(`¿Eliminar pedido #${order.orderNumber}? Esta acción no se puede deshacer.`)) {
+                    deleteOrderMutation.mutate();
+                  }
+                }}
+                disabled={deleteOrderMutation.isPending}
+              >
+                {deleteOrderMutation.isPending ? 'Eliminando...' : 'Eliminar Pedido'}
+              </Button>
+            )}
+            {deleteOrderMutation.isError && (
+              <p className="text-xs text-status-danger">
+                Error: {(deleteOrderMutation.error as any)?.response?.data?.message || 'No se pudo eliminar el pedido'}
+              </p>
             )}
             {deliverMutation.isError && (
               <p className="text-xs text-status-danger">
