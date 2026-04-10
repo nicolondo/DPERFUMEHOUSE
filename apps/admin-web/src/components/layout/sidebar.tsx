@@ -43,7 +43,7 @@ const navigation: NavItem[] = [
     icon: <LayoutDashboard className="h-5 w-5" />,
   },
   {
-    label: 'Usuarios',
+    label: 'Vendedores',
     href: '/users',
     icon: <Users className="h-5 w-5" />,
   },
@@ -101,7 +101,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<string[]>(['Usuarios', 'Productos', 'Fragancias', 'Configuracion']);
+  const [expandedSections, setExpandedSections] = useState<string[]>(['Vendedores', 'Productos', 'Fragancias', 'Configuracion']);
 
   function toggleSection(label: string) {
     setExpandedSections((prev) =>

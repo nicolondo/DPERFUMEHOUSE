@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { fetchUser, updateUser, toggleUserStatus, fetchUsers, fetchProductCategories, fetchSettings } from '@/lib/api';
+import { fetchUser, updateUser, toggleUserStatus, fetchUsers, fetchProductCategories, fetchSettings, fetchCustomers } from '@/lib/api';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { FormField } from '@/components/ui/form-field';
 import { PageSpinner } from '@/components/ui/spinner';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { formatCurrency, formatDate, formatPercent } from '@/lib/utils';
-import { ArrowLeft, Mail, Shield, Users, TrendingUp, User, Pencil, Save, Phone, Building2, Wallet, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Mail, Shield, Users, TrendingUp, User, Pencil, Save, Phone, Building2, Wallet, Plus, Trash2, Contact } from 'lucide-react';
 
 type CommissionScaleTier = {
   minSales: number;
@@ -114,6 +114,12 @@ export default function UserDetailPage() {
   const queryClient = useQueryClient();
   const userId = params.id as string;
   const [showEdit, setShowEdit] = useState(false);
+
+  const { data: customersData } = useQuery({
+    queryKey: ['customers', 'by-seller', userId],
+    queryFn: () => fetchCustomers({ sellerId: userId, pageSize: 200 }),
+    enabled: !!userId,
+  });
 
   const { data: user, isLoading, error } = useQuery({
     queryKey: ['user', userId],
@@ -213,7 +219,7 @@ export default function UserDetailPage() {
   return (
     <div className="space-y-6">
       <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => router.back()}>
-        Volver a Usuarios
+        Volver a Vendedores
       </Button>
 
       {/* Profile Card */}
@@ -485,6 +491,50 @@ export default function UserDetailPage() {
           </div>
         </Card>
       )}
+
+      {/* Customers */}
+      <Card padding={false}>
+        <div className="border-b border-glass-border px-6 py-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Contact className="h-5 w-5" /> Clientes ({customersData?.items?.length ?? customersData?.length ?? 0})
+          </h3>
+        </div>
+        <div className="p-4">
+          <DataTable
+            columns={[
+              {
+                key: 'name',
+                header: 'Cliente',
+                render: (c) => (
+                  <div>
+                    <p className="font-medium text-white">{c.name}</p>
+                    <p className="text-xs text-white/50">{c.email}</p>
+                  </div>
+                ),
+              },
+              {
+                key: 'phone',
+                header: 'Teléfono',
+                render: (c) => <span className="text-white/70">{c.phone ? `${c.phoneCode || ''} ${c.phone}`.trim() : '-'}</span>,
+              },
+              {
+                key: 'city',
+                header: 'Ciudad',
+                render: (c) => <span className="text-white/70">{c.addresses?.[0]?.city || '-'}</span>,
+              },
+              {
+                key: 'createdAt',
+                header: 'Fecha',
+                render: (c) => <span className="text-white/50">{formatDate(c.createdAt)}</span>,
+              },
+            ]}
+            data={customersData?.items ?? customersData ?? []}
+            emptyMessage="Este vendedor no tiene clientes registrados"
+            keyExtractor={(c) => c.id}
+            onRowClick={(c) => router.push(`/customers/${c.id}`)}
+          />
+        </div>
+      </Card>
 
       {/* Edit Modal */}
       {showEdit && (

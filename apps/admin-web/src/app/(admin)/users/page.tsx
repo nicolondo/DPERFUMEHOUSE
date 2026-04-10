@@ -373,7 +373,7 @@ export default function UsersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="page-title">Usuarios</h1>
+          <h1 className="page-title">Vendedores</h1>
           <p className="page-description">Gestiona vendedores y usuarios del sistema</p>
         </div>
         <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>

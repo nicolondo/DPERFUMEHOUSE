@@ -7,7 +7,7 @@ import { getAdminUser, logoutAdmin } from '@/lib/auth';
 
 const breadcrumbMap: Record<string, string> = {
   dashboard: 'Dashboard',
-  users: 'Usuarios',
+  users: 'Vendedores',
   products: 'Productos',
   sync: 'Sincronizacion',
   requests: 'Solicitudes',
