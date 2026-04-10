@@ -351,8 +351,7 @@ export default function BuyPage() {
         const txId = data?.id;
         const bankUrl =
           result.asyncPaymentUrl ||
-          data?.payment_method?.extra?.async_payment_url ||
-          data?.redirect_url;
+          data?.payment_method?.extra?.async_payment_url;
         if (bankUrl) {
           window.location.href = bankUrl;
           return;

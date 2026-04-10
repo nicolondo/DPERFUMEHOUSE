@@ -361,8 +361,7 @@ export default function PayPage() {
           // Check top-level field first (API now returns it explicitly)
           const bankUrl =
             data.asyncPaymentUrl ||
-            data.data?.payment_method?.extra?.async_payment_url ||
-            data.data?.redirect_url;
+            data.data?.payment_method?.extra?.async_payment_url;
           if (bankUrl) {
             window.location.href = bankUrl;
             return;
