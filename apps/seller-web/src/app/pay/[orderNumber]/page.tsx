@@ -356,7 +356,10 @@ export default function PayPage() {
         if (paymentMethod === 'NEQUI') setNequiWaiting(true);
         // Redirect immediately for bank-redirect methods
         if (paymentMethod === 'BANCOLOMBIA_TRANSFER' || paymentMethod === 'DAVIPLATA') {
-          const bankUrl = data.data?.redirect_url || data.data?.redirectUrl || data.redirectUrl;
+          const bankUrl =
+            data.data?.payment_method?.extra?.async_payment_url ||
+            data.data?.redirect_url ||
+            data.redirectUrl;
           if (bankUrl) {
             window.location.href = bankUrl;
             return;
