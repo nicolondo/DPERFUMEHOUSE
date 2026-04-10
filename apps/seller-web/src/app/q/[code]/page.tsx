@@ -482,6 +482,7 @@ export default function QuestionnairePage() {
                       }`}
                     >
                       <span className="mr-3">{isSelected ? '✓' : '○'}</span>
+                      {(opt as any).emoji && <span className="mr-2 text-lg">{(opt as any).emoji}</span>}
                       {opt.label}
                     </button>
                   );
