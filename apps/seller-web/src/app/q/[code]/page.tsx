@@ -208,8 +208,20 @@ function PerfumeAutocomplete({ value, onChange, onTyping, placeholder }: { value
 
   useEffect(() => { return () => { if (debounceRef.current) clearTimeout(debounceRef.current); if (typingTimerRef.current) clearTimeout(typingTimerRef.current); }; }, []);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showDropdown) return;
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showDropdown]);
+
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <input
         type="text"
         value={query}
