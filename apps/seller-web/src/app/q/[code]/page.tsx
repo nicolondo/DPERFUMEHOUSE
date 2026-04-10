@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Script from 'next/script';
-import Image from 'next/image';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 const GOOGLE_MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
@@ -386,7 +385,7 @@ export default function QuestionnairePage() {
       <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-lg mx-auto w-full">
         {/* Logo — always visible */}
         <div className="mb-8 flex-shrink-0">
-          <Image src="/logo.svg" alt="D'Perfume House" width={200} height={60} priority className="mx-auto" />
+          <img src="/logo.svg" alt="D'Perfume House" width={200} className="mx-auto" />
         </div>
 
         {/* Intro */}
