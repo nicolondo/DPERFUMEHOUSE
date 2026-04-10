@@ -349,11 +349,14 @@ export class PaymentsService {
     if (!paymentLink) {
       // Try finding by reference which may contain the orderId
       const reference = transaction.reference || '';
-      // Wompi payment link transactions include the link ID as reference
+      // Reference can be the orderId (UUID) or the payment link ID
       paymentLink = await this.prisma.paymentLink.findFirst({
         where: {
           provider: 'wompi',
-          externalId: reference,
+          OR: [
+            { externalId: reference },
+            { orderId: reference },
+          ],
         },
         include: { order: true },
       });

@@ -20,6 +20,14 @@ export class WompiService implements PaymentProvider {
       : 'https://sandbox.wompi.co/v1';
   }
 
+  private async getPublicKey(): Promise<string> {
+    const key = await this.settingsService.get('wompi_public_key');
+    if (!key) {
+      throw new Error('Wompi public key not configured');
+    }
+    return key;
+  }
+
   private async getPrivateKey(): Promise<string> {
     const key = await this.settingsService.get('wompi_private_key');
     if (!key) {
@@ -28,62 +36,83 @@ export class WompiService implements PaymentProvider {
     return key;
   }
 
+  private async getIntegritySecret(): Promise<string> {
+    const secret = await this.settingsService.get('wompi_integrity_secret');
+    if (!secret) {
+      throw new Error('Wompi integrity secret not configured');
+    }
+    return secret;
+  }
+
+  /**
+   * Generate SHA256 integrity signature for Wompi.
+   * Format: SHA256(reference + amountInCents + currency + integritySecret)
+   */
+  generateIntegritySignature(
+    reference: string,
+    amountInCents: number,
+    currency: string,
+    integritySecret: string,
+  ): string {
+    const payload = `${reference}${amountInCents}${currency}${integritySecret}`;
+    return crypto.createHash('sha256').update(payload).digest('hex');
+  }
+
   async createPaymentLink(
     data: CreatePaymentLinkData,
   ): Promise<PaymentLinkResult> {
     this.logger.log(
-      `Creating Wompi payment link for order ${data.orderId}, amount: ${data.amount} ${data.currency}`,
+      `Creating Wompi checkout URL for order ${data.orderId}, amount: ${data.amount} ${data.currency}`,
     );
 
-    const baseUrl = await this.getBaseUrl();
-    const privateKey = await this.getPrivateKey();
+    const publicKey = await this.getPublicKey();
+    const integritySecret = await this.getIntegritySecret();
 
     // Wompi expects amount in centavos (multiply by 100)
     const amountInCents = Math.round(data.amount * 100);
+    const currency = 'COP';
+    // Use orderId as the unique reference
+    const reference = data.orderId;
 
-    const payload = {
-      name: `Orden ${data.orderId.substring(0, 8)}`,
-      description: `Pago D Perfume House - ${data.customerFirstName} ${data.customerLastName}`,
-      single_use: false,
-      collect_shipping: false,
-      currency: 'COP',
-      amount_in_cents: amountInCents,
-      redirect_url: data.successUrl,
-      // Store orderId in sku field for webhook reference
-      sku: data.orderId,
-    };
+    // Generate integrity signature: SHA256(reference + amountInCents + currency + integritySecret)
+    const signature = this.generateIntegritySignature(
+      reference,
+      amountInCents,
+      currency,
+      integritySecret,
+    );
 
-    const response = await fetch(`${baseUrl}/payment_links`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${privateKey}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const body = await response.text();
-      this.logger.error(
-        `Wompi payment link creation failed: ${response.status} - ${body}`,
-      );
-      throw new Error(
-        `Wompi payment link creation failed: ${response.status}`,
-      );
+    // Build Wompi Web Checkout URL with all required params
+    const params = new URLSearchParams();
+    params.set('public-key', publicKey);
+    params.set('currency', currency);
+    params.set('amount-in-cents', amountInCents.toString());
+    params.set('reference', reference);
+    params.set('signature:integrity', signature);
+    params.set('redirect-url', data.successUrl);
+    // Optional: pre-fill customer data
+    if (data.customerEmail) {
+      params.set('customer-data:email', data.customerEmail);
+    }
+    const fullName = `${data.customerFirstName} ${data.customerLastName}`.trim();
+    if (fullName) {
+      params.set('customer-data:full-name', fullName);
+    }
+    if (data.customerPhone) {
+      params.set('customer-data:phone-number', data.customerPhone);
+      params.set('customer-data:phone-number-prefix', '+57');
     }
 
-    const result = (await response.json()) as any;
-    const linkData = result.data;
-    const linkId = linkData.id;
+    const checkoutUrl = `https://checkout.wompi.co/p/?${params.toString()}`;
 
     this.logger.log(
-      `Wompi payment link created for order ${data.orderId}: ${linkId}`,
+      `Wompi checkout URL created for order ${data.orderId}`,
     );
 
     return {
-      externalId: linkId,
-      url: `https://checkout.wompi.co/l/${linkId}`,
-      code: linkId,
+      externalId: reference,
+      url: checkoutUrl,
+      code: reference,
     };
   }
 
