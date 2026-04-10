@@ -570,6 +570,12 @@ export class OdooService {
         orderData.company_id = companyId;
       }
 
+      // Set pricelist from settings (ensures COP currency)
+      const configuredPricelist = await this.settingsService.get('odoo_pricelist_id');
+      if (configuredPricelist) {
+        orderData.pricelist_id = parseInt(configuredPricelist, 10);
+      }
+
       const orderId = await this.execute('sale.order', 'create', [orderData]);
 
       // Read back the Odoo SO name (e.g., S00262)
