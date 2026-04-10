@@ -174,7 +174,8 @@ export default function PayPage() {
   const [order, setOrder] = useState<OrderPublic | null>(null);
   const [widgetConfig, setWidgetConfig] = useState<WidgetConfig | null>(null);
   const [publicData, setPublicData] = useState<PublicData | null>(null);
-  const [publicDataLoading, setPublicDataLoading] = useState(false);
+  const [publicDataLoading, setPublicDataLoading] = useState(true);
+  const [publicDataError, setPublicDataError] = useState(false);
   const [pseBanks, setPseBanks] = useState<Array<{ pseudonym: string; financial_institution_code: string }>>([]);
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [acceptanceChecked, setAcceptanceChecked] = useState(false);
@@ -196,15 +197,32 @@ export default function PayPage() {
     if (txId) { setTransactionId(txId); setPaymentStatus('PENDING'); }
   }, [searchParams]);
 
-  /* ---- fetch order + widget config + public data + pse banks ---- */
+  /* ---- fetch public data (wompi acceptance token) ---- */
+  const fetchPublicData = useCallback(async () => {
+    setPublicDataLoading(true);
+    setPublicDataError(false);
+    try {
+      const res = await fetch(`${API_URL}/payments/wompi-public-data/${orderNumber}`);
+      if (res.ok) {
+        setPublicData(await res.json());
+      } else {
+        setPublicDataError(true);
+      }
+    } catch {
+      setPublicDataError(true);
+    } finally {
+      setPublicDataLoading(false);
+    }
+  }, [orderNumber]);
+
+  /* ---- fetch order + widget config + pse banks ---- */
   useEffect(() => {
     async function fetchAll() {
       try {
         setLoading(true);
-        const [orderRes, widgetRes, publicRes, banksRes] = await Promise.all([
+        const [orderRes, widgetRes, banksRes] = await Promise.all([
           fetch(`${API_URL}/orders/public/${orderNumber}`),
           fetch(`${API_URL}/payments/widget-config/${orderNumber}`),
-          fetch(`${API_URL}/payments/wompi-public-data/${orderNumber}`),
           fetch(`${API_URL}/payments/pse/banks`),
         ]);
         if (!orderRes.ok) throw new Error('No se pudo cargar el pedido.');
@@ -214,9 +232,6 @@ export default function PayPage() {
         if (widgetRes.ok) {
           const wData: WidgetConfig = await widgetRes.json();
           setWidgetConfig(wData);
-        }
-        if (publicRes.ok) {
-          setPublicData(await publicRes.json());
         }
         if (banksRes.ok) {
           const bData = await banksRes.json();
@@ -228,8 +243,11 @@ export default function PayPage() {
         setLoading(false);
       }
     }
-    if (orderNumber) fetchAll();
-  }, [orderNumber]);
+    if (orderNumber) {
+      fetchAll();
+      fetchPublicData();
+    }
+  }, [orderNumber, fetchPublicData]);
 
   /* ---- poll transaction status ---- */
   useEffect(() => {
@@ -490,7 +508,12 @@ export default function PayPage() {
               <button
                 key={m.id}
                 type="button"
-                onClick={() => { setPaymentMethod(paymentMethod === m.id ? null : m.id); setAcceptanceChecked(false); }}
+                onClick={() => {
+                  const next = paymentMethod === m.id ? null : m.id;
+                  setPaymentMethod(next);
+                  setAcceptanceChecked(false);
+                  if (next && !publicData && !publicDataLoading) fetchPublicData();
+                }}
                 className={`rounded-2xl border p-4 text-center transition-all duration-150 cursor-pointer active:scale-[0.96] ${
                   isSelected
                     ? 'border-[#c9a96e] bg-[#c9a96e]/10 shadow-[0_0_12px_rgba(201,169,110,0.15)]'
@@ -507,11 +530,22 @@ export default function PayPage() {
           })}
         </div>
 
-        {/* Loading state while publicData is fetching after method selection */}
-        {paymentMethod && !publicData && publicDataLoading && (
+        {/* publicData states */}
+        {paymentMethod && publicDataLoading && (
           <div className="flex items-center justify-center gap-3 py-4">
             <div className="w-5 h-5 rounded-full border-2 border-[#c9a96e]/20 border-t-[#c9a96e] animate-spin" />
-            <p className="text-sm text-[#6b4f35]">Cargando datos de pago...</p>
+            <p className="text-sm text-[#6b4f35]">Cargando opciones de pago...</p>
+          </div>
+        )}
+        {paymentMethod && !publicDataLoading && publicDataError && (
+          <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-4 flex items-center justify-between gap-3">
+            <p className="text-red-400 text-sm">No se pudo conectar con la pasarela de pago.</p>
+            <button
+              onClick={fetchPublicData}
+              className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-[#c9a96e] text-[#0a0703] text-xs font-semibold cursor-pointer hover:bg-[#b8934d] transition-colors"
+            >
+              Reintentar
+            </button>
           </div>
         )}
 
