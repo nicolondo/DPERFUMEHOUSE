@@ -83,7 +83,46 @@ export class CommissionsService {
     const commissionsToCreate: Prisma.CommissionCreateManyInput[] = [];
 
     // L1 commission: direct seller
-    const l1Rate = order.seller.commissionRate.toNumber();
+    // If seller has commission scale enabled, use tier rate based on monthly sales
+    let l1Rate = order.seller.commissionRate.toNumber();
+
+    if (order.seller.commissionScaleEnabled) {
+      try {
+        const now = new Date();
+        const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+        const salesAgg = await this.prisma.order.aggregate({
+          where: {
+            sellerId: order.sellerId,
+            status: { in: [OrderStatus.PAID, OrderStatus.DELIVERED] },
+            createdAt: { gte: periodStart, lt: periodEnd },
+          },
+          _sum: { total: true },
+        });
+
+        const monthlySales = salesAgg._sum.total?.toNumber() ?? 0;
+
+        const overrideScale = this.normalizeScaleTiers(order.seller.commissionScaleOverride);
+        const globalScale = await this.getGlobalScaleTiers();
+        const effectiveScale = order.seller.commissionScaleUseGlobal
+          ? globalScale
+          : (overrideScale.length > 0 ? overrideScale : globalScale);
+
+        if (effectiveScale.length > 0) {
+          const tierRate = this.pickTierRate(monthlySales, effectiveScale);
+          if (tierRate > 0) {
+            l1Rate = tierRate;
+            this.logger.log(
+              `Scale-based rate for seller ${order.sellerId}: ${(tierRate * 100).toFixed(0)}% (monthly sales: ${monthlySales})`,
+            );
+          }
+        }
+      } catch (e) {
+        this.logger.warn(`Failed to compute scale rate for seller ${order.sellerId}: ${e.message}`);
+      }
+    }
+
     const l1Amount = Math.round(orderTotal * l1Rate * 100) / 100;
 
     commissionsToCreate.push({
