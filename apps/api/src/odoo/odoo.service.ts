@@ -563,8 +563,14 @@ export class OdooService {
       if (pickings.length > 0) {
         const pickingId = pickings[0].id;
         this.logger.log(
-          `Found delivery picking ${pickingId} for sale order ${saleOrderId}`,
+          `Found delivery picking ${pickingId} (state: ${pickings[0].state}) for sale order ${saleOrderId}`,
         );
+
+        // Validate (confirm) the picking if not already done
+        if (pickings[0].state !== 'done') {
+          await this.validateDelivery(pickingId);
+        }
+
         return pickingId;
       }
 
@@ -577,6 +583,41 @@ export class OdooService {
         `Failed to create delivery for sale order ${saleOrderId}`,
         error,
       );
+      throw error;
+    }
+  }
+
+  /**
+   * Validate a stock picking: set done quantities and confirm delivery.
+   */
+  async validateDelivery(pickingId: number): Promise<void> {
+    try {
+      // Set done quantities on all move lines
+      const moves = await this.execute(
+        'stock.move',
+        'search_read',
+        [[['picking_id', '=', pickingId]]],
+        { fields: ['id', 'product_uom_qty'] },
+      );
+      for (const move of moves) {
+        await this.execute('stock.move', 'write', [[move.id], { quantity: move.product_uom_qty }]);
+      }
+
+      // Validate the picking (button_validate)
+      try {
+        await this.execute('stock.picking', 'button_validate', [[pickingId]]);
+      } catch (e) {
+        // button_validate may return a wizard (e.g. immediate transfer) — try force_assign + validate
+        if (e.message?.includes('cannot marshal None') || e.message?.includes('wizard')) {
+          this.logger.warn(`button_validate returned wizard for picking ${pickingId}, attempting direct validation`);
+        } else {
+          throw e;
+        }
+      }
+
+      this.logger.log(`Validated delivery picking ${pickingId}`);
+    } catch (error) {
+      this.logger.error(`Failed to validate delivery ${pickingId}: ${error.message}`);
       throw error;
     }
   }
