@@ -126,13 +126,39 @@ const INTENSITY_EMOJIS: Record<string, string> = {
 /* ------------------------------------------------------------------ */
 /*  Payment method definitions                                         */
 /* ------------------------------------------------------------------ */
+const CardIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-6 h-6">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+  </svg>
+);
+const BankIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-6 h-6">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z" />
+  </svg>
+);
+const PhoneIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-6 h-6">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
+  </svg>
+);
+const TransferIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-6 h-6">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+  </svg>
+);
+const StoreIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-6 h-6">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z" />
+  </svg>
+);
+
 const PAYMENT_METHODS = [
-  { id: 'CARD', icon: '💳', label: 'Tarjeta', desc: 'Crédito o débito' },
-  { id: 'PSE', icon: '🏛', label: 'PSE', desc: 'Débito bancario' },
-  { id: 'NEQUI', icon: '🟣', label: 'Nequi', desc: 'Pago por app' },
-  { id: 'BANCOLOMBIA_TRANSFER', icon: '🔄', label: 'Bancolombia', desc: 'Transferencia' },
-  { id: 'BANCOLOMBIA_COLLECT', icon: '🖥', label: 'Corresponsal', desc: 'Pago en efectivo' },
-] as const;
+  { id: 'CARD', Icon: CardIcon, label: 'Tarjeta', desc: 'Crédito o débito' },
+  { id: 'PSE', Icon: BankIcon, label: 'PSE', desc: 'Débito bancario' },
+  { id: 'NEQUI', Icon: PhoneIcon, label: 'Nequi', desc: 'Pago por app' },
+  { id: 'BANCOLOMBIA_TRANSFER', Icon: TransferIcon, label: 'Bancolombia', desc: 'Transferencia' },
+  { id: 'BANCOLOMBIA_COLLECT', Icon: StoreIcon, label: 'Corresponsal', desc: 'Pago en efectivo' },
+];
 
 /* ================================================================== */
 /*  PayPage Component                                                  */
@@ -148,6 +174,8 @@ export default function PayPage() {
   const [order, setOrder] = useState<OrderPublic | null>(null);
   const [widgetConfig, setWidgetConfig] = useState<WidgetConfig | null>(null);
   const [publicData, setPublicData] = useState<PublicData | null>(null);
+  const [publicDataLoading, setPublicDataLoading] = useState(false);
+  const [pseBanks, setPseBanks] = useState<Array<{ pseudonym: string; financial_institution_code: string }>>([]);
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [acceptanceChecked, setAcceptanceChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -155,6 +183,11 @@ export default function PayPage() {
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
   const [nequiWaiting, setNequiWaiting] = useState(false);
   const [collectReference, setCollectReference] = useState<CollectReference | undefined>();
+  /* PSE fields */
+  const [pseBankCode, setPseBankCode] = useState('');
+  const [pseUserType, setPseUserType] = useState('0');
+  const [pseLegalIdType, setPseLegalIdType] = useState('CC');
+  const [pseLegalId, setPseLegalId] = useState('');
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   /* ---- redirect result ---- */
@@ -163,14 +196,16 @@ export default function PayPage() {
     if (txId) { setTransactionId(txId); setPaymentStatus('PENDING'); }
   }, [searchParams]);
 
-  /* ---- fetch order + widget config ---- */
+  /* ---- fetch order + widget config + public data + pse banks ---- */
   useEffect(() => {
     async function fetchAll() {
       try {
         setLoading(true);
-        const [orderRes, widgetRes] = await Promise.all([
+        const [orderRes, widgetRes, publicRes, banksRes] = await Promise.all([
           fetch(`${API_URL}/orders/public/${orderNumber}`),
           fetch(`${API_URL}/payments/widget-config/${orderNumber}`),
+          fetch(`${API_URL}/payments/wompi-public-data/${orderNumber}`),
+          fetch(`${API_URL}/payments/pse/banks`),
         ]);
         if (!orderRes.ok) throw new Error('No se pudo cargar el pedido.');
         const orderData: OrderPublic = await orderRes.json();
@@ -180,6 +215,13 @@ export default function PayPage() {
           const wData: WidgetConfig = await widgetRes.json();
           setWidgetConfig(wData);
         }
+        if (publicRes.ok) {
+          setPublicData(await publicRes.json());
+        }
+        if (banksRes.ok) {
+          const bData = await banksRes.json();
+          setPseBanks(Array.isArray(bData) ? bData : bData.banks || []);
+        }
       } catch (err: any) {
         setError(err.message || 'Error al cargar el pedido.');
       } finally {
@@ -188,17 +230,6 @@ export default function PayPage() {
     }
     if (orderNumber) fetchAll();
   }, [orderNumber]);
-
-  /* ---- fetch public data for direct payments ---- */
-  useEffect(() => {
-    async function fetchPublicData() {
-      try {
-        const res = await fetch(`${API_URL}/payments/wompi-public-data/${orderNumber}`);
-        if (res.ok) setPublicData(await res.json());
-      } catch { /* non-critical */ }
-    }
-    if (paymentMethod && paymentMethod !== 'WIDGET' && !publicData) fetchPublicData();
-  }, [paymentMethod, orderNumber, publicData]);
 
   /* ---- poll transaction status ---- */
   useEffect(() => {
@@ -279,6 +310,7 @@ export default function PayPage() {
   const handleRetry = useCallback(() => {
     setPaymentStatus(null); setTransactionId(null); setPaymentMethod(null);
     setNequiWaiting(false); setCollectReference(undefined); setError('');
+    setPseBankCode(''); setPseLegalId('');
   }, []);
 
   /* ================================================================ */
@@ -302,7 +334,11 @@ export default function PayPage() {
     return (
       <div className="min-h-screen bg-[#0a0703] flex items-center justify-center p-6">
         <div className="text-center space-y-4 max-w-sm">
-          <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mx-auto text-2xl">⚠️</div>
+          <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mx-auto">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth={2} className="w-7 h-7">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+          </svg>
+        </div>
           <p className="text-[#fff7eb] font-semibold">No se pudo cargar el pedido</p>
           <p className="text-[#6b4f35] text-sm">{error}</p>
         </div>
@@ -317,7 +353,11 @@ export default function PayPage() {
       <div className="min-h-screen bg-[#0a0703] flex items-center justify-center p-6">
         <div className="w-full max-w-md text-center space-y-5">
           <img src={`${process.env.NEXT_PUBLIC_APP_URL || ''}/icons/logo-email.png`} alt="D Perfume House" className="h-10 mx-auto opacity-80" />
-          <div className="w-16 h-16 rounded-full bg-emerald-500/15 border-2 border-emerald-500 flex items-center justify-center mx-auto text-3xl">✅</div>
+          <div className="w-14 h-14 rounded-full bg-emerald-500/15 border-2 border-emerald-500 flex items-center justify-center mx-auto">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth={2.5} className="w-7 h-7">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </div>
           <h1 className="text-2xl font-bold text-[#fff7eb]">¡Pago recibido!</h1>
           <p className="text-[#9c8568]">El pedido <strong className="text-[#c9a96e]">#{num}</strong> fue pagado exitosamente.</p>
         </div>
@@ -363,7 +403,9 @@ export default function PayPage() {
         {/* Header */}
         <div className="text-center space-y-1">
           <div className="w-14 h-14 rounded-2xl bg-[#1a140b] border border-[#2e1f0e] flex items-center justify-center mx-auto mb-3">
-            <span className="text-2xl">🛒</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#c9a96e" strokeWidth={1.5} className="w-7 h-7">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+            </svg>
           </div>
           <h1 className="text-2xl text-[#fff7eb]">
             {order.customer?.name}, <em className="text-[#c9a96e]">tu pedido</em>
@@ -442,23 +484,36 @@ export default function PayPage() {
 
         {/* Payment method grid */}
         <div className="grid grid-cols-3 gap-3">
-          {PAYMENT_METHODS.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => { setPaymentMethod(paymentMethod === m.id ? null : m.id); setAcceptanceChecked(false); }}
-              className={`rounded-2xl border p-4 text-center transition-all ${
-                paymentMethod === m.id
-                  ? 'border-[#c9a96e] bg-[#c9a96e]/10'
-                  : 'border-[#2e1f0e] bg-[#16110a] hover:border-[#4a3825]'
-              }`}
-            >
-              <div className="text-2xl mb-1.5">{m.icon}</div>
-              <p className={`text-sm font-semibold ${paymentMethod === m.id ? 'text-[#c9a96e]' : 'text-[#bfa685]'}`}>{m.label}</p>
-              <p className="text-[10px] text-[#6b4f35] mt-0.5">{m.desc}</p>
-            </button>
-          ))}
+          {PAYMENT_METHODS.map((m) => {
+            const isSelected = paymentMethod === m.id;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => { setPaymentMethod(paymentMethod === m.id ? null : m.id); setAcceptanceChecked(false); }}
+                className={`rounded-2xl border p-4 text-center transition-all duration-150 cursor-pointer active:scale-[0.96] ${
+                  isSelected
+                    ? 'border-[#c9a96e] bg-[#c9a96e]/10 shadow-[0_0_12px_rgba(201,169,110,0.15)]'
+                    : 'border-[#2e1f0e] bg-[#16110a] hover:border-[#4a3825] hover:bg-[#1c1610]'
+                }`}
+              >
+                <div className={`flex justify-center mb-1.5 ${ isSelected ? 'text-[#c9a96e]' : 'text-[#6b4f35]' }`}>
+                  <m.Icon />
+                </div>
+                <p className={`text-sm font-semibold ${ isSelected ? 'text-[#c9a96e]' : 'text-[#bfa685]' }`}>{m.label}</p>
+                <p className="text-[10px] text-[#6b4f35] mt-0.5">{m.desc}</p>
+              </button>
+            );
+          })}
         </div>
+
+        {/* Loading state while publicData is fetching after method selection */}
+        {paymentMethod && !publicData && publicDataLoading && (
+          <div className="flex items-center justify-center gap-3 py-4">
+            <div className="w-5 h-5 rounded-full border-2 border-[#c9a96e]/20 border-t-[#c9a96e] animate-spin" />
+            <p className="text-sm text-[#6b4f35]">Cargando datos de pago...</p>
+          </div>
+        )}
 
         {/* Acceptance */}
         {paymentMethod && publicData && (
@@ -481,6 +536,77 @@ export default function PayPage() {
           <div className="space-y-4">
             {paymentMethod === 'CARD' && (
               <CardForm publicKey={publicData.publicKey} onToken={handleCardToken} loading={submitting} />
+            )}
+            {paymentMethod === 'PSE' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs text-[#9c8568] mb-1.5 block">Banco</label>
+                  <select
+                    value={pseBankCode}
+                    onChange={(e) => setPseBankCode(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] text-sm focus:outline-none focus:border-[#c9a96e]/50 cursor-pointer"
+                  >
+                    <option value="">Selecciona tu banco...</option>
+                    {pseBanks.map((b) => (
+                      <option key={b.financial_institution_code} value={b.financial_institution_code}>
+                        {b.pseudonym}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-[#9c8568] mb-1.5 block">Tipo de persona</label>
+                    <select
+                      value={pseUserType}
+                      onChange={(e) => setPseUserType(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] text-sm focus:outline-none focus:border-[#c9a96e]/50 cursor-pointer"
+                    >
+                      <option value="0">Natural</option>
+                      <option value="1">Jurídica</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-[#9c8568] mb-1.5 block">Tipo de documento</label>
+                    <select
+                      value={pseLegalIdType}
+                      onChange={(e) => setPseLegalIdType(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] text-sm focus:outline-none focus:border-[#c9a96e]/50 cursor-pointer"
+                    >
+                      <option value="CC">Cédula (CC)</option>
+                      <option value="NIT">NIT</option>
+                      <option value="CE">Cédula Extranjería</option>
+                      <option value="PP">Pasaporte</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-[#9c8568] mb-1.5 block">Número de documento</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="1234567890"
+                    value={pseLegalId}
+                    onChange={(e) => setPseLegalId(e.target.value.replace(/\D/g, ''))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] placeholder:text-[#4a3825] text-sm focus:outline-none focus:border-[#c9a96e]/50 font-mono"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={!pseBankCode || !pseLegalId || submitting}
+                  onClick={() => submitDirectTransaction({
+                    financial_institution_code: pseBankCode,
+                    payment_description: `Pedido ${order?.orderNumber}`,
+                    user_type: pseUserType,
+                    user_legal_id_type: pseLegalIdType,
+                    user_legal_id: pseLegalId,
+                  })}
+                  className="w-full py-3 rounded-xl font-semibold text-sm transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: 'linear-gradient(135deg, #c9a96e 0%, #a07840 100%)', color: '#0a0703' }}
+                >
+                  {submitting ? 'Procesando...' : 'Pagar con PSE'}
+                </button>
+              </div>
             )}
             {paymentMethod === 'NEQUI' && (
               <NequiForm
@@ -524,9 +650,12 @@ export default function PayPage() {
         {order.seller?.phone && (
           <a
             href={`https://wa.me/${order.seller.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola, tengo una consulta sobre mi pedido #${orderNum}`)}`}
-            className="block w-full py-3.5 rounded-2xl bg-[#25d366] text-white text-center font-bold text-sm"
+            className="flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl bg-[#25d366] text-white text-center font-bold text-sm transition-all active:scale-[0.98]"
           >
-            💬 Contactar al vendedor
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+            </svg>
+            Contactar al vendedor
           </a>
         )}
 
