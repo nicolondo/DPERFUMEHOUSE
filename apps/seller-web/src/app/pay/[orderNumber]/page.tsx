@@ -341,6 +341,7 @@ export default function PayPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error al procesar el pago.');
+
       // Extract collectReference from initial response (Wompi returns it immediately)
       if (data.data?.payment_method?.extra?.business_agreement_code) {
         setCollectReference({
@@ -350,21 +351,44 @@ export default function PayPage() {
       } else if (data.collectReference) {
         setCollectReference(data.collectReference);
       }
+
       if (data.data?.id) {
-        setTransactionId(data.data.id);
-        setPaymentStatus(data.data.status || 'PENDING');
-        if (paymentMethod === 'NEQUI') setNequiWaiting(true);
-        // Redirect immediately for bank-redirect methods
+        const txId = data.data.id;
+
+        // For bank-redirect methods: poll for async_payment_url before setting status
+        // (Wompi generates it asynchronously, may not be in the initial response)
         if (paymentMethod === 'BANCOLOMBIA_TRANSFER' || paymentMethod === 'DAVIPLATA') {
-          const bankUrl =
+          // Check initial response first
+          const immediateUrl =
             data.data?.payment_method?.extra?.async_payment_url ||
-            data.data?.redirect_url ||
-            data.redirectUrl;
-          if (bankUrl) {
-            window.location.href = bankUrl;
+            data.data?.redirect_url;
+          if (immediateUrl) {
+            window.location.href = immediateUrl;
             return;
           }
+          // Poll up to 5 times (500ms apart) waiting for Wompi to generate the URL
+          for (let attempt = 0; attempt < 5; attempt++) {
+            await new Promise((r) => setTimeout(r, 500));
+            try {
+              const pollRes = await fetch(`${API_URL}/payments/transaction-status/${orderNumber}?transactionId=${txId}`);
+              if (pollRes.ok) {
+                const pollData = await pollRes.json();
+                if (pollData.asyncPaymentUrl) {
+                  window.location.href = pollData.asyncPaymentUrl;
+                  return;
+                }
+              }
+            } catch { /* keep trying */ }
+          }
+          // Fallback: set pending state so background polling can take over
+          setTransactionId(txId);
+          setPaymentStatus(data.data.status || 'PENDING');
+          return;
         }
+
+        setTransactionId(txId);
+        setPaymentStatus(data.data.status || 'PENDING');
+        if (paymentMethod === 'NEQUI') setNequiWaiting(true);
       }
     } catch (err: any) {
       setError(err.message || 'Error al procesar el pago.');
