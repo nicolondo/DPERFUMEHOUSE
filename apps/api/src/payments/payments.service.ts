@@ -620,16 +620,22 @@ export class PaymentsService {
           phone_number: body.phoneNumber,
         };
         break;
-      case 'PSE':
+      case 'PSE': {
+        const b = body as any;
+        const instCode = body.financialInstitutionCode || b.financial_institution_code;
+        const uType = parseInt(String(body.userType ?? b.user_type ?? 0), 10);
+        const uIdType = body.userLegalIdType || b.user_legal_id_type || 'CC';
+        const uId = body.userLegalId || b.user_legal_id || '';
         paymentMethodPayload = {
           type: 'PSE',
-          user_type: body.userType ?? 0,
-          user_legal_id_type: body.userLegalIdType || 'CC',
-          user_legal_id: body.userLegalId || '',
-          financial_institution_code: body.financialInstitutionCode,
-          payment_description: `Pago pedido ${reference}`,
+          user_type: uType,
+          user_legal_id_type: uIdType,
+          user_legal_id: uId,
+          financial_institution_code: instCode,
+          payment_description: `Pago pedido ${reference}`.substring(0, 64),
         };
         break;
+      }
       case 'BANCOLOMBIA_TRANSFER':
         paymentMethodPayload = {
           type: 'BANCOLOMBIA_TRANSFER',
@@ -660,6 +666,14 @@ export class PaymentsService {
     const customerEmail =
       body.customerEmail || order.customer?.email || '';
 
+    const customerData =
+      body.paymentMethod === 'PSE'
+        ? {
+            full_name: order.customer?.name || '',
+            phone_number: (order.customer as any)?.phone || '',
+          }
+        : undefined;
+
     const result = await this.wompiService.createTransaction({
       amountInCents,
       currency,
@@ -669,6 +683,7 @@ export class PaymentsService {
       signature,
       paymentMethod: paymentMethodPayload,
       redirectUrl,
+      customerData,
     });
 
     // Store a reference in our system
@@ -786,6 +801,20 @@ export class PaymentsService {
       }
     }
 
-    return { status: result.status, id: result.id };
+    return {
+      status: result.status,
+      id: result.id,
+      asyncPaymentUrl: result.payment_method?.extra?.async_payment_url || null,
+      collectReference:
+        result.payment_method?.type === 'BANCOLOMBIA_COLLECT' &&
+        result.payment_method?.extra?.business_agreement_code
+          ? {
+              businessAgreementCode:
+                result.payment_method.extra.business_agreement_code,
+              paymentIntentionIdentifier:
+                result.payment_method.extra.payment_intention_identifier,
+            }
+          : null,
+    };
   }
 }

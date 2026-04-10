@@ -189,6 +189,7 @@ export default function PayPage() {
   const [pseUserType, setPseUserType] = useState('0');
   const [pseLegalIdType, setPseLegalIdType] = useState('CC');
   const [pseLegalId, setPseLegalId] = useState('');
+  const [pseEmail, setPseEmail] = useState('');
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   /* ---- redirect result ---- */
@@ -259,6 +260,16 @@ export default function PayPage() {
         const res = await fetch(`${API_URL}/payments/transaction-status/${orderNumber}?transactionId=${transactionId}`);
         if (res.ok) {
           const d = await res.json();
+          // PSE / Bancolombia Transfer: redirect to bank when async URL is ready
+          if (d.asyncPaymentUrl) {
+            if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+            window.location.href = d.asyncPaymentUrl;
+            return;
+          }
+          // Bancolombia Collect: show payment reference when ready
+          if (d.collectReference?.businessAgreementCode) {
+            setCollectReference(d.collectReference);
+          }
           if (d.status && d.status !== 'PENDING') {
             setPaymentStatus(d.status);
             if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
@@ -330,7 +341,7 @@ export default function PayPage() {
   const handleRetry = useCallback(() => {
     setPaymentStatus(null); setTransactionId(null); setPaymentMethod(null);
     setNequiWaiting(false); setCollectReference(undefined); setError('');
-    setPseBankCode(''); setPseLegalId('');
+    setPseBankCode(''); setPseLegalId(''); setPseEmail('');
   }, []);
 
   /* ================================================================ */
@@ -627,15 +638,26 @@ export default function PayPage() {
                     className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] placeholder:text-[#4a3825] text-sm focus:outline-none focus:border-[#c9a96e]/50 font-mono"
                   />
                 </div>
+                <div>
+                  <label className="text-xs text-[#9c8568] mb-1.5 block">Correo electrónico</label>
+                  <input
+                    type="email"
+                    placeholder="tu@correo.com"
+                    value={pseEmail}
+                    onChange={(e) => setPseEmail(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] placeholder:text-[#4a3825] text-sm focus:outline-none focus:border-[#c9a96e]/50"
+                  />
+                </div>
                 <button
                   type="button"
-                  disabled={!pseBankCode || !pseLegalId || submitting}
+                  disabled={!pseBankCode || !pseLegalId || !pseEmail || submitting}
                   onClick={() => submitDirectTransaction({
                     financial_institution_code: pseBankCode,
                     payment_description: `Pedido ${order?.orderNumber}`,
                     user_type: pseUserType,
                     user_legal_id_type: pseLegalIdType,
                     user_legal_id: pseLegalId,
+                    customerEmail: pseEmail,
                   })}
                   className="w-full py-3 rounded-xl font-semibold text-sm transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ background: 'linear-gradient(135deg, #c9a96e 0%, #a07840 100%)', color: '#0a0703' }}

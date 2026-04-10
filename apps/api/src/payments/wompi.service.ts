@@ -285,6 +285,7 @@ export class WompiService implements PaymentProvider {
     signature: string;
     paymentMethod: Record<string, any>;
     redirectUrl?: string;
+    customerData?: { full_name?: string; phone_number?: string };
   }): Promise<any> {
     const baseUrl = await this.getBaseUrl();
     const privateKey = await this.getPrivateKey();
@@ -297,9 +298,8 @@ export class WompiService implements PaymentProvider {
       acceptance_token: payload.acceptanceToken,
       signature: payload.signature,
       payment_method: payload.paymentMethod,
-      ...(payload.redirectUrl
-        ? { redirect_url: payload.redirectUrl }
-        : {}),
+      ...(payload.redirectUrl ? { redirect_url: payload.redirectUrl } : {}),
+      ...(payload.customerData ? { customer_data: payload.customerData } : {}),
     };
 
     const res = await fetch(`${baseUrl}/transactions`, {
