@@ -345,6 +345,35 @@ export default function BuyPage() {
         });
       }
 
+      // For redirect-based methods (PSE, Bancolombia Transfer): poll for async_payment_url
+      // Wompi generates it asynchronously — may not be in the initial response
+      if (selectedMethod === 'PSE' || selectedMethod === 'BANCOLOMBIA_TRANSFER' || selectedMethod === 'DAVIPLATA') {
+        const txId = data?.id;
+        const immediateUrl = data?.payment_method?.extra?.async_payment_url || data?.redirect_url;
+        if (immediateUrl) {
+          window.location.href = immediateUrl;
+          return;
+        }
+        if (txId) {
+          for (let attempt = 0; attempt < 8; attempt++) {
+            await new Promise((r) => setTimeout(r, 600));
+            try {
+              const pollRes = await fetch(`${API_URL}/payments/transaction-status/${orderId}?transactionId=${txId}`);
+              if (pollRes.ok) {
+                const pollData = await pollRes.json();
+                if (pollData.asyncPaymentUrl) {
+                  window.location.href = pollData.asyncPaymentUrl;
+                  return;
+                }
+              }
+            } catch { /* keep trying */ }
+          }
+        }
+        // Fallback: show error with retry
+        setPaymentError('No se pudo conectar con el banco. Intenta de nuevo.');
+        return;
+      }
+
       const txStatus = data?.status || 'PENDING';
       setPaymentStatus(txStatus);
 
@@ -362,11 +391,6 @@ export default function BuyPage() {
             }
           } catch {}
         }, 4000);
-      }
-
-      if (selectedMethod === 'BANCOLOMBIA_TRANSFER' || selectedMethod === 'DAVIPLATA') {
-        const redirectUrl = data?.redirect_url || result?.redirectUrl;
-        if (redirectUrl) window.location.href = redirectUrl;
       }
     } catch (err: any) {
       setPaymentError(err.message || 'Error al procesar el pago');
@@ -467,7 +491,8 @@ export default function BuyPage() {
               {/* Payment result states */}
               {paymentStatus &&
                 !(selectedMethod === 'BANCOLOMBIA_COLLECT' && paymentStatus === 'PENDING') &&
-                !(selectedMethod === 'NEQUI' && paymentStatus === 'PENDING') && (
+                !(selectedMethod === 'NEQUI' && paymentStatus === 'PENDING') &&
+                !(selectedMethod === 'PSE' && paymentStatus === 'PENDING') && (
                 <PaymentResult
                   status={paymentStatus}
                   methodLabel={selectedMethod || undefined}
