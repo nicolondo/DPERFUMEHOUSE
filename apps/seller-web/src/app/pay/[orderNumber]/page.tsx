@@ -700,7 +700,7 @@ export default function PayPage() {
             )}
             {paymentMethod === 'NEQUI' && (
               <NequiForm
-                defaultPhone={order?.seller?.phone || ''}
+                defaultPhone={order?.customer?.phone || ''}
                 onSubmit={(phone) => submitDirectTransaction({ phoneNumber: phone })}
                 loading={submitting}
                 waiting={nequiWaiting}
