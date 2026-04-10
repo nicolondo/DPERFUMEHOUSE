@@ -382,12 +382,12 @@ export default function QuestionnairePage() {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-lg mx-auto w-full">
-        {/* Logo — always visible */}
-        <div className="mb-8 flex-shrink-0">
-          <img src="/logo.svg" alt="D'Perfume House" width={200} className="mx-auto" />
-        </div>
+      {/* Logo — fixed at top */}
+      <div className="sticky top-0 z-40 bg-[#0f0d0a] pt-6 pb-4">
+        <img src="/logo.svg" alt="D'Perfume House" width={180} className="mx-auto" />
+      </div>
 
+      <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-lg mx-auto w-full">
         {/* Intro */}
         {step === 0 && (
           <div className="text-center animate-fadeIn space-y-6">
