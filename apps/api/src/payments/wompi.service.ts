@@ -20,7 +20,7 @@ export class WompiService implements PaymentProvider {
       : 'https://sandbox.wompi.co/v1';
   }
 
-  private async getPublicKey(): Promise<string> {
+  async getPublicKey(): Promise<string> {
     const key = await this.settingsService.get('wompi_public_key');
     if (!key) {
       throw new Error('Wompi public key not configured');
@@ -202,6 +202,152 @@ export class WompiService implements PaymentProvider {
       this.logger.error('Error verifying Wompi webhook checksum', error);
       return false;
     }
+  }
+
+  /**
+   * Convenience async method that resolves the integrity secret from settings.
+   */
+  async generateSignature(
+    reference: string,
+    amountInCents: number,
+    currency: string,
+  ): Promise<string> {
+    const integritySecret = await this.getIntegritySecret();
+    return this.generateIntegritySignature(
+      reference,
+      amountInCents,
+      currency,
+      integritySecret,
+    );
+  }
+
+  /**
+   * Fetch the merchant acceptance token + permalink from Wompi.
+   */
+  async getAcceptanceToken(): Promise<{
+    acceptanceToken: string;
+    permalink: string;
+  }> {
+    const baseUrl = await this.getBaseUrl();
+    const publicKey = await this.getPublicKey();
+
+    const res = await fetch(`${baseUrl}/merchants/${publicKey}`);
+
+    if (!res.ok) {
+      const body = await res.text();
+      this.logger.error(
+        `Wompi merchant fetch failed: ${res.status} - ${body}`,
+      );
+      throw new Error('Failed to fetch Wompi merchant data');
+    }
+
+    const data = (await res.json()) as any;
+    const presigned = data?.data?.presigned_acceptance;
+
+    return {
+      acceptanceToken: presigned?.acceptance_token || '',
+      permalink: presigned?.permalink || '',
+    };
+  }
+
+  /**
+   * Fetch financial institutions (banks) for PSE.
+   */
+  async getPseBanks(): Promise<any[]> {
+    const baseUrl = await this.getBaseUrl();
+    const publicKey = await this.getPublicKey();
+
+    const res = await fetch(
+      `${baseUrl}/pse/financial_institutions`,
+      {
+        headers: { Authorization: `Bearer ${publicKey}` },
+      },
+    );
+
+    if (!res.ok) {
+      this.logger.error(`Wompi PSE banks fetch failed: ${res.status}`);
+      return [];
+    }
+
+    const data = (await res.json()) as any;
+    return data?.data || [];
+  }
+
+  /**
+   * Create a direct transaction via the Wompi API.
+   */
+  async createTransaction(payload: {
+    amountInCents: number;
+    currency: string;
+    reference: string;
+    customerEmail: string;
+    acceptanceToken: string;
+    signature: string;
+    paymentMethod: Record<string, any>;
+    redirectUrl?: string;
+  }): Promise<any> {
+    const baseUrl = await this.getBaseUrl();
+    const privateKey = await this.getPrivateKey();
+
+    const body = {
+      amount_in_cents: payload.amountInCents,
+      currency: payload.currency,
+      reference: payload.reference,
+      customer_email: payload.customerEmail,
+      acceptance_token: payload.acceptanceToken,
+      signature: payload.signature,
+      payment_method: payload.paymentMethod,
+      ...(payload.redirectUrl
+        ? { redirect_url: payload.redirectUrl }
+        : {}),
+    };
+
+    const res = await fetch(`${baseUrl}/transactions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${privateKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = (await res.json()) as any;
+
+    if (!res.ok) {
+      this.logger.error(
+        `Wompi transaction failed: ${res.status} - ${JSON.stringify(data)}`,
+      );
+      throw new Error(
+        data?.error?.message ||
+          data?.error?.reason ||
+          'Wompi transaction failed',
+      );
+    }
+
+    return data?.data || data;
+  }
+
+  /**
+   * Get full transaction data by Wompi transaction ID.
+   */
+  async getTransactionStatus(
+    transactionId: string,
+  ): Promise<{ id: string; status: string; [key: string]: any }> {
+    const baseUrl = await this.getBaseUrl();
+
+    const res = await fetch(
+      `${baseUrl}/transactions/${transactionId}`,
+    );
+
+    if (!res.ok) {
+      this.logger.error(
+        `Wompi transaction status failed: ${res.status}`,
+      );
+      throw new Error('Failed to fetch transaction status');
+    }
+
+    const data = (await res.json()) as any;
+    return data?.data || data;
   }
 }
 

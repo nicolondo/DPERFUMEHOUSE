@@ -10,7 +10,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentProviderFactory } from './payment-provider.factory';
-import { WompiWebhookEvent } from './wompi.service';
+import { WompiService, WompiWebhookEvent } from './wompi.service';
 import { SettingsService } from '../settings/settings.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -37,6 +37,7 @@ export class PaymentsService {
     private readonly providerFactory: PaymentProviderFactory,
     private readonly settingsService: SettingsService,
     private readonly notificationsService: NotificationsService,
+    private readonly wompiService: WompiService,
     @InjectQueue('payment-process')
     private readonly paymentQueue: Queue,
   ) {
@@ -453,5 +454,321 @@ export class PaymentsService {
         `Received Wompi status "${transaction.status}" for order ${paymentLink.order.orderNumber}`,
       );
     }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /*  Wompi widget & direct payment methods                            */
+  /* ---------------------------------------------------------------- */
+
+  private async findOrderByIdOrNumber(idOrNumber: string) {
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        idOrNumber,
+      );
+
+    const order = await this.prisma.order.findFirst({
+      where: isUuid
+        ? { id: idOrNumber }
+        : { orderNumber: idOrNumber },
+      include: {
+        customer: true,
+        items: {
+          include: {
+            variant: { include: { product: true } },
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order ${idOrNumber} not found`);
+    }
+
+    return order;
+  }
+
+  async getWidgetConfig(orderId: string) {
+    const order = await this.findOrderByIdOrNumber(orderId);
+    const sellerUrl = this.configService.get<string>(
+      'SELLER_APP_URL',
+      'http://localhost:3000',
+    );
+
+    const amountInCents = Math.round(Number(order.total) * 100);
+    const currency = 'COP';
+    const reference = order.orderNumber;
+    const redirectUrl = `${sellerUrl}/pay/${order.orderNumber}`;
+
+    const publicKey = await this.wompiService.getPublicKey();
+    const signature = await this.wompiService.generateSignature(
+      reference,
+      amountInCents,
+      currency,
+    );
+
+    return {
+      publicKey,
+      amountInCents,
+      reference,
+      currency,
+      redirectUrl,
+      signature,
+      order: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        customerName: order.customer.name,
+        customerPhone: order.customer.phone || '',
+        total: Number(order.total),
+        items: order.items.map((item) => ({
+          productName: item.variant.product.name,
+          quantity: item.quantity,
+          price: Number(item.unitPrice),
+          imageUrl: (item.variant.product as any).imageUrl || undefined,
+        })),
+      },
+    };
+  }
+
+  async getWompiPublicData(orderId: string) {
+    const order = await this.findOrderByIdOrNumber(orderId);
+    const publicKey = await this.wompiService.getPublicKey();
+    const { acceptanceToken, permalink } =
+      await this.wompiService.getAcceptanceToken();
+
+    const amountInCents = Math.round(Number(order.total) * 100);
+
+    return {
+      publicKey,
+      amountInCents,
+      reference: order.orderNumber,
+      currency: 'COP',
+      acceptanceToken,
+      permalink,
+      orderId: order.id,
+    };
+  }
+
+  async getPseBanks() {
+    const banks = await this.wompiService.getPseBanks();
+    return { data: banks };
+  }
+
+  async createDirectTransaction(
+    orderId: string,
+    body: {
+      paymentMethod: string;
+      acceptanceToken: string;
+      token?: string;
+      installments?: number;
+      customerEmail?: string;
+      phoneNumber?: string;
+      financialInstitutionCode?: string;
+      userType?: number;
+      userLegalIdType?: string;
+      userLegalId?: string;
+      documentType?: string;
+      documentNumber?: string;
+    },
+  ) {
+    const order = await this.findOrderByIdOrNumber(orderId);
+
+    const amountInCents = Math.round(Number(order.total) * 100);
+    const currency = 'COP';
+    const reference = order.orderNumber;
+    const sellerUrl = this.configService.get<string>(
+      'SELLER_APP_URL',
+      'http://localhost:3000',
+    );
+    const redirectUrl = `${sellerUrl}/pay/${order.orderNumber}`;
+
+    const signature = await this.wompiService.generateSignature(
+      reference,
+      amountInCents,
+      currency,
+    );
+
+    let paymentMethodPayload: Record<string, any>;
+
+    switch (body.paymentMethod) {
+      case 'CARD':
+        paymentMethodPayload = {
+          type: 'CARD',
+          token: body.token,
+          installments: body.installments || 1,
+        };
+        break;
+      case 'NEQUI':
+        paymentMethodPayload = {
+          type: 'NEQUI',
+          phone_number: body.phoneNumber,
+        };
+        break;
+      case 'PSE':
+        paymentMethodPayload = {
+          type: 'PSE',
+          user_type: body.userType ?? 0,
+          user_legal_id_type: body.userLegalIdType || 'CC',
+          user_legal_id: body.userLegalId || '',
+          financial_institution_code: body.financialInstitutionCode,
+          payment_description: `Pago pedido ${reference}`,
+        };
+        break;
+      case 'BANCOLOMBIA_TRANSFER':
+        paymentMethodPayload = {
+          type: 'BANCOLOMBIA_TRANSFER',
+          user_type: 'PERSON',
+          payment_description: `Pago pedido ${reference}`,
+        };
+        break;
+      case 'BANCOLOMBIA_COLLECT':
+        paymentMethodPayload = {
+          type: 'BANCOLOMBIA_COLLECT',
+          payment_description: `Pago pedido ${reference}`,
+        };
+        break;
+      case 'DAVIPLATA':
+        paymentMethodPayload = {
+          type: 'DAVIPLATA',
+          phone_number: body.phoneNumber,
+          document_type: body.documentType || 'CC',
+          document_number: body.documentNumber || '',
+        };
+        break;
+      default:
+        throw new BadRequestException(
+          `Unsupported payment method: ${body.paymentMethod}`,
+        );
+    }
+
+    const customerEmail =
+      body.customerEmail || order.customer.email || '';
+
+    const result = await this.wompiService.createTransaction({
+      amountInCents,
+      currency,
+      reference,
+      customerEmail,
+      acceptanceToken: body.acceptanceToken,
+      signature,
+      paymentMethod: paymentMethodPayload,
+      redirectUrl,
+    });
+
+    // Store a reference in our system
+    await this.prisma.paymentLink.upsert({
+      where: { orderId: order.id },
+      update: {
+        externalId: result.id,
+        provider: 'wompi',
+        status: 'ACTIVE',
+        metadata: {
+          wompiTransactionId: result.id,
+          method: body.paymentMethod,
+        },
+      },
+      create: {
+        orderId: order.id,
+        externalId: result.id,
+        amount: order.total,
+        currency,
+        provider: 'wompi',
+        status: 'ACTIVE',
+        metadata: {
+          wompiTransactionId: result.id,
+          method: body.paymentMethod,
+        },
+      },
+    });
+
+    // Update order status
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: 'PENDING_PAYMENT',
+        paymentStatus: 'PENDING',
+      },
+    });
+
+    return { data: result };
+  }
+
+  async getWompiTransactionStatus(
+    orderId: string,
+    transactionId: string,
+  ) {
+    if (!transactionId) {
+      throw new BadRequestException('transactionId is required');
+    }
+
+    const result =
+      await this.wompiService.getTransactionStatus(transactionId);
+
+    // Update local records if terminal status
+    const status = result.status?.toUpperCase();
+    if (
+      status === 'APPROVED' ||
+      status === 'DECLINED' ||
+      status === 'ERROR' ||
+      status === 'VOIDED'
+    ) {
+      const order = await this.findOrderByIdOrNumber(orderId);
+
+      if (status === 'APPROVED') {
+        await this.prisma.paymentLink.updateMany({
+          where: { orderId: order.id },
+          data: { status: 'COMPLETED' },
+        });
+
+        await this.prisma.order.update({
+          where: { id: order.id },
+          data: {
+            status: 'PAID',
+            paymentStatus: 'COMPLETED',
+          },
+        });
+
+        await this.paymentQueue.add(
+          'payment-confirmed',
+          {
+            orderId: order.id,
+            amount: Number(order.total),
+            currency: 'COP',
+            paidAt: new Date().toISOString(),
+          },
+          {
+            removeOnComplete: 10,
+            removeOnFail: 20,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+          },
+        );
+
+        this.notificationsService.notifyPaymentReceived(
+          order.sellerId,
+          order.orderNumber,
+          `$${Number(order.total).toLocaleString('es-CO')}`,
+        ).catch((err) => this.logger.error(`Push notify failed: ${err.message}`));
+
+        this.logger.log(
+          `Wompi payment APPROVED for order ${order.orderNumber}`,
+        );
+      } else {
+        await this.prisma.paymentLink.updateMany({
+          where: { orderId: order.id },
+          data: { status: 'FAILED' },
+        });
+
+        await this.prisma.order.update({
+          where: { id: order.id },
+          data: { paymentStatus: 'FAILED' },
+        });
+
+        this.logger.warn(
+          `Wompi payment ${status} for order ${order.orderNumber}`,
+        );
+      }
+    }
+
+    return { status: result.status, id: result.id };
   }
 }

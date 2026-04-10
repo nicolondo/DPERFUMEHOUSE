@@ -22,6 +22,25 @@ class CreatePaymentLinkBodyDto {
   orderId: string;
 }
 
+class DirectTransactionBodyDto {
+  paymentMethod: string;
+  acceptanceToken: string;
+  // Card
+  token?: string;
+  installments?: number;
+  customerEmail?: string;
+  // Nequi
+  phoneNumber?: string;
+  // PSE
+  financialInstitutionCode?: string;
+  userType?: number;
+  userLegalIdType?: string;
+  userLegalId?: string;
+  // Daviplata
+  documentType?: string;
+  documentNumber?: string;
+}
+
 @Controller('payments')
 export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name);
@@ -72,6 +91,53 @@ export class PaymentsController {
     });
 
     return { received: true };
+  }
+
+  /**
+   * Public endpoint — returns Wompi widget config with integrity signature.
+   */
+  @Get('widget-config/:orderId')
+  async getWidgetConfig(@Param('orderId') orderId: string) {
+    return this.paymentsService.getWidgetConfig(orderId);
+  }
+
+  /**
+   * Public endpoint — returns Wompi public key, acceptance token, etc.
+   */
+  @Get('wompi-public-data/:orderId')
+  async getWompiPublicData(@Param('orderId') orderId: string) {
+    return this.paymentsService.getWompiPublicData(orderId);
+  }
+
+  /**
+   * Public endpoint — list PSE financial institutions.
+   */
+  @Get('pse/banks')
+  async getPseBanks() {
+    return this.paymentsService.getPseBanks();
+  }
+
+  /**
+   * Public endpoint — create a direct Wompi transaction.
+   */
+  @Post('direct-transaction/:orderId')
+  @HttpCode(HttpStatus.OK)
+  async createDirectTransaction(
+    @Param('orderId') orderId: string,
+    @Body() body: DirectTransactionBodyDto,
+  ) {
+    return this.paymentsService.createDirectTransaction(orderId, body);
+  }
+
+  /**
+   * Public endpoint — poll Wompi transaction status.
+   */
+  @Get('transaction-status/:orderId')
+  async getTransactionStatus(
+    @Param('orderId') orderId: string,
+    @Query('transactionId') transactionId: string,
+  ) {
+    return this.paymentsService.getWompiTransactionStatus(orderId, transactionId);
   }
 
   @Get(':orderId/status')
