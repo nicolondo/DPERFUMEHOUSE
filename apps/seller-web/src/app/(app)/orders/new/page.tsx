@@ -1045,7 +1045,8 @@ function Step3SelectProducts({
 
       {/* Floating bottom bar */}
       {count > 0 && (
-        <div className="fixed inset-x-0 bottom-[5.5rem] z-30 mx-3 rounded-2xl border border-glass-border bg-surface-raised p-4 shadow-glass">
+        <div className="fixed inset-x-0 bottom-[5.5rem] z-30 flex justify-center px-3">
+        <div className="w-full max-w-[600px] rounded-2xl border border-glass-border bg-surface-raised p-4 shadow-glass">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5 text-brand-gold" />
@@ -1062,6 +1063,7 @@ function Step3SelectProducts({
               Continuar
             </Button>
           </div>
+        </div>
         </div>
       )}
     </div>
