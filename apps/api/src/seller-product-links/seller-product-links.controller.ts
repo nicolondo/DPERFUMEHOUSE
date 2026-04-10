@@ -20,19 +20,19 @@ export class SellerProductLinksController {
   @UseGuards(JwtAuthGuard)
   @Post()
   generate(@Request() req, @Body() dto: GenerateLinkDto) {
-    return this.service.generate(req.user.id, dto);
+    return this.service.generate(req.user.sub, dto);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get()
   findAll(@Request() req) {
-    return this.service.findAll(req.user.id);
+    return this.service.findAll(req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
   deactivate(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
-    return this.service.deactivate(id, req.user.id);
+    return this.service.deactivate(id, req.user.sub);
   }
 
   // Public endpoints (no auth)
