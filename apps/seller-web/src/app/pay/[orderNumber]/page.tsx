@@ -309,7 +309,7 @@ export default function PayPage() {
 
   /* ---- submit direct transaction ---- */
   const submitDirectTransaction = useCallback(async (methodData: Record<string, any>) => {
-    if (!publicData || !widgetConfig) return;
+    if (!publicData) return;
     setSubmitting(true);
     setError('');
     try {
@@ -332,7 +332,7 @@ export default function PayPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [publicData, widgetConfig, orderNumber, paymentMethod]);
+  }, [publicData, orderNumber, paymentMethod]);
 
   const handleCardToken = useCallback((token: string, installments: number) => {
     submitDirectTransaction({ token, installments, customerEmail: order?.customer?.name || '' });
