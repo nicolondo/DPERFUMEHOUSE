@@ -3,17 +3,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
+  WompiAcceptance,
   PaymentMethodSelector,
-  AcceptanceCheckbox,
   CardForm,
-  PSEForm,
   NequiForm,
   BancolombiaTransferForm,
   BancolombiaCollectForm,
   DaviplataForm,
-  PaymentPolling,
-} from '@/components/payments';
-import type { PaymentMethodType } from '@/components/payments';
+  PaymentResult,
+} from '@/components/payment/payment-components';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
@@ -180,7 +178,7 @@ export default function BuyPage() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [detail, setDetail] = useState('');
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethodType | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
@@ -196,7 +194,12 @@ export default function BuyPage() {
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
   const [nequiWaiting, setNequiWaiting] = useState(false);
   const [collectRef, setCollectRef] = useState<{ businessAgreementCode: string; paymentIntentionIdentifier: string } | null>(null);
-  const [pseWidgetReady, setPseWidgetReady] = useState(false);
+  // PSE direct fields
+  const [pseBankCode, setPseBankCode] = useState('');
+  const [pseUserType, setPseUserType] = useState('0');
+  const [pseLegalIdType, setPseLegalIdType] = useState('CC');
+  const [pseLegalId, setPseLegalId] = useState('');
+  const [pseEmail, setPseEmail] = useState('');
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const mapsReady = useGoogleMaps();
@@ -243,19 +246,7 @@ export default function BuyPage() {
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, []);
 
-  // Load Wompi widget script for PSE
-  useEffect(() => {
-    if (!orderId || selectedMethod !== 'PSE') return;
-    if ((window as any).WidgetCheckout) { setPseWidgetReady(true); return; }
-    const existing = document.getElementById('wompi-widget-script');
-    if (existing) { existing.addEventListener('load', () => setPseWidgetReady(true)); return; }
-    const script = document.createElement('script');
-    script.id = 'wompi-widget-script';
-    script.src = 'https://checkout.wompi.co/widget.js';
-    script.async = true;
-    script.onload = () => setPseWidgetReady(true);
-    document.head.appendChild(script);
-  }, [orderId, selectedMethod]);
+
 
   const formatPrice = (price: string | number) =>
     new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(
@@ -299,6 +290,10 @@ export default function BuyPage() {
       setWompiPublicKey(wompiData.publicKey || '');
       setAcceptanceToken(wompiData.acceptanceToken || '');
       setAcceptPermalink(wompiData.acceptPermalink || 'https://wompi.com/assets/downloadble/reglamento.pdf');
+      // Pre-fill PSE fields
+      if (email) setPseEmail(email);
+      if (idNumber) setPseLegalId(idNumber);
+      if (idType) setPseLegalIdType(idType);
     } catch (err: any) {
       setSubmitError(err.message || 'Error inesperado');
     } finally {
@@ -307,115 +302,66 @@ export default function BuyPage() {
   };
 
   const processPayment = useCallback(async (methodData: Record<string, any>) => {
-    if (!orderId || !acceptanceToken) return;
-    if (!accepted) { setPaymentError('Debes aceptar los términos y condiciones de Wompi.'); return; }
+    if (!orderId) return;
     setPaymentProcessing(true);
     setPaymentError('');
     try {
+      // Always fetch a fresh acceptance token — Wompi tokens are single-use
+      const wompiRes = await fetch(`${API_URL}/payments/wompi-public-data/${orderId}`);
+      if (!wompiRes.ok) throw new Error('No se pudo conectar con la pasarela de pago.');
+      const freshData = await wompiRes.json();
+      setAcceptanceToken(freshData.acceptanceToken || '');
+      if (freshData.acceptPermalink) setAcceptPermalink(freshData.acceptPermalink);
+
       const res = await fetch(`${API_URL}/payments/direct-transaction/${orderId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentMethodType: selectedMethod, acceptanceToken, ...methodData }),
+        body: JSON.stringify({ paymentMethod: selectedMethod, acceptanceToken: freshData.acceptanceToken, ...methodData }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => null);
         throw new Error(err?.message || 'Error al procesar el pago');
       }
       const result = await res.json();
-      const { status, redirectUrl, paymentMethod } = result;
+      const data = result.data || result;
 
-      switch (selectedMethod) {
+      // Extract collectRef from initial response
+      if (data?.payment_method?.extra?.business_agreement_code) {
+        setCollectRef({
+          businessAgreementCode: data.payment_method.extra.business_agreement_code,
+          paymentIntentionIdentifier: data.payment_method.extra.payment_intention_identifier,
+        });
+      }
 
-        case 'BANCOLOMBIA_TRANSFER':
-        case 'DAVIPLATA':
-          if (redirectUrl) { window.location.href = redirectUrl; }
-          else throw new Error('No se recibió URL de redirección. Intenta de nuevo.');
-          break;
-        case 'BANCOLOMBIA_COLLECT': {
-          const pm = paymentMethod || {};
-          setCollectRef({
-            businessAgreementCode: pm.business_agreement_code || pm.extra?.business_agreement_code || '—',
-            paymentIntentionIdentifier: pm.payment_intention_identifier || pm.extra?.payment_intention_identifier || '—',
-          });
-          setPaymentStatus('COLLECT_READY');
-          break;
-        }
-        case 'NEQUI':
-          setNequiWaiting(true);
-          setPaymentStatus('PENDING');
-          pollingRef.current = setInterval(async () => {
-            try {
-              const pollRes = await fetch(`${API_URL}/payments/transaction-status/${orderId}`);
-              if (!pollRes.ok) return;
-              const pollData = await pollRes.json();
-              const s = pollData.status;
-              if (s === 'APPROVED' || s === 'DECLINED' || s === 'ERROR' || s === 'VOIDED') {
-                clearInterval(pollingRef.current!); pollingRef.current = null;
-                setPaymentStatus(s); setNequiWaiting(false);
-              }
-            } catch {}
-          }, 4000);
-          break;
-        case 'CARD':
-          setPaymentStatus(status || 'PENDING');
-          if (status === 'APPROVED') {
-            setTimeout(() => router.push(`/pay/${orderId}?payment=done`), 1500);
-          } else if (status === 'PENDING') {
-            pollingRef.current = setInterval(async () => {
-              try {
-                const pollRes = await fetch(`${API_URL}/payments/transaction-status/${orderId}`);
-                if (!pollRes.ok) return;
-                const pollData = await pollRes.json();
-                const s = pollData.status;
-                if (s !== 'PENDING') {
-                  clearInterval(pollingRef.current!); pollingRef.current = null;
-                  setPaymentStatus(s);
-                  if (s === 'APPROVED') setTimeout(() => router.push(`/pay/${orderId}?payment=done`), 1500);
-                }
-              } catch {}
-            }, 3000);
-          }
-          break;
+      const txStatus = data?.status || 'PENDING';
+      setPaymentStatus(txStatus);
+
+      if (selectedMethod === 'NEQUI') {
+        setNequiWaiting(true);
+        pollingRef.current = setInterval(async () => {
+          try {
+            const pollRes = await fetch(`${API_URL}/payments/transaction-status/${orderId}`);
+            if (!pollRes.ok) return;
+            const pollData = await pollRes.json();
+            const s = pollData.status;
+            if (s !== 'PENDING') {
+              clearInterval(pollingRef.current!); pollingRef.current = null;
+              setPaymentStatus(s); setNequiWaiting(false);
+            }
+          } catch {}
+        }, 4000);
+      }
+
+      if (selectedMethod === 'BANCOLOMBIA_TRANSFER' || selectedMethod === 'DAVIPLATA') {
+        const redirectUrl = data?.redirect_url || result?.redirectUrl;
+        if (redirectUrl) window.location.href = redirectUrl;
       }
     } catch (err: any) {
       setPaymentError(err.message || 'Error al procesar el pago');
     } finally {
       setPaymentProcessing(false);
     }
-  }, [orderId, acceptanceToken, accepted, selectedMethod, router]);
-
-  const openPseWidget = useCallback(async () => {
-    if (!orderId || !accepted) {
-      if (!accepted) setPaymentError('Debes aceptar los términos y condiciones de Wompi.');
-      return;
-    }
-    setPaymentProcessing(true);
-    setPaymentError('');
-    try {
-      const res = await fetch(`${API_URL}/payments/widget-config/${orderId}`);
-      if (!res.ok) throw new Error('Error al preparar el pago PSE');
-      const cfg = await res.json();
-      const checkout = new (window as any).WidgetCheckout({
-        currency: 'COP',
-        amountInCents: cfg.amountInCents,
-        reference: cfg.reference,
-        publicKey: cfg.publicKey,
-        redirectUrl: cfg.redirectUrl,
-        ...(cfg.customerData && Object.keys(cfg.customerData).length > 0 ? { customerData: cfg.customerData } : {}),
-        ...(cfg.shippingAddress ? { shippingAddress: cfg.shippingAddress } : {}),
-      });
-      checkout.open((result: any) => {
-        const t = result?.transaction;
-        if (t?.status === 'APPROVED') {
-          setPaymentStatus('APPROVED');
-        }
-      });
-    } catch (err: any) {
-      setPaymentError(err.message || 'Error al abrir PSE');
-    } finally {
-      setPaymentProcessing(false);
-    }
-  }, [orderId, accepted]);
+  }, [orderId, selectedMethod]);
 
   if (loading) {
     return (
@@ -506,60 +452,137 @@ export default function BuyPage() {
                 </div>
               </div>
 
-              {paymentStatus === 'APPROVED' && (
-                <PaymentPolling status="APPROVED" onContinue={() => router.push(`/pay/${orderId}?payment=done`)} />
-              )}
-              {(paymentStatus === 'DECLINED' || paymentStatus === 'ERROR' || paymentStatus === 'VOIDED') && (
-                <PaymentPolling status={paymentStatus} onRetry={() => { setPaymentStatus(null); setNequiWaiting(false); setPaymentError(''); }} />
-              )}
-              {nequiWaiting && paymentStatus === 'PENDING' && <PaymentPolling status="PENDING" methodLabel="Nequi" />}
-              {paymentStatus === 'COLLECT_READY' && collectRef && (
-                <BancolombiaCollectForm onSubmit={() => {}} loading={false} reference={collectRef} amount={total} />
+              {/* Payment result states */}
+              {paymentStatus && !(selectedMethod === 'BANCOLOMBIA_COLLECT' && paymentStatus === 'PENDING') && (
+                <PaymentResult
+                  status={paymentStatus}
+                  methodLabel={selectedMethod || undefined}
+                  onRetry={['DECLINED', 'ERROR', 'VOIDED'].includes(paymentStatus) ? () => {
+                    setPaymentStatus(null); setNequiWaiting(false); setPaymentError(''); setCollectRef(null);
+                  } : undefined}
+                />
               )}
 
-              {!paymentStatus && !nequiWaiting && (
+              {!paymentStatus && (
                 <>
-                  <AcceptanceCheckbox checked={accepted} onChange={setAccepted} permalink={acceptPermalink} />
+                  {/* Payment method selector */}
+                  <PaymentMethodSelector selected={selectedMethod} onSelect={(m) => {
+                    setSelectedMethod(m);
+                    setPaymentError('');
+                  }} />
+
+                  {/* Acceptance */}
+                  <WompiAcceptance checked={accepted} onChange={setAccepted} permalink={acceptPermalink} />
+
                   {paymentError && (
                     <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-2">
                       <p className="text-red-400 text-sm">{paymentError}</p>
                     </div>
                   )}
-                  {selectedMethod === 'CARD' && (
-                    <CardForm publicKey={wompiPublicKey} loading={paymentProcessing}
-                      onToken={(cardToken, installments) => processPayment({ cardToken, installments })} />
-                  )}
-                  {selectedMethod === 'PSE' && (
-                    <div className="space-y-3">
-                      <p className="text-sm text-white/50 text-center">El pago PSE se procesa a través de Wompi. Serás redirigido a tu banco para confirmar.</p>
-                      <button
-                        type="button"
-                        onClick={openPseWidget}
-                        disabled={paymentProcessing || !accepted || !pseWidgetReady}
-                        className="w-full py-3.5 rounded-xl bg-[#d3a86f] text-black font-bold text-base hover:bg-[#c4976a] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        {paymentProcessing ? 'Preparando...' : pseWidgetReady ? 'Pagar con PSE' : 'Cargando...'}
-                      </button>
+
+                  {selectedMethod && accepted && (
+                    <div className="space-y-4">
+                      {selectedMethod === 'CARD' && (
+                        <CardForm
+                          publicKey={wompiPublicKey}
+                          loading={paymentProcessing}
+                          onToken={(cardToken, installments) => processPayment({ cardToken, installments })}
+                        />
+                      )}
+                      {selectedMethod === 'PSE' && (
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-xs text-white/50 mb-1.5 block">Banco</label>
+                            <select
+                              value={pseBankCode}
+                              onChange={(e) => setPseBankCode(e.target.value)}
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm focus:outline-none focus:border-[#d3a86f]/50"
+                            >
+                              <option value="">Selecciona tu banco...</option>
+                              {pseBanks.map((b: any) => (
+                                <option key={b.financial_institution_code} value={b.financial_institution_code}>
+                                  {b.financial_institution_name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs text-white/50 mb-1.5 block">Tipo de persona</label>
+                              <select value={pseUserType} onChange={(e) => setPseUserType(e.target.value)}
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm focus:outline-none focus:border-[#d3a86f]/50">
+                                <option value="0">Natural</option>
+                                <option value="1">Jurídica</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-xs text-white/50 mb-1.5 block">Tipo de documento</label>
+                              <select value={pseLegalIdType} onChange={(e) => setPseLegalIdType(e.target.value)}
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm focus:outline-none focus:border-[#d3a86f]/50">
+                                <option value="CC">Cédula (CC)</option>
+                                <option value="NIT">NIT</option>
+                                <option value="CE">Cédula Extranjería</option>
+                                <option value="PP">Pasaporte</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs text-white/50 mb-1.5 block">Número de documento</label>
+                            <input type="text" inputMode="numeric" placeholder="1234567890"
+                              value={pseLegalId} onChange={(e) => setPseLegalId(e.target.value.replace(/\D/g, ''))}
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-[#d3a86f]/50 font-mono" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-white/50 mb-1.5 block">Correo electrónico</label>
+                            <input type="email" placeholder="tu@correo.com"
+                              value={pseEmail} onChange={(e) => setPseEmail(e.target.value)}
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-[#d3a86f]/50" />
+                          </div>
+                          <button
+                            type="button"
+                            disabled={!pseBankCode || !pseLegalId || !pseEmail || paymentProcessing}
+                            onClick={() => processPayment({
+                              financialInstitutionCode: pseBankCode,
+                              userType: pseUserType,
+                              userLegalIdType: pseLegalIdType,
+                              userLegalId: pseLegalId,
+                              customerEmail: pseEmail,
+                            })}
+                            className="w-full py-3.5 rounded-xl bg-[#d3a86f] text-black font-bold text-base hover:bg-[#c4976a] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {paymentProcessing ? 'Procesando...' : 'Pagar con PSE'}
+                          </button>
+                        </div>
+                      )}
+                      {selectedMethod === 'NEQUI' && (
+                        <NequiForm
+                          defaultPhone={phone}
+                          loading={paymentProcessing}
+                          waiting={nequiWaiting}
+                          onSubmit={(phoneNumber) => processPayment({ phoneNumber })}
+                        />
+                      )}
+                      {selectedMethod === 'BANCOLOMBIA_TRANSFER' && (
+                        <BancolombiaTransferForm loading={paymentProcessing} onSubmit={() => processPayment({})} />
+                      )}
+                      {selectedMethod === 'BANCOLOMBIA_COLLECT' && (
+                        <BancolombiaCollectForm
+                          loading={paymentProcessing}
+                          onSubmit={() => processPayment({})}
+                          reference={collectRef || undefined}
+                          amount={total}
+                        />
+                      )}
+                      {selectedMethod === 'DAVIPLATA' && (
+                        <DaviplataForm
+                          defaultIdType={idType}
+                          defaultId={idNumber}
+                          loading={paymentProcessing}
+                          onSubmit={(d) => processPayment({ legalId: d.legalId, legalIdType: d.legalIdType })}
+                        />
+                      )}
                     </div>
                   )}
-                  {selectedMethod === 'NEQUI' && (
-                    <NequiForm defaultPhone={phone} loading={paymentProcessing} waiting={false}
-                      onSubmit={(phoneNumber) => processPayment({ phoneNumber })} />
-                  )}
-                  {selectedMethod === 'BANCOLOMBIA_TRANSFER' && (
-                    <BancolombiaTransferForm loading={paymentProcessing} onSubmit={() => processPayment({})} />
-                  )}
-                  {selectedMethod === 'BANCOLOMBIA_COLLECT' && (
-                    <BancolombiaCollectForm loading={paymentProcessing} onSubmit={() => processPayment({})} />
-                  )}
-                  {selectedMethod === 'DAVIPLATA' && (
-                    <DaviplataForm defaultIdType={idType} defaultId={idNumber} loading={paymentProcessing}
-                      onSubmit={(d) => processPayment({ legalId: d.legalId, legalIdType: d.legalIdType })} />
-                  )}
-                  <button type="button" onClick={() => setOrderId(null)}
-                    className="w-full text-center text-xs text-white/30 hover:text-white/50 transition-colors py-1">
-                    ← Volver y cambiar método de pago
-                  </button>
                 </>
               )}
             </div>
