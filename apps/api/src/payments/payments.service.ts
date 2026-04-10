@@ -745,7 +745,12 @@ export class PaymentsService {
       }
     }
 
-    return { data: result };
+    const asyncPaymentUrl = result.payment_method?.extra?.async_payment_url || null;
+    if (asyncPaymentUrl) {
+      this.logger.log(`Async payment URL for ${body.paymentMethod} / order ${order.orderNumber}: ${asyncPaymentUrl}`);
+    }
+
+    return { data: result, asyncPaymentUrl };
   }
 
   async getWompiTransactionStatus(

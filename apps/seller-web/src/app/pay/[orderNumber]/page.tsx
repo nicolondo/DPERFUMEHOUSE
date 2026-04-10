@@ -358,17 +358,18 @@ export default function PayPage() {
         // For bank-redirect methods: poll for async_payment_url before setting status
         // (Wompi generates it asynchronously, may not be in the initial response)
         if (paymentMethod === 'BANCOLOMBIA_TRANSFER' || paymentMethod === 'DAVIPLATA') {
-          // Check initial response first
-          const immediateUrl =
+          // Check top-level field first (API now returns it explicitly)
+          const bankUrl =
+            data.asyncPaymentUrl ||
             data.data?.payment_method?.extra?.async_payment_url ||
             data.data?.redirect_url;
-          if (immediateUrl) {
-            window.location.href = immediateUrl;
+          if (bankUrl) {
+            window.location.href = bankUrl;
             return;
           }
-          // Poll up to 5 times (500ms apart) waiting for Wompi to generate the URL
-          for (let attempt = 0; attempt < 5; attempt++) {
-            await new Promise((r) => setTimeout(r, 500));
+          // Poll up to 10 times (600ms apart) waiting for Wompi to generate the URL
+          for (let attempt = 0; attempt < 10; attempt++) {
+            await new Promise((r) => setTimeout(r, 600));
             try {
               const pollRes = await fetch(`${API_URL}/payments/transaction-status/${orderNumber}?transactionId=${txId}`);
               if (pollRes.ok) {
@@ -382,7 +383,7 @@ export default function PayPage() {
           }
           // Fallback: set pending state so background polling can take over
           setTransactionId(txId);
-          setPaymentStatus(data.data.status || 'PENDING');
+          setPaymentStatus(data.data?.status || 'PENDING');
           return;
         }
 

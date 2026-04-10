@@ -345,17 +345,21 @@ export default function BuyPage() {
         });
       }
 
-      // For redirect-based methods (PSE, Bancolombia Transfer): poll for async_payment_url
-      // Wompi generates it asynchronously — may not be in the initial response
+      // For redirect-based methods (PSE, Bancolombia Transfer): get the async_payment_url
+      // The API returns it as a top-level field; also check directly in the Wompi response
       if (selectedMethod === 'PSE' || selectedMethod === 'BANCOLOMBIA_TRANSFER' || selectedMethod === 'DAVIPLATA') {
         const txId = data?.id;
-        const immediateUrl = data?.payment_method?.extra?.async_payment_url || data?.redirect_url;
-        if (immediateUrl) {
-          window.location.href = immediateUrl;
+        const bankUrl =
+          result.asyncPaymentUrl ||
+          data?.payment_method?.extra?.async_payment_url ||
+          data?.redirect_url;
+        if (bankUrl) {
+          window.location.href = bankUrl;
           return;
         }
+        // URL not in initial response — poll up to 10 times (600ms apart)
         if (txId) {
-          for (let attempt = 0; attempt < 8; attempt++) {
+          for (let attempt = 0; attempt < 10; attempt++) {
             await new Promise((r) => setTimeout(r, 600));
             try {
               const pollRes = await fetch(`${API_URL}/payments/transaction-status/${orderId}?transactionId=${txId}`);
