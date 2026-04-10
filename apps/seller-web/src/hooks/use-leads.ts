@@ -102,8 +102,11 @@ export function useConvertLead() {
 
 export function useGenerateLeadLink() {
   return useMutation({
-    mutationFn: async () => {
-      const { data } = await api.get('/leads/generate-link');
+    mutationFn: async (categories?: string[]) => {
+      const params = categories && categories.length > 0
+        ? `?categories=${categories.map(encodeURIComponent).join(',')}`
+        : '';
+      const { data } = await api.get(`/leads/generate-link${params}`);
       return unwrap(data) as { url: string; sellerCode: string };
     },
   });
