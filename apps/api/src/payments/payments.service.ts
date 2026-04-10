@@ -109,30 +109,34 @@ export class PaymentsService {
       failureUrl,
     });
 
-    // Upsert payment link record
+    // Platform URL — always point customers to our own payment page
+    const sellerUrl = this.configService.get<string>('SELLER_APP_URL', 'http://localhost:3000');
+    const platformUrl = `${sellerUrl}/pay/${order.orderNumber}`;
+
+    // Upsert payment link record — store platform URL, keep provider URL in metadata
     const paymentLink = existingLink
       ? await this.prisma.paymentLink.update({
           where: { id: existingLink.id },
           data: {
             externalId: result.externalId,
-            url: result.url,
+            url: platformUrl,
             amount: order.total,
             currency: 'COP',
             provider: providerName,
             status: 'ACTIVE',
-            metadata: { code: result.code },
+            metadata: { code: result.code, providerUrl: result.url },
           },
         })
       : await this.prisma.paymentLink.create({
           data: {
             orderId: order.id,
             externalId: result.externalId,
-            url: result.url,
+            url: platformUrl,
             amount: order.total,
             currency: 'COP',
             provider: providerName,
             status: 'ACTIVE',
-            metadata: { code: result.code },
+            metadata: { code: result.code, providerUrl: result.url },
           },
         });
 
@@ -146,10 +150,10 @@ export class PaymentsService {
     });
 
     this.logger.log(
-      `Payment link created for order ${order.orderNumber}: ${result.url}`,
+      `Payment link created for order ${order.orderNumber}: ${platformUrl}`,
     );
 
-    return { paymentLink, paymentUrl: result.url };
+    return { paymentLink, paymentUrl: platformUrl };
   }
 
   async handleWebhook(data: WebhookData): Promise<void> {
