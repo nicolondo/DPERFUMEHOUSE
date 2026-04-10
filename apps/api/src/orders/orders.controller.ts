@@ -16,7 +16,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { OrdersService } from './orders.service';
-import { CreateOrderBodyDto, UpdateOrderAddressDto } from './dto';
+import { CreateOrderBodyDto, UpdateOrderAddressDto, AdminCreateOrderDto, LinkOdooDto } from './dto';
 
 @Controller('orders')
 @UseGuards(JwtAuthGuard)
@@ -120,12 +120,38 @@ export class OrdersController {
   @HttpCode(HttpStatus.OK)
   async syncOdoo(
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { odooSaleOrderId?: number } = {},
     @CurrentUser() user: CurrentUserPayload,
   ) {
     if (user.role !== 'ADMIN') {
       throw new ForbiddenException('Only admins can sync orders to Odoo');
     }
-    return this.ordersService.syncOdoo(id);
+    return this.ordersService.syncOdoo(id, body?.odooSaleOrderId);
+  }
+
+  @Post(':id/link-odoo')
+  @HttpCode(HttpStatus.OK)
+  async linkOdoo(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: LinkOdooDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only admins can link orders to Odoo');
+    }
+    return this.ordersService.linkOdoo(id, body.odooSaleOrderId, body.odooOrderName);
+  }
+
+  @Post('admin/create')
+  @HttpCode(HttpStatus.CREATED)
+  async adminCreate(
+    @Body() body: AdminCreateOrderDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only admins can create orders for sellers');
+    }
+    return this.ordersService.createOrder(body, body.sellerId);
   }
 
   @Patch(':id/ship')

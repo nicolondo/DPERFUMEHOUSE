@@ -766,7 +766,7 @@ export class OrdersService {
   /**
    * Admin-only: re-sync a PAID order to Odoo and generate commissions if missing.
    */
-  async syncOdoo(orderId: string) {
+  async syncOdoo(orderId: string, existingOdooSoId?: number) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -805,8 +805,8 @@ export class OrdersService {
       await this.prisma.customer.update({ where: { id: order.customer.id }, data: { odooPartnerId } });
     }
 
-    // Step 2: Create Odoo sale order if missing
-    let odooSaleOrderId = order.odooSaleOrderId;
+    // Step 2: Use existing Odoo SO or create one
+    let odooSaleOrderId = existingOdooSoId || order.odooSaleOrderId;
     let orderNumber = order.orderNumber;
 
     if (!odooSaleOrderId) {
@@ -872,6 +872,22 @@ export class OrdersService {
 
     this.logger.log(`Odoo sync completed for order ${updated.orderNumber}`);
     return updated;
+  }
+
+  /**
+   * Admin-only: link an existing Odoo SO to an order (without creating a new one).
+   */
+  async linkOdoo(orderId: string, odooSaleOrderId: number, odooOrderName?: string) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException(`Order ${orderId} not found`);
+
+    return this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        odooSaleOrderId,
+        ...(odooOrderName && { orderNumber: odooOrderName }),
+      },
+    });
   }
 
   /**

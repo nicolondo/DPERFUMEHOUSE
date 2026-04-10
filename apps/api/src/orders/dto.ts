@@ -48,3 +48,17 @@ export class UpdateOrderAddressDto {
   @IsUUID()
   addressId: string;
 }
+
+export class AdminCreateOrderDto extends CreateOrderBodyDto {
+  @IsUUID()
+  sellerId: string;
+}
+
+export class LinkOdooDto {
+  @IsInt()
+  odooSaleOrderId: number;
+
+  @IsString()
+  @IsOptional()
+  odooOrderName?: string;
+}
