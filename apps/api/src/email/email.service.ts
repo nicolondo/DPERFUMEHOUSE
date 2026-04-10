@@ -158,6 +158,128 @@ export class EmailService implements EmailProvider {
     return this.send(customerEmail, subject, html);
   }
 
+  async sendCollectReference(
+    customerEmail: string,
+    customerName: string,
+    orderNumber: string,
+    businessAgreementCode: string,
+    paymentIntentionIdentifier: string,
+    total: number,
+  ): Promise<boolean> {
+    const subject = `Tu referencia de pago - Pedido ${orderNumber}`;
+    const logoUrl = `${this.configService.get('SELLER_APP_URL', 'https://pos.dperfumehouse.com')}/icons/logo-dperfumehouse.svg`;
+    const formattedTotal = new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+    }).format(total);
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Referencia de pago - ${this.escapeHtml(orderNumber)}</title>
+        <style>
+          :root { color-scheme: light only; }
+          body { margin: 0; padding: 0; font-family: 'Outfit', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f0b05 !important; }
+        </style>
+      </head>
+      <body style="margin:0;padding:0;background-color:#0f0b05;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#0f0b05;">
+          <tr><td align="center" style="padding:24px 16px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" width="620" style="max-width:620px;width:100%;background-color:#16110a;border-radius:16px;overflow:hidden;">
+
+              <!-- Header / Logo -->
+              <tr><td align="center" style="padding:32px 32px 20px;background-color:#16110a;">
+                <img src="${logoUrl}" alt="D Perfume House" width="200" style="display:block;width:200px;max-width:60%;height:auto;" />
+                <p style="margin:10px 0 0 0;color:#bfa685;letter-spacing:2px;font-size:11px;text-transform:uppercase;">Tienda en línea</p>
+              </td></tr>
+
+              <!-- Divider -->
+              <tr><td style="padding:0 32px;"><div style="height:1px;background-color:#3b2c17;"></div></td></tr>
+
+              <!-- Body -->
+              <tr><td style="padding:28px 32px;color:#f4ece1;background-color:#16110a;">
+
+                <!-- Badge -->
+                <div style="margin-bottom:18px;">
+                  <span style="display:inline-block;padding:6px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#ffdca7;border:1px solid #7a5b2f;background-color:rgba(196,148,77,.14);">Referencia lista</span>
+                </div>
+
+                <p style="margin:0 0 6px 0;font-size:25px;line-height:1.2;color:#fff7eb;font-weight:700;">Hola, ${this.escapeHtml(customerName)} 👋</p>
+                <p style="margin:0 0 22px 0;font-size:15px;color:#d6c3a8;line-height:1.6;">
+                  Tu referencia de pago Bancolombia Corresponsal para el pedido
+                  <strong style="color:#fff7eb;">${this.escapeHtml(orderNumber)}</strong> ya está lista.
+                  Dirígete a cualquier punto Corresponsal Bancolombia para completar tu pago.
+                </p>
+
+                <!-- Amount -->
+                <div style="margin:0 0 24px 0;border:1px solid #3b2c17;border-radius:12px;background-color:#1e160d;padding:18px 20px;text-align:center;">
+                  <p style="margin:0 0 4px 0;color:#9c8568;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Total a pagar</p>
+                  <p style="margin:0;font-size:32px;font-weight:800;color:#c9a96e;letter-spacing:1px;">${formattedTotal}</p>
+                </div>
+
+                <!-- Reference codes -->
+                <p style="margin:0 0 12px 0;font-size:13px;color:#9c8568;text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Datos para el pago</p>
+
+                <!-- No. Convenio -->
+                <div style="margin:0 0 12px 0;border:1px solid #3b2c17;border-radius:10px;background-color:#1a130a;padding:16px 20px;">
+                  <p style="margin:0 0 6px 0;color:#9c8568;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Número de Convenio</p>
+                  <p style="margin:0;font-size:28px;font-weight:800;color:#ffffff;letter-spacing:4px;font-family:'Courier New',Courier,monospace;">${this.escapeHtml(businessAgreementCode)}</p>
+                </div>
+
+                <!-- No. Pago -->
+                <div style="margin:0 0 24px 0;border:1px solid #3b2c17;border-radius:10px;background-color:#1a130a;padding:16px 20px;">
+                  <p style="margin:0 0 6px 0;color:#9c8568;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Número de Pago (Referencia)</p>
+                  <p style="margin:0;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:3px;font-family:'Courier New',Courier,monospace;word-break:break-all;">${this.escapeHtml(paymentIntentionIdentifier)}</p>
+                </div>
+
+                <!-- Instructions -->
+                <div style="border:1px solid #3b2c17;border-radius:10px;background-color:#1e160d;padding:18px 20px;margin:0 0 24px 0;">
+                  <p style="margin:0 0 10px 0;font-size:13px;font-weight:700;color:#c9a96e;text-transform:uppercase;letter-spacing:.7px;">¿Cómo pagar?</p>
+                  <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td width="28" valign="top" style="padding:3px 10px 6px 0;color:#c9a96e;font-size:14px;font-weight:700;">1.</td>
+                      <td style="padding:0 0 6px 0;font-size:13px;color:#d6c3a8;line-height:1.5;">Ve a cualquier <strong style="color:#fff7eb;">Corresponsal Bancolombia</strong> o punto de recaudo autorizado.</td>
+                    </tr>
+                    <tr>
+                      <td width="28" valign="top" style="padding:3px 10px 6px 0;color:#c9a96e;font-size:14px;font-weight:700;">2.</td>
+                      <td style="padding:0 0 6px 0;font-size:13px;color:#d6c3a8;line-height:1.5;">Indica que deseas hacer un pago por <strong style="color:#fff7eb;">Convenio</strong>.</td>
+                    </tr>
+                    <tr>
+                      <td width="28" valign="top" style="padding:3px 10px 0 0;color:#c9a96e;font-size:14px;font-weight:700;">3.</td>
+                      <td style="padding:0;font-size:13px;color:#d6c3a8;line-height:1.5;">Proporciona el <strong style="color:#fff7eb;">Número de Convenio</strong> y el <strong style="color:#fff7eb;">Número de Pago</strong> indicados arriba.</td>
+                    </tr>
+                  </table>
+                </div>
+
+                <!-- Note -->
+                <div style="border-top:1px solid #3b2c17;padding-top:16px;">
+                  <p style="margin:0;font-size:13px;color:#9c8568;line-height:1.5;">
+                    ¿Tienes alguna pregunta? Contáctanos y con gusto te ayudamos.
+                  </p>
+                </div>
+
+              </td></tr>
+
+              <!-- Footer -->
+              <tr><td style="padding:18px 32px 24px;color:#9c8568;font-size:12px;text-align:center;background-color:#16110a;border-top:1px solid #3b2c17;">
+                <p style="margin:4px 0;font-weight:700;color:#bfa685;">D Perfume House</p>
+                <p style="margin:4px 0;">&copy; ${new Date().getFullYear()} Todos los derechos reservados.</p>
+              </td></tr>
+
+            </table>
+          </td></tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    return this.send(customerEmail, subject, html);
+  }
+
   async sendOrderConfirmation(
     customerEmail: string,
     customerName: string,

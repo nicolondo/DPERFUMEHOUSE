@@ -11,6 +11,7 @@ import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentProviderFactory } from './payment-provider.factory';
 import { WompiService, WompiWebhookEvent } from './wompi.service';
+import { EmailService } from '../email/email.service';
 import { SettingsService } from '../settings/settings.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -38,6 +39,7 @@ export class PaymentsService {
     private readonly settingsService: SettingsService,
     private readonly notificationsService: NotificationsService,
     private readonly wompiService: WompiService,
+    private readonly emailService: EmailService,
     @InjectQueue('payment-process')
     private readonly paymentQueue: Queue,
   ) {
@@ -720,6 +722,28 @@ export class PaymentsService {
         paymentStatus: 'PENDING',
       },
     });
+
+    // Send email with collect reference for Bancolombia Corresponsal
+    if (body.paymentMethod === 'BANCOLOMBIA_COLLECT') {
+      const extra = result.payment_method?.extra;
+      const businessAgreementCode: string = extra?.business_agreement_code ?? '';
+      const paymentIntentionIdentifier: string = extra?.payment_intention_identifier ?? '';
+      const recipientEmail = customerEmail || order.customer?.email;
+      if (recipientEmail && businessAgreementCode) {
+        this.emailService
+          .sendCollectReference(
+            recipientEmail,
+            order.customer?.name ?? 'Cliente',
+            order.orderNumber,
+            businessAgreementCode,
+            paymentIntentionIdentifier,
+            Number(order.total),
+          )
+          .catch((err: Error) =>
+            this.logger.error(`Collect email failed: ${err.message}`),
+          );
+      }
+    }
 
     return { data: result };
   }
