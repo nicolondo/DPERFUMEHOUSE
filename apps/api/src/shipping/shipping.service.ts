@@ -196,7 +196,7 @@ export class ShippingService {
         declaredValue: itemsInBox * DECLARED_VALUE_PER_ITEM,
         lengthUnit: 'CM',
         weightUnit: 'KG',
-        weight: pkg.weight * itemsInBox,
+        weight: Math.ceil(itemsInBox / ITEMS_PER_BOX),
         dimensions: pkg.dimensions,
       };
     });
@@ -390,6 +390,7 @@ export class ShippingService {
     const origin = await this.getOriginAddress();
     const pkg = await this.getDefaultPackage();
     const totalItems = order.items.reduce((sum, i) => sum + i.quantity, 0);
+    const ITEMS_PER_BOX = 4;
 
     const response = await this.envia.schedulePickup({
       origin,
@@ -398,7 +399,7 @@ export class ShippingService {
         carrier: order.shipment.carrier,
         pickup: {
           weightUnit: 'KG',
-          totalWeight: pkg.weight * totalItems,
+          totalWeight: Math.ceil(totalItems / ITEMS_PER_BOX),
           totalPackages: 1,
           date,
           timeFrom,
