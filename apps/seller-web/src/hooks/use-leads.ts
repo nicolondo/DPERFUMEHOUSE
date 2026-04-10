@@ -45,8 +45,8 @@ export function useLeadStats() {
 export function useCreateLeadForCustomer() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (customerId: string) => {
-      const { data } = await api.post('/leads/for-customer', { customerId });
+    mutationFn: async (params: { customerId: string; selectedCategories?: string[] }) => {
+      const { data } = await api.post('/leads/for-customer', params);
       return unwrap(data);
     },
     onSuccess: () => {

@@ -25,6 +25,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { useCustomer, useAddAddress, useUpdateAddress } from '@/hooks/use-customers';
 import { useOrders } from '@/hooks/use-orders';
 import { useCreateLeadForCustomer } from '@/hooks/use-leads';
+import { useCategories } from '@/hooks/use-products';
 import { formatCurrency, formatDate, getInitials, formatPhone } from '@/lib/utils';
 
 export default function CustomerDetailPage() {
@@ -34,10 +35,42 @@ export default function CustomerDetailPage() {
   const { data: ordersData, isLoading: ordersLoading } = useOrders();
   const addAddress = useAddAddress();
   const createLead = useCreateLeadForCustomer();
+  const { data: categoriesData } = useCategories();
 
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [editingAddress, setEditingAddress] = useState<any>(null);
   const updateAddress = useUpdateAddress();
+  const [showBrandPicker, setShowBrandPicker] = useState(false);
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+
+  // Build brand → full category name map
+  const fullCategories: string[] = Array.isArray(categoriesData) ? categoriesData : [];
+  const categoryMap: Record<string, string> = {};
+  fullCategories.forEach((c: string) => {
+    const parts = c.split('/').map((p: string) => p.trim());
+    const brand = parts.length >= 3 ? parts[2] : parts[parts.length - 1];
+    if (!categoryMap[brand]) categoryMap[brand] = c;
+  });
+  const sellerBrands = Object.keys(categoryMap);
+
+  const handleSendQuestionnaire = async (brands?: string[]) => {
+    if (!id) return;
+    try {
+      const fullNames = (brands || sellerBrands).map(b => categoryMap[b]).filter(Boolean);
+      const result = await createLead.mutateAsync({
+        customerId: id,
+        selectedCategories: fullNames.length > 0 ? fullNames : undefined,
+      });
+      const url = result.questionnaireUrl || result.lead?.questionnaireUrl || result.url;
+      const phone = customer?.phone?.replace(/\D/g, '');
+      if (phone && url) {
+        const msg = `Hola ${customer?.name?.split(' ')[0]}! 🌿✨ Te comparto este cuestionario rápido para encontrar tu perfume ideal:\n${url}`;
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+      }
+    } catch {
+      // handled by react-query
+    }
+  };
   const [addressForm, setAddressForm] = useState({
     label: '',
     street: '',
@@ -169,18 +202,13 @@ export default function CustomerDetailPage() {
 
         {/* Send Questionnaire */}
         <button
-          onClick={async () => {
+          onClick={() => {
             if (!id) return;
-            try {
-              const result = await createLead.mutateAsync(id);
-              const url = result.questionnaireUrl || result.url;
-              const phone = customer.phone?.replace(/\D/g, '');
-              if (phone && url) {
-                const msg = `Hola ${customer.name.split(' ')[0]}! 🌿✨ Te comparto este cuestionario rápido para encontrar tu perfume ideal:\n${url}`;
-                window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
-              }
-            } catch {
-              // handled by react-query
+            if (sellerBrands.length > 1) {
+              setSelectedBrands([...sellerBrands]);
+              setShowBrandPicker(true);
+            } else {
+              handleSendQuestionnaire();
             }
           }}
           disabled={createLead.isPending}
@@ -189,6 +217,50 @@ export default function CustomerDetailPage() {
           <Sparkles className="h-4 w-4" />
           {createLead.isPending ? 'Enviando...' : 'Enviar Cuestionario de Fragancias'}
         </button>
+
+        {/* Brand Picker Modal */}
+        {showBrandPicker && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-sm mx-4">
+              <h3 className="text-lg font-semibold text-white mb-4">Seleccionar Marcas</h3>
+              <div className="space-y-2 mb-6 max-h-64 overflow-y-auto">
+                {sellerBrands.map((brand) => (
+                  <label key={brand} className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedBrands.includes(brand)}
+                      onChange={(e) => {
+                        setSelectedBrands(prev =>
+                          e.target.checked ? [...prev, brand] : prev.filter(b => b !== brand)
+                        );
+                      }}
+                      className="rounded border-zinc-600 bg-zinc-800 text-amber-500 focus:ring-amber-500"
+                    />
+                    <span className="text-sm text-white">{brand}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowBrandPicker(false)}
+                  className="flex-1 rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:bg-zinc-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    setShowBrandPicker(false);
+                    handleSendQuestionnaire(selectedBrands);
+                  }}
+                  disabled={selectedBrands.length === 0 || createLead.isPending}
+                  className="flex-1 rounded-xl bg-amber-500/20 border border-amber-500/30 px-4 py-2 text-sm font-medium text-amber-300 hover:bg-amber-500/30 disabled:opacity-50"
+                >
+                  {createLead.isPending ? 'Enviando...' : 'Confirmar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Addresses Section */}
         <div>
