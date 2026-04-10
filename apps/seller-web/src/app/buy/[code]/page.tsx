@@ -551,21 +551,9 @@ export default function BuyPage() {
                               </select>
                             </div>
                           </div>
-                          <div>
-                            <label className="text-xs text-white/50 mb-1.5 block">Número de documento</label>
-                            <input type="text" inputMode="numeric" placeholder="1234567890"
-                              value={pseLegalId} onChange={(e) => setPseLegalId(e.target.value.replace(/\D/g, ''))}
-                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-[#d3a86f]/50 font-mono" />
-                          </div>
-                          <div>
-                            <label className="text-xs text-white/50 mb-1.5 block">Correo electrónico</label>
-                            <input type="email" placeholder="tu@correo.com"
-                              value={pseEmail} onChange={(e) => setPseEmail(e.target.value)}
-                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white placeholder:text-white/20 text-sm focus:outline-none focus:border-[#d3a86f]/50" />
-                          </div>
                           <button
                             type="button"
-                            disabled={!pseBankCode || !pseLegalId || !pseEmail || paymentProcessing}
+                            disabled={!pseBankCode || paymentProcessing}
                             onClick={() => processPayment({
                               financialInstitutionCode: pseBankCode,
                               userType: pseUserType,
