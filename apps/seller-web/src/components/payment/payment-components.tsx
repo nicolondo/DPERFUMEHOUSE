@@ -683,7 +683,7 @@ export function PaymentResult({
             : 'Verificando estado del pago...'}
         </p>
       </div>
-      {methodLabel === 'Nequi' && (
+      {methodLabel?.toUpperCase() === 'NEQUI' && (
         <div className="mt-4 mx-auto max-w-xs rounded-xl border border-[#d3a86f]/20 bg-[#d3a86f]/5 px-4 py-3 text-left space-y-2">
           <p className="text-[#d3a86f] text-xs font-semibold uppercase tracking-wider">
             ¿Cómo confirmar el pago?

@@ -466,13 +466,25 @@ export default function BuyPage() {
               </div>
 
               {/* Payment result states */}
-              {paymentStatus && !(selectedMethod === 'BANCOLOMBIA_COLLECT' && paymentStatus === 'PENDING') && (
+              {paymentStatus &&
+                !(selectedMethod === 'BANCOLOMBIA_COLLECT' && paymentStatus === 'PENDING') &&
+                !(selectedMethod === 'NEQUI' && paymentStatus === 'PENDING') && (
                 <PaymentResult
                   status={paymentStatus}
                   methodLabel={selectedMethod || undefined}
                   onRetry={['DECLINED', 'ERROR', 'VOIDED'].includes(paymentStatus) ? () => {
                     setPaymentStatus(null); setNequiWaiting(false); setPaymentError(''); setCollectRef(null);
                   } : undefined}
+                />
+              )}
+
+              {/* Nequi waiting — shown separately so NequiForm renders its waiting UI */}
+              {selectedMethod === 'NEQUI' && nequiWaiting && (
+                <NequiForm
+                  defaultPhone={phone}
+                  loading={false}
+                  waiting={true}
+                  onSubmit={() => {}}
                 />
               )}
 
