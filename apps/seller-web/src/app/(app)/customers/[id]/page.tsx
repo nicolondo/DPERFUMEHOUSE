@@ -11,6 +11,10 @@ import {
   Pencil,
   ShoppingBag,
   Sparkles,
+  MessageCircle,
+  Send,
+  Check,
+  X,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge, OrderStatusBadge } from '@/components/ui/badge';
@@ -27,6 +31,7 @@ import { useOrders } from '@/hooks/use-orders';
 import { useCreateLeadForCustomer } from '@/hooks/use-leads';
 import { useCategories } from '@/hooks/use-products';
 import { formatCurrency, formatDate, getInitials, formatPhone } from '@/lib/utils';
+import api from '@/lib/api';
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -42,6 +47,7 @@ export default function CustomerDetailPage() {
   const updateAddress = useUpdateAddress();
   const [showBrandPicker, setShowBrandPicker] = useState(false);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [sendMethod, setSendMethod] = useState<'whatsapp-email' | 'email'>('whatsapp-email');
 
   // Build brand → full category name map
   const fullCategories: string[] = Array.isArray(categoriesData) ? categoriesData : [];
@@ -53,7 +59,7 @@ export default function CustomerDetailPage() {
   });
   const sellerBrands = Object.keys(categoryMap);
 
-  const handleSendQuestionnaire = async (brands?: string[]) => {
+  const handleSendQuestionnaire = async (brands?: string[], method: 'whatsapp-email' | 'email' = 'whatsapp-email') => {
     if (!id) return;
     try {
       const fullNames = (brands || sellerBrands).map(b => categoryMap[b]).filter(Boolean);
@@ -61,11 +67,25 @@ export default function CustomerDetailPage() {
         customerId: id,
         selectedCategories: fullNames.length > 0 ? fullNames : undefined,
       });
+      const leadId = result.lead?.id || result.id;
       const url = result.questionnaireUrl || result.lead?.questionnaireUrl || result.url;
-      const phone = customer?.phone?.replace(/\D/g, '');
-      if (phone && url) {
-        const msg = `Hola ${customer?.name?.split(' ')[0]}! 🌿✨ Te comparto este cuestionario rápido para encontrar tu perfume ideal:\n${url}`;
-        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+
+      // Always send email if customer has email
+      if (leadId && customer?.email) {
+        try {
+          await api.post(`/leads/${leadId}/send-email`);
+        } catch {
+          // Non-blocking
+        }
+      }
+
+      // Open WhatsApp if method includes it
+      if (method === 'whatsapp-email') {
+        const phone = customer?.phone?.replace(/\D/g, '');
+        if (phone && url) {
+          const msg = `Hola ${customer?.name?.split(' ')[0]}! 🌿✨ Te comparto este cuestionario rápido para encontrar tu perfume ideal:\n${url}`;
+          window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
       }
     } catch {
       // handled by react-query
@@ -204,12 +224,9 @@ export default function CustomerDetailPage() {
         <button
           onClick={() => {
             if (!id) return;
-            if (sellerBrands.length > 1) {
-              setSelectedBrands([...sellerBrands]);
-              setShowBrandPicker(true);
-            } else {
-              handleSendQuestionnaire();
-            }
+            setSelectedBrands([...sellerBrands]);
+            setSendMethod('whatsapp-email');
+            setShowBrandPicker(true);
           }}
           disabled={createLead.isPending}
           className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500/10 to-purple-500/10 border border-amber-500/20 p-4 text-sm font-medium text-amber-300 hover:from-amber-500/15 hover:to-purple-500/15 transition-colors disabled:opacity-50"
@@ -218,46 +235,116 @@ export default function CustomerDetailPage() {
           {createLead.isPending ? 'Enviando...' : 'Enviar Cuestionario de Fragancias'}
         </button>
 
-        {/* Brand Picker Modal */}
+        {/* Brand Picker + Send Method Modal */}
         {showBrandPicker && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-sm mx-4">
-              <h3 className="text-lg font-semibold text-white mb-4">Seleccionar Marcas</h3>
-              <div className="space-y-2 mb-6 max-h-64 overflow-y-auto">
-                {sellerBrands.map((brand) => (
-                  <label key={brand} className="flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-800 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedBrands.includes(brand)}
-                      onChange={(e) => {
-                        setSelectedBrands(prev =>
-                          e.target.checked ? [...prev, brand] : prev.filter(b => b !== brand)
-                        );
-                      }}
-                      className="rounded border-zinc-600 bg-zinc-800 text-amber-500 focus:ring-amber-500"
-                    />
-                    <span className="text-sm text-white">{brand}</span>
-                  </label>
-                ))}
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowBrandPicker(false)}>
+            <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border border-white/10 rounded-t-3xl sm:rounded-3xl p-6 w-full max-w-md mx-0 sm:mx-4 animate-in slide-in-from-bottom duration-300" onClick={(e) => e.stopPropagation()}>
+              {/* Handle bar (mobile) */}
+              <div className="flex justify-center mb-4 sm:hidden">
+                <div className="w-10 h-1 rounded-full bg-white/20" />
               </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowBrandPicker(false)}
-                  className="flex-1 rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:bg-zinc-800"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={() => {
-                    setShowBrandPicker(false);
-                    handleSendQuestionnaire(selectedBrands);
-                  }}
-                  disabled={selectedBrands.length === 0 || createLead.isPending}
-                  className="flex-1 rounded-xl bg-amber-500/20 border border-amber-500/30 px-4 py-2 text-sm font-medium text-amber-300 hover:bg-amber-500/30 disabled:opacity-50"
-                >
-                  {createLead.isPending ? 'Enviando...' : 'Confirmar'}
+
+              {/* Header */}
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/15">
+                    <Sparkles className="h-4 w-4 text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-white">Cuestionario de Fragancias</h3>
+                    <p className="text-xs text-white/40">Selecciona marcas y metodo de envio</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowBrandPicker(false)} className="p-1.5 rounded-lg hover:bg-white/5 text-white/30 hover:text-white/60 transition-colors">
+                  <X className="h-5 w-5" />
                 </button>
               </div>
+
+              {/* Brand Selection */}
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-2.5">
+                  <p className="text-xs font-medium text-white/50 uppercase tracking-wider">Marcas</p>
+                  <button
+                    onClick={() => setSelectedBrands(selectedBrands.length === sellerBrands.length ? [] : [...sellerBrands])}
+                    className="text-xs text-amber-400/80 hover:text-amber-400 transition-colors"
+                  >
+                    {selectedBrands.length === sellerBrands.length ? 'Deseleccionar' : 'Seleccionar todas'}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {sellerBrands.map((brand) => {
+                    const isSelected = selectedBrands.includes(brand);
+                    return (
+                      <button
+                        key={brand}
+                        onClick={() => setSelectedBrands(prev => isSelected ? prev.filter(b => b !== brand) : [...prev, brand])}
+                        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                          isSelected
+                            ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 shadow-sm shadow-amber-500/10'
+                            : 'bg-white/5 border border-white/10 text-white/40 hover:bg-white/10 hover:text-white/60'
+                        }`}
+                      >
+                        {isSelected && <Check className="h-3.5 w-3.5" />}
+                        {brand}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="h-px bg-white/10 mb-5" />
+
+              {/* Send Method */}
+              <div className="mb-6">
+                <p className="text-xs font-medium text-white/50 uppercase tracking-wider mb-2.5">Enviar por</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setSendMethod('whatsapp-email')}
+                    className={`flex flex-col items-center gap-2 p-3.5 rounded-xl border transition-all duration-200 ${
+                      sendMethod === 'whatsapp-email'
+                        ? 'bg-emerald-500/15 border-emerald-500/40 shadow-sm shadow-emerald-500/10'
+                        : 'bg-white/5 border-white/10 hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <MessageCircle className={`h-4 w-4 ${sendMethod === 'whatsapp-email' ? 'text-emerald-400' : 'text-white/40'}`} />
+                      <span className="text-lg">+</span>
+                      <Mail className={`h-4 w-4 ${sendMethod === 'whatsapp-email' ? 'text-emerald-400' : 'text-white/40'}`} />
+                    </div>
+                    <span className={`text-xs font-medium ${sendMethod === 'whatsapp-email' ? 'text-emerald-300' : 'text-white/40'}`}>WhatsApp + Email</span>
+                  </button>
+                  <button
+                    onClick={() => setSendMethod('email')}
+                    className={`flex flex-col items-center gap-2 p-3.5 rounded-xl border transition-all duration-200 ${
+                      sendMethod === 'email'
+                        ? 'bg-blue-500/15 border-blue-500/40 shadow-sm shadow-blue-500/10'
+                        : 'bg-white/5 border-white/10 hover:bg-white/10'
+                    }`}
+                  >
+                    <Mail className={`h-4 w-4 ${sendMethod === 'email' ? 'text-blue-400' : 'text-white/40'}`} />
+                    <span className={`text-xs font-medium ${sendMethod === 'email' ? 'text-blue-300' : 'text-white/40'}`}>Solo Email</span>
+                  </button>
+                </div>
+                {sendMethod === 'email' && !customer?.email && (
+                  <p className="mt-2 text-xs text-red-400/80 flex items-center gap-1">
+                    <X className="h-3 w-3" /> Este cliente no tiene email registrado
+                  </p>
+                )}
+              </div>
+
+              {/* Action Button */}
+              <button
+                onClick={() => {
+                  setShowBrandPicker(false);
+                  handleSendQuestionnaire(selectedBrands, sendMethod);
+                }}
+                disabled={selectedBrands.length === 0 || createLead.isPending || (sendMethod === 'email' && !customer?.email)}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500/20 to-amber-600/20 border border-amber-500/30 text-sm font-semibold text-amber-300 hover:from-amber-500/30 hover:to-amber-600/30 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Send className="h-4 w-4" />
+                {createLead.isPending ? 'Enviando...' : 'Enviar Cuestionario'}
+              </button>
             </div>
           </div>
         )}
