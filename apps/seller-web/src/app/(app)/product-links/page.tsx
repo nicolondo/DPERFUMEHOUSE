@@ -56,6 +56,7 @@ export default function ProductLinksPage() {
   const [productSearch, setProductSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedGenerateId, setCopiedGenerateId] = useState<string | null>(null);
 
   const { data: linksData, isLoading: linksLoading } = useSellerProductLinks();
   const { data: productsData, isLoading: productsLoading } = useProducts({
@@ -108,6 +109,21 @@ export default function ProductLinksPage() {
     } catch {
       // handled by react-query
     }
+  };
+
+  const copyLinkInline = async (url: string, variantId: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const input = document.createElement('input');
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+    }
+    setCopiedGenerateId(variantId);
+    setTimeout(() => setCopiedGenerateId(null), 2000);
   };
 
   const getProductImage = (product: any) => {
@@ -324,23 +340,50 @@ export default function ProductLinksPage() {
                         {formatCurrency(product.price)}
                       </p>
 
-                      <button
-                        onClick={() => !isOutOfStock && handleGenerate(product.id)}
-                        disabled={isOutOfStock || generateLink.isPending}
-                        className={`w-full mt-2 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                          hasLink
-                            ? 'bg-accent-gold/20 text-accent-gold'
-                            : isOutOfStock
-                            ? 'bg-glass-100 text-white/20 cursor-not-allowed'
-                            : 'bg-accent-gold text-black hover:bg-accent-gold/90'
-                        }`}
-                      >
-                        {hasLink ? (
-                          <><Link2 className="h-3.5 w-3.5" /> Link creado</>
-                        ) : (
-                          <><Link2 className="h-3.5 w-3.5" /> Generar Link</>
-                        )}
-                      </button>
+                      <div className="flex items-center gap-1 mt-2">
+                        <button
+                          onClick={() => !isOutOfStock && !hasLink && handleGenerate(product.id)}
+                          disabled={isOutOfStock || hasLink || generateLink.isPending && generateLink.variables === product.id}
+                          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                            hasLink
+                              ? 'bg-accent-gold/20 text-accent-gold cursor-default'
+                              : isOutOfStock
+                              ? 'bg-glass-100 text-white/20 cursor-not-allowed'
+                              : generateLink.isPending
+                              ? 'bg-accent-gold/60 text-black cursor-wait'
+                              : 'bg-accent-gold text-black hover:bg-accent-gold/90'
+                          }`}
+                        >
+                          {generateLink.isPending && generateLink.variables === product.id ? (
+                            <><div className="h-3 w-3 rounded-full border-2 border-black/30 border-t-black animate-spin" /> Generando...</>
+                          ) : hasLink ? (
+                            <><Link2 className="h-3.5 w-3.5" /> Link creado</>
+                          ) : (
+                            <><Link2 className="h-3.5 w-3.5" /> Generar Link</>
+                          )}
+                        </button>
+
+                        {hasLink && (() => {
+                          const linkUrl = links.find((l: any) => l.variantId === product.id)?.url;
+                          return linkUrl ? (
+                            <button
+                              onClick={() => copyLinkInline(linkUrl, product.id)}
+                              className="flex-shrink-0 p-1.5 rounded-lg bg-glass-100 text-white/50 hover:text-white hover:bg-glass-200 transition-colors"
+                              title="Copiar link"
+                            >
+                              {copiedGenerateId === product.id
+                                ? <Check className="h-3.5 w-3.5 text-green-400" />
+                                : <Copy className="h-3.5 w-3.5" />}
+                            </button>
+                          ) : null;
+                        })()}
+                      </div>
+
+                      {generateLink.isError && generateLink.variables === product.id && (
+                        <p className="text-xs text-red-400 mt-1 text-center">
+                          {(generateLink.error as any)?.response?.data?.message || 'Error al generar link'}
+                        </p>
+                      )}
                     </div>
                   </Card>
                 );
