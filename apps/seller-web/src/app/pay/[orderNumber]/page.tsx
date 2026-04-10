@@ -179,6 +179,7 @@ export default function PayPage() {
   const [pseBanks, setPseBanks] = useState<Array<{ financial_institution_name: string; financial_institution_code: string }>>([]);
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [acceptanceChecked, setAcceptanceChecked] = useState(true);
+  const paymentSectionRef = useRef<HTMLDivElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [transactionId, setTransactionId] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
@@ -622,6 +623,12 @@ export default function PayPage() {
                     }
                   }
                   if (next && !publicData && !publicDataLoading) fetchPublicData();
+                  // Smooth scroll to payment details
+                  if (next) {
+                    setTimeout(() => {
+                      paymentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 150);
+                  }
                 }}
                 className={`rounded-2xl border p-4 text-center transition-all duration-150 cursor-pointer active:scale-[0.96] ${
                   isSelected
@@ -638,6 +645,9 @@ export default function PayPage() {
             );
           })}
         </div>
+
+        {/* Payment details section — scroll target */}
+        <div ref={paymentSectionRef} />
 
         {/* publicData states */}
         {paymentMethod && publicDataLoading && (
