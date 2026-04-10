@@ -448,3 +448,30 @@ export async function fetchAdminLeadAnalytics() {
   const { data } = await api.get('/leads/admin/analytics');
   return unwrap(data);
 }
+
+// ── Questionnaire Questions ──
+
+export async function fetchQuestionnaireQuestions() {
+  const { data } = await api.get('/questionnaire-questions');
+  return unwrap(data);
+}
+
+export async function createQuestionnaireQuestion(dto: any) {
+  const { data } = await api.post('/questionnaire-questions', dto);
+  return unwrap(data);
+}
+
+export async function updateQuestionnaireQuestion(id: string, dto: any) {
+  const { data } = await api.put(`/questionnaire-questions/${id}`, dto);
+  return unwrap(data);
+}
+
+export async function deleteQuestionnaireQuestion(id: string) {
+  const { data } = await api.delete(`/questionnaire-questions/${id}`);
+  return unwrap(data);
+}
+
+export async function reorderQuestionnaireQuestions(ids: string[]) {
+  const { data } = await api.post('/questionnaire-questions/reorder', { ids });
+  return unwrap(data);
+}
