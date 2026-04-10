@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { fetchUser, updateUser, toggleUserStatus, fetchUsers, fetchProductCategories, fetchSettings, fetchCustomers } from '@/lib/api';
+import { fetchUser, updateUser, toggleUserStatus, fetchUsers, fetchProductCategories, fetchSettings, fetchCustomers, fetchOrders } from '@/lib/api';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { FormField } from '@/components/ui/form-field';
 import { PageSpinner } from '@/components/ui/spinner';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { formatCurrency, formatDate, formatPercent } from '@/lib/utils';
-import { ArrowLeft, Mail, Shield, Users, TrendingUp, User, Pencil, Save, Phone, Building2, Wallet, Plus, Trash2, Contact } from 'lucide-react';
+import { ArrowLeft, Mail, Shield, Users, TrendingUp, User, Pencil, Save, Phone, Building2, Wallet, Plus, Trash2, Contact, ShoppingBag } from 'lucide-react';
 
 type CommissionScaleTier = {
   minSales: number;
@@ -121,6 +121,12 @@ export default function UserDetailPage() {
     enabled: !!userId,
   });
 
+  const { data: ordersData } = useQuery({
+    queryKey: ['orders', 'by-seller', userId],
+    queryFn: () => fetchOrders({ sellerId: userId, pageSize: 100 }),
+    enabled: !!userId,
+  });
+
   const { data: user, isLoading, error } = useQuery({
     queryKey: ['user', userId],
     queryFn: () => fetchUser(userId),
@@ -213,6 +219,64 @@ export default function UserDetailPage() {
       render: (item) => (
         <Badge variant={item.isActive ? 'success' : 'default'}>{item.isActive ? 'Activo' : 'Inactivo'}</Badge>
       ),
+    },
+  ];
+
+  const orderStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
+    PENDING: 'default',
+    PENDING_PAYMENT: 'warning',
+    PAID: 'success',
+    CONFIRMED: 'success',
+    SHIPPED: 'info',
+    DELIVERED: 'success',
+    CANCELLED: 'danger',
+  };
+
+  const sellerOrders = (ordersData?.data || ordersData || []) as any[];
+
+  const orderColumns: Column<any>[] = [
+    {
+      key: 'orderNumber',
+      header: 'Pedido',
+      render: (item) => (
+        <button
+          onClick={() => router.push(`/orders/${item.id}`)}
+          className="font-medium text-accent hover:underline cursor-pointer"
+        >
+          #{item.orderNumber}
+        </button>
+      ),
+    },
+    {
+      key: 'customer',
+      header: 'Cliente',
+      render: (item) => <span>{item.customer?.name || '-'}</span>,
+    },
+    {
+      key: 'total',
+      header: 'Total',
+      render: (item) => <span className="font-medium">{formatCurrency(item.total || 0)}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Estado',
+      render: (item) => (
+        <Badge variant={orderStatusVariant[item.status] || 'default'}>{item.status}</Badge>
+      ),
+    },
+    {
+      key: 'paymentStatus',
+      header: 'Pago',
+      render: (item) => (
+        <Badge variant={item.paymentStatus === 'COMPLETED' ? 'success' : item.paymentStatus === 'FAILED' ? 'danger' : 'warning'}>
+          {item.paymentStatus || 'PENDING'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'createdAt',
+      header: 'Fecha',
+      render: (item) => <span className="text-white/50">{formatDate(item.createdAt)}</span>,
     },
   ];
 
@@ -458,6 +522,25 @@ export default function UserDetailPage() {
           </div>
         </Card>
       )}
+
+      {/* Sales History */}
+      <Card padding={false}>
+        <div className="border-b border-glass-border px-6 py-4 flex items-center gap-2">
+          <ShoppingBag className="h-5 w-5 text-accent" />
+          <h3 className="text-lg font-semibold text-white">Historial de Ventas</h3>
+          {sellerOrders.length > 0 && (
+            <Badge variant="default" className="ml-auto">{sellerOrders.length} pedidos</Badge>
+          )}
+        </div>
+        <div className="p-4">
+          <DataTable
+            columns={orderColumns}
+            data={sellerOrders}
+            emptyMessage="No hay pedidos registrados"
+            keyExtractor={(item) => item.id}
+          />
+        </div>
+      </Card>
 
       {/* Commissions */}
       <Card padding={false}>
