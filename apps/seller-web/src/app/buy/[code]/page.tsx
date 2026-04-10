@@ -239,7 +239,6 @@ export default function BuyPage() {
     const ac = new (window as any).google.maps.places.Autocomplete(streetInputRef.current, {
       componentRestrictions: { country: 'co' },
       fields: ['address_components', 'formatted_address'],
-      types: ['geocode'],
     });
     autocompleteRef.current = ac;
     ac.addListener('place_changed', () => {
