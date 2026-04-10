@@ -558,26 +558,6 @@ export default function BuyPage() {
                               ))}
                             </select>
                           </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-xs text-white/50 mb-1.5 block">Tipo de persona</label>
-                              <select value={pseUserType} onChange={(e) => setPseUserType(e.target.value)}
-                                className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm focus:outline-none focus:border-[#d3a86f]/50">
-                                <option value="0">Natural</option>
-                                <option value="1">Jurídica</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="text-xs text-white/50 mb-1.5 block">Tipo de documento</label>
-                              <select value={pseLegalIdType} onChange={(e) => setPseLegalIdType(e.target.value)}
-                                className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#d3a86f]/15 text-white text-sm focus:outline-none focus:border-[#d3a86f]/50">
-                                <option value="CC">Cédula (CC)</option>
-                                <option value="NIT">NIT</option>
-                                <option value="CE">Cédula Extranjería</option>
-                                <option value="PP">Pasaporte</option>
-                              </select>
-                            </div>
-                          </div>
                           <button
                             type="button"
                             disabled={!pseBankCode || paymentProcessing}
