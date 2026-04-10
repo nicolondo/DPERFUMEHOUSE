@@ -11,7 +11,7 @@ import { Modal } from '@/components/ui/modal';
 import { PageSpinner } from '@/components/ui/spinner';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { formatCurrency, formatDate, formatDateTime, formatPercent } from '@/lib/utils';
-import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck } from 'lucide-react';
+import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck, ExternalLink, X } from 'lucide-react';
 
 const orderStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
   DRAFT: 'default',
@@ -76,6 +76,40 @@ export default function OrderDetailPage() {
     onSuccess: () => {
       setDeliverModalOpen(false);
       setDeliveryNotes('');
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
+
+  const [shippingModalOpen, setShippingModalOpen] = useState(false);
+  const [selectedRate, setSelectedRate] = useState<{ carrier: string; service: string; serviceDescription: string; deliveryEstimate: string; totalPrice: string } | null>(null);
+
+  const quoteRatesMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.get(`/shipping/rates/${orderId}`);
+      return data as { orderId: string; rates: Array<{ carrier: string; service: string; serviceDescription: string; deliveryEstimate: string; totalPrice: string; currency: string }> };
+    },
+  });
+
+  const createLabelMutation = useMutation({
+    mutationFn: async ({ carrier, service }: { carrier: string; service: string }) => {
+      const { data } = await api.post(`/shipping/labels/${orderId}`, { carrier, service });
+      return data;
+    },
+    onSuccess: () => {
+      setShippingModalOpen(false);
+      setSelectedRate(null);
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
+
+  const cancelShipmentMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/shipping/cancel/${orderId}`);
+      return data;
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
@@ -235,6 +269,25 @@ export default function OrderDetailPage() {
                 onClick={() => setDeliverModalOpen(true)}
               >
                 Registrar Entrega
+              </Button>
+            )}
+            {order.status === 'PAID' && !order.shipment && (
+              <Button
+                variant="outline"
+                icon={<Package className="h-4 w-4" />}
+                onClick={() => { setShippingModalOpen(true); quoteRatesMutation.mutate(); }}
+              >
+                Cotizar Envío
+              </Button>
+            )}
+            {order.status === 'SHIPPED' && order.shipment && (
+              <Button
+                variant="danger"
+                icon={<X className="h-4 w-4" />}
+                onClick={() => { if (confirm('¿Cancelar guía de envío?')) cancelShipmentMutation.mutate(); }}
+                disabled={cancelShipmentMutation.isPending}
+              >
+                {cancelShipmentMutation.isPending ? 'Cancelando...' : 'Cancelar Guía'}
               </Button>
             )}
             {deliverMutation.isError && (
@@ -409,6 +462,159 @@ export default function OrderDetailPage() {
           />
         </div>
       </Card>
+
+      {/* Shipping Info */}
+      <Card padding={false}>
+        <div className="flex items-center justify-between border-b border-glass-border px-6 py-4">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Truck className="h-5 w-5 text-white/40" /> Envío
+          </h3>
+          {order.status === 'PAID' && !order.shipment && (
+            <Button
+              variant="primary"
+              icon={<Package className="h-4 w-4" />}
+              onClick={() => { setShippingModalOpen(true); quoteRatesMutation.mutate(); }}
+            >
+              Cotizar Envío
+            </Button>
+          )}
+        </div>
+        <div className="p-6">
+          {order.shipment ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div>
+                  <p className="text-xs text-white/40">Transportadora</p>
+                  <p className="text-sm font-medium text-white capitalize">{order.shipment.carrier || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/40">Servicio</p>
+                  <p className="text-sm font-medium text-white">{order.shipment.service || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/40">Guía</p>
+                  <p className="text-sm font-medium text-white font-mono">{order.shipment.trackingNumber || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/40">Costo</p>
+                  <p className="text-sm font-medium text-white">{order.shipment.totalPrice ? formatCurrency(order.shipment.totalPrice) : '-'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                {order.shipment.trackUrl && (
+                  <a
+                    href={order.shipment.trackUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-accent-purple hover:underline"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> Rastrear envío
+                  </a>
+                )}
+                {order.shipment.labelUrl && (
+                  <a
+                    href={order.shipment.labelUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-accent-purple hover:underline"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> Ver guía PDF
+                  </a>
+                )}
+              </div>
+              {cancelShipmentMutation.isError && (
+                <p className="text-xs text-status-danger">
+                  Error: {(cancelShipmentMutation.error as any)?.response?.data?.message || 'No se pudo cancelar la guía'}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-center text-sm text-white/40">
+              {order.status === 'PAID'
+                ? 'Sin guía generada. Usa "Cotizar Envío" para generar una.'
+                : 'Sin información de envío.'}
+            </p>
+          )}
+        </div>
+      </Card>
+
+      {/* Shipping Quote Modal */}
+      <Modal
+        open={shippingModalOpen}
+        onClose={() => { setShippingModalOpen(false); setSelectedRate(null); quoteRatesMutation.reset(); }}
+        title="Cotizar Envío — Envia.com"
+        size="md"
+      >
+        <div className="space-y-4">
+          {quoteRatesMutation.isPending && (
+            <div className="flex items-center justify-center gap-3 py-8">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent-purple border-t-transparent" />
+              <p className="text-sm text-white/50">Consultando tarifas...</p>
+            </div>
+          )}
+          {quoteRatesMutation.isError && (
+            <div className="rounded-lg border border-status-danger/30 bg-status-danger/10 p-4">
+              <p className="text-sm text-status-danger">
+                {(quoteRatesMutation.error as any)?.response?.data?.message || 'Error al consultar tarifas'}
+              </p>
+            </div>
+          )}
+          {quoteRatesMutation.data && (
+            <>
+              {quoteRatesMutation.data.rates.length === 0 ? (
+                <p className="py-6 text-center text-sm text-white/50">No hay tarifas disponibles para esta dirección.</p>
+              ) : (
+                <div className="space-y-2">
+                  {quoteRatesMutation.data.rates.map((rate, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedRate(rate)}
+                      className={`w-full rounded-xl border p-4 text-left transition-colors ${
+                        selectedRate?.carrier === rate.carrier && selectedRate?.service === rate.service
+                          ? 'border-accent-purple bg-accent-purple/10'
+                          : 'border-glass-border bg-glass-50 hover:border-accent-purple/40'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold capitalize text-white">{rate.carrier}</p>
+                          <p className="text-xs text-white/50">{rate.serviceDescription || rate.service}</p>
+                          <p className="mt-0.5 text-xs text-white/30">Entrega: {rate.deliveryEstimate}</p>
+                        </div>
+                        <p className="text-lg font-bold text-accent-purple">{formatCurrency(Number(rate.totalPrice))}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedRate && (
+                <div className="flex justify-end gap-3 border-t border-glass-border pt-4">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setSelectedRate(null)}
+                    disabled={createLabelMutation.isPending}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    variant="primary"
+                    icon={<Truck className="h-4 w-4" />}
+                    onClick={() => createLabelMutation.mutate({ carrier: selectedRate.carrier, service: selectedRate.service })}
+                    disabled={createLabelMutation.isPending}
+                  >
+                    {createLabelMutation.isPending ? 'Generando guía...' : `Generar Guía — ${formatCurrency(Number(selectedRate.totalPrice))}`}
+                  </Button>
+                </div>
+              )}
+              {createLabelMutation.isError && (
+                <p className="text-right text-xs text-status-danger">
+                  {(createLabelMutation.error as any)?.response?.data?.message || 'No se pudo generar la guía'}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </Modal>
 
       {/* Deliver Modal */}
       <Modal
