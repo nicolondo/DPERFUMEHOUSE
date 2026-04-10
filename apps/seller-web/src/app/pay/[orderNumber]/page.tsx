@@ -238,7 +238,17 @@ export default function PayPage() {
           const bData = await banksRes.json();
           const list = Array.isArray(bData) ? bData : (bData.data || bData.banks || []);
           // Filter out placeholder entry (code "0")
-          setPseBanks(list.filter((b: any) => b.financial_institution_code !== '0'));
+          const filtered = list.filter((b: any) => b.financial_institution_code !== '0');
+          const PRIORITY = ['bancolombia', 'davivienda'];
+          filtered.sort((a: any, b: any) => {
+            const ai = PRIORITY.findIndex((p) => a.financial_institution_name.toLowerCase().includes(p));
+            const bi = PRIORITY.findIndex((p) => b.financial_institution_name.toLowerCase().includes(p));
+            if (ai !== -1 && bi !== -1) return ai - bi;
+            if (ai !== -1) return -1;
+            if (bi !== -1) return 1;
+            return a.financial_institution_name.localeCompare(b.financial_institution_name);
+          });
+          setPseBanks(filtered);
         }
       } catch (err: any) {
         setError(err.message || 'Error al cargar el pedido.');
