@@ -25,6 +25,7 @@ import { QuestionnaireQuestionsModule } from './questionnaire-questions/question
 import { PerfumeSearchModule } from './perfume-search/perfume-search.module';
 import { ProposalsModule } from './proposals/proposals.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { SellerProductLinksModule } from './seller-product-links/seller-product-links.module';
 
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     PerfumeSearchModule,
     ProposalsModule,
     NotificationsModule,
+    SellerProductLinksModule,
   ],
 })
 export class AppModule {}
