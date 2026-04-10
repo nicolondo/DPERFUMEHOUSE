@@ -335,7 +335,15 @@ export default function PayPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error al procesar el pago.');
-      if (data.collectReference) setCollectReference(data.collectReference);
+      // Extract collectReference from initial response (Wompi returns it immediately)
+      if (data.data?.payment_method?.extra?.business_agreement_code) {
+        setCollectReference({
+          businessAgreementCode: data.data.payment_method.extra.business_agreement_code,
+          paymentIntentionIdentifier: data.data.payment_method.extra.payment_intention_identifier,
+        });
+      } else if (data.collectReference) {
+        setCollectReference(data.collectReference);
+      }
       if (data.data?.id) {
         setTransactionId(data.data.id);
         setPaymentStatus(data.data.status || 'PENDING');
@@ -411,8 +419,8 @@ export default function PayPage() {
     );
   }
 
-  /* ---- Payment result ---- */
-  if (paymentStatus) {
+  /* ---- Payment result (skip for Corresponsal while PENDING — show reference instead) ---- */
+  if (paymentStatus && !(paymentMethod === 'BANCOLOMBIA_COLLECT' && paymentStatus === 'PENDING')) {
     const labels: Record<string, string> = {
       CARD: 'Tarjeta', NEQUI: 'Nequi', PSE: 'PSE',
       BANCOLOMBIA_TRANSFER: 'Bancolombia', BANCOLOMBIA_COLLECT: 'Corresponsal', DAVIPLATA: 'Daviplata',
@@ -706,7 +714,7 @@ export default function PayPage() {
                 onSubmit={() => submitDirectTransaction({})}
                 loading={submitting}
                 reference={collectReference}
-                amount={widgetConfig ? widgetConfig.amountInCents / 100 : undefined}
+                amount={widgetConfig ? widgetConfig.amountInCents / 100 : publicData ? publicData.amountInCents / 100 : undefined}
               />
             )}
             {paymentMethod === 'DAVIPLATA' && (
