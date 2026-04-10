@@ -321,7 +321,6 @@ export default function PayPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error al procesar el pago.');
       if (data.collectReference) setCollectReference(data.collectReference);
-      if (data.data?.redirect_url) { window.location.href = data.data.redirect_url; return; }
       if (data.data?.id) {
         setTransactionId(data.data.id);
         setPaymentStatus(data.data.status || 'PENDING');
