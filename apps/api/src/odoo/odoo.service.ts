@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SettingsService } from '../settings/settings.service';
 import * as xmlrpc from 'xmlrpc';
+import * as https from 'https';
+import * as http from 'http';
 
 export interface OdooProduct {
   id: number;
@@ -103,6 +105,62 @@ export class OdooService {
     // Already formatted with dash
     if (/^\d+-\d$/.test(nit)) return nit;
     return `${digits.slice(0, -1)}-${digits.slice(-1)}`;
+  }
+
+  /**
+   * Execute via JSON-RPC for methods that may return None (e.g. action_post).
+   * XML-RPC cannot serialize None; JSON-RPC handles it as null.
+   */
+  private async executeJsonRpc(
+    model: string,
+    method: string,
+    args: any[],
+    kwargs: Record<string, any> = {},
+  ): Promise<any> {
+    const creds = await this.getCredentials();
+    const parsedUrl = new URL(creds.url);
+    const isSecure = parsedUrl.protocol === 'https:';
+    const payload = JSON.stringify({
+      jsonrpc: '2.0',
+      id: Date.now(),
+      method: 'call',
+      params: {
+        service: 'object',
+        method: 'execute_kw',
+        args: [creds.db, creds.uid, creds.apiKey, model, method, args, kwargs],
+      },
+    });
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error(`Odoo JSON-RPC timeout for ${model}.${method}`)), 30000);
+      const transport = isSecure ? https : http;
+      const req = transport.request(
+        {
+          hostname: parsedUrl.hostname,
+          port: parsedUrl.port ? parseInt(parsedUrl.port, 10) : isSecure ? 443 : 80,
+          path: '/jsonrpc',
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+        },
+        (res) => {
+          let data = '';
+          res.on('data', (chunk) => (data += chunk));
+          res.on('end', () => {
+            clearTimeout(timeout);
+            try {
+              const json = JSON.parse(data);
+              if (json.error) reject(new Error(JSON.stringify(json.error)));
+              else resolve(json.result);
+            } catch (e) {
+              reject(e);
+            }
+          });
+        },
+      );
+      req.on('error', (e) => { clearTimeout(timeout); reject(e); });
+      req.write(payload);
+      req.end();
+    });
   }
 
   private async execute(
@@ -878,6 +936,16 @@ export class OdooService {
       payResult && typeof payResult === 'object' && payResult.res_id
         ? payResult.res_id
         : 0;
+
+    // Confirm the payment (action_post) — uses JSON-RPC because action_post returns None
+    if (paymentId) {
+      try {
+        await this.executeJsonRpc('account.payment', 'action_post', [[paymentId]]);
+        this.logger.log(`Payment ${paymentId} posted (confirmed) for invoice ${invoiceName}`);
+      } catch (e) {
+        this.logger.warn(`Failed to post payment ${paymentId}: ${e.message}`);
+      }
+    }
 
     this.logger.log(
       `Payment registered for invoice ${invoiceName} on SO ${saleOrderId} (amount: ${amount})`,
