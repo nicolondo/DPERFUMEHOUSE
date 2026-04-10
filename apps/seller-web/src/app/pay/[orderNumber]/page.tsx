@@ -176,7 +176,7 @@ export default function PayPage() {
   const [publicData, setPublicData] = useState<PublicData | null>(null);
   const [publicDataLoading, setPublicDataLoading] = useState(true);
   const [publicDataError, setPublicDataError] = useState(false);
-  const [pseBanks, setPseBanks] = useState<Array<{ pseudonym: string; financial_institution_code: string }>>([]);
+  const [pseBanks, setPseBanks] = useState<Array<{ financial_institution_name: string; financial_institution_code: string }>>([]);
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [acceptanceChecked, setAcceptanceChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -235,7 +235,9 @@ export default function PayPage() {
         }
         if (banksRes.ok) {
           const bData = await banksRes.json();
-          setPseBanks(Array.isArray(bData) ? bData : bData.banks || []);
+          const list = Array.isArray(bData) ? bData : (bData.data || bData.banks || []);
+          // Filter out placeholder entry (code "0")
+          setPseBanks(list.filter((b: any) => b.financial_institution_code !== '0'));
         }
       } catch (err: any) {
         setError(err.message || 'Error al cargar el pedido.');
@@ -583,7 +585,7 @@ export default function PayPage() {
                     <option value="">Selecciona tu banco...</option>
                     {pseBanks.map((b) => (
                       <option key={b.financial_institution_code} value={b.financial_institution_code}>
-                        {b.pseudonym}
+                        {b.financial_institution_name}
                       </option>
                     ))}
                   </select>
