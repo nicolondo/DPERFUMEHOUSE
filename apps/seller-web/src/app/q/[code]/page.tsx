@@ -1,14 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Script from 'next/script';
+import Image from 'next/image';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const GOOGLE_MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+
+interface PerfumeResult {
+  id: string;
+  name: string;
+  brand: string;
+  image: string | null;
+}
 
 const QUESTIONS = [
   {
     id: 'forWhom',
-    question: '¿Es para vos o para regalar?',
+    question: '¿Es para ti o para regalar?',
     type: 'choice',
     options: [
       { value: 'self', label: 'Para mí', emoji: '✨' },
@@ -24,13 +34,13 @@ const QUESTIONS = [
   },
   {
     id: 'city',
-    question: '¿En qué ciudad vivís?',
-    type: 'text',
-    placeholder: 'Ej: Bogotá, Medellín, Cali...',
+    question: '¿En qué ciudad vives?',
+    type: 'city',
+    placeholder: 'Escribe tu ciudad...',
   },
   {
     id: 'occasion',
-    question: '¿Para qué momento lo querés?',
+    question: '¿Para qué momento lo quieres?',
     type: 'choice',
     options: [
       { value: 'daily', label: 'Día a día', emoji: '☀️' },
@@ -41,9 +51,9 @@ const QUESTIONS = [
   },
   {
     id: 'currentPerfume',
-    question: '¿Tenés algún perfume que te guste mucho?',
-    type: 'text',
-    placeholder: 'Ej: Sauvage, Black Opium, Aventus... o "no tengo"',
+    question: '¿Tienes algún perfume que te guste mucho?',
+    type: 'perfume',
+    placeholder: 'Escribe el nombre del perfume...',
   },
   {
     id: 'experience',
@@ -94,7 +104,7 @@ const QUESTIONS = [
   },
   {
     id: 'identity',
-    question: '¿Qué querés que tu perfume diga de vos?',
+    question: '¿Qué quieres que tu perfume diga de ti?',
     type: 'choice',
     options: [
       { value: 'confidence', label: 'Seguridad y poder', emoji: '👑' },
@@ -119,23 +129,148 @@ const BUDGET_OPTIONS = [
   { value: 'over500k', label: 'Más de $500.000' },
 ];
 
+// --- City Autocomplete Component ---
+function CityAutocomplete({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+
+  useEffect(() => {
+    if (!inputRef.current || !(window as any).google?.maps?.places) return;
+    if (autocompleteRef.current) return;
+
+    autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
+      types: ['(cities)'],
+      componentRestrictions: { country: 'co' },
+      fields: ['formatted_address', 'name'],
+    });
+
+    autocompleteRef.current.addListener('place_changed', () => {
+      const place = autocompleteRef.current!.getPlace();
+      if (place?.name) {
+        onChange(place.name);
+      }
+    });
+  }, [onChange]);
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full px-5 py-4 rounded-2xl bg-[#1a1510]/60 border border-[#8B7355]/20 text-white placeholder:text-white/25 focus:outline-none focus:border-[#8B7355]/60 text-lg"
+      autoFocus
+    />
+  );
+}
+
+// --- Perfume Autocomplete Component ---
+function PerfumeAutocomplete({ value, onChange, onTyping, placeholder }: { value: string; onChange: (v: string) => void; onTyping: (typing: boolean) => void; placeholder: string }) {
+  const [query, setQuery] = useState(value);
+  const [results, setResults] = useState<PerfumeResult[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const doSearch = useCallback(async (q: string) => {
+    if (q.trim().length < 3) { setResults([]); setShowDropdown(false); setSearching(false); return; }
+    setSearching(true);
+    try {
+      const res = await fetch(`${API_URL}/perfume-search?q=${encodeURIComponent(q)}&limit=6`);
+      const data = await res.json();
+      setResults(Array.isArray(data) ? data : []);
+      setShowDropdown(true);
+    } catch { setResults([]); }
+    setSearching(false);
+  }, []);
+
+  const handleChange = (text: string) => {
+    setQuery(text);
+    onChange(text);
+    // Signal typing started — block "Siguiente" for 2.5s
+    onTyping(true);
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => onTyping(false), 2500);
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => doSearch(text), 400);
+  };
+
+  const selectPerfume = (p: PerfumeResult) => {
+    const displayName = `${p.name} - ${p.brand}`;
+    setQuery(displayName);
+    onChange(displayName);
+    setShowDropdown(false);
+    onTyping(false);
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+  };
+
+  useEffect(() => { return () => { if (debounceRef.current) clearTimeout(debounceRef.current); if (typingTimerRef.current) clearTimeout(typingTimerRef.current); }; }, []);
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => handleChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full px-5 py-4 rounded-2xl bg-[#1a1510]/60 border border-[#8B7355]/20 text-white placeholder:text-white/25 focus:outline-none focus:border-[#8B7355]/60 text-lg"
+        autoFocus
+        autoComplete="off"
+      />
+      {searching && (
+        <div className="absolute right-4 top-1/2 -translate-y-1/2">
+          <div className="w-5 h-5 border-2 border-[#8B7355]/40 border-t-[#8B7355] rounded-full animate-spin" />
+        </div>
+      )}
+      {showDropdown && results.length > 0 && (
+        <div className="absolute left-0 right-0 top-full mt-2 rounded-2xl bg-[#1a1510] border border-[#8B7355]/20 shadow-xl overflow-hidden z-50 max-h-72 overflow-y-auto">
+          {results.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => selectPerfume(p)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#8B7355]/10 transition-colors text-left"
+            >
+              {p.image && (
+                <img src={p.image} alt="" className="w-10 h-10 rounded-lg object-cover bg-white/10 flex-shrink-0" />
+              )}
+              <div className="min-w-0">
+                <p className="text-white text-sm font-medium truncate">{p.name}</p>
+                <p className="text-white/40 text-xs truncate">{p.brand}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      {query.trim().length >= 3 && !searching && showDropdown && results.length === 0 && (
+        <div className="absolute left-0 right-0 top-full mt-2 rounded-2xl bg-[#1a1510] border border-[#8B7355]/20 p-4 text-center text-white/40 text-sm z-50">
+          No se encontraron perfumes. Puedes escribir el nombre manualmente.
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function QuestionnairePage() {
   const params = useParams<{ code: string }>();
   const router = useRouter();
-  const [step, setStep] = useState(0); // 0 = intro, 1..N = questions, N+1 = contact, N+2 = loading
+  const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [sellerInfo, setSeller] = useState<{ sellerId: string; sellerName: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [contact, setContact] = useState({ name: '', email: '', phone: '', budget: '' });
   const [error, setError] = useState('');
+  const [perfumeTyping, setPerfumeTyping] = useState(false);
+  const [mapsLoaded, setMapsLoaded] = useState(false);
 
-  // Filter visible questions
   const visibleQuestions = QUESTIONS.filter((q) => {
     if (q.showIf) return q.showIf(answers);
     return true;
   });
-  const totalSteps = visibleQuestions.length + 2; // intro + questions + contact
+  const totalSteps = visibleQuestions.length + 2;
 
   useEffect(() => {
     fetch(`${API_URL}/leads/questionnaire/${params.code}`)
@@ -150,7 +285,6 @@ export default function QuestionnairePage() {
   }, [params.code]);
 
   const currentQuestion = step > 0 && step <= visibleQuestions.length ? visibleQuestions[step - 1] : null;
-
   const progress = Math.round(((step) / totalSteps) * 100);
 
   const setAnswer = (id: string, value: any) => {
@@ -161,6 +295,8 @@ export default function QuestionnairePage() {
     if (step === 0) return true;
     if (!currentQuestion) return true;
     if (currentQuestion.optional) return true;
+    // Block while typing perfume name (waiting for autocomplete)
+    if (currentQuestion.type === 'perfume' && perfumeTyping) return false;
     const val = answers[currentQuestion.id];
     if (!val || (typeof val === 'string' && !val.trim())) return false;
     if (Array.isArray(val) && val.length === 0) return false;
@@ -212,50 +348,60 @@ export default function QuestionnairePage() {
 
   if (loading) {
     return (
-      <div className="min-h-dvh bg-[#0a0a0f] flex items-center justify-center">
-        <div className="animate-pulse text-amber-400/60 text-lg">Cargando...</div>
+      <div className="min-h-dvh bg-[#0f0d0a] flex items-center justify-center">
+        <div className="animate-pulse text-[#8B7355]/60 text-lg">Cargando...</div>
       </div>
     );
   }
 
   if (error && !sellerInfo) {
     return (
-      <div className="min-h-dvh bg-[#0a0a0f] flex items-center justify-center p-6">
+      <div className="min-h-dvh bg-[#0f0d0a] flex items-center justify-center p-6">
         <div className="text-center">
           <p className="text-red-400 text-lg">{error}</p>
-          <p className="text-white/40 mt-2 text-sm">Verificá el link con tu asesor(a)</p>
+          <p className="text-white/40 mt-2 text-sm">Verifica el link con tu asesor(a)</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-dvh bg-[#0a0a0f] text-white flex flex-col">
+    <div className="min-h-dvh bg-[#0f0d0a] text-white flex flex-col">
+      {/* Google Maps Script */}
+      <Script
+        src={`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places`}
+        onLoad={() => setMapsLoaded(true)}
+      />
+
       {/* Progress bar */}
       {step > 0 && (
         <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-white/10">
           <div
-            className="h-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all duration-500 ease-out"
+            className="h-full bg-gradient-to-r from-[#8B7355] to-[#C4A97D] transition-all duration-500 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
       )}
 
       <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-lg mx-auto w-full">
+        {/* Logo — always visible */}
+        <div className="mb-8 flex-shrink-0">
+          <Image src="/logo.svg" alt="D'Perfume House" width={200} height={60} priority className="mx-auto" />
+        </div>
+
         {/* Intro */}
         {step === 0 && (
           <div className="text-center animate-fadeIn space-y-6">
-            <div className="text-5xl mb-4">🌿</div>
             <h1 className="text-3xl font-light tracking-tight">
-              Encontrá tu <span className="text-amber-400 font-medium">perfume ideal</span>
+              Encuentra tu <span className="text-[#C4A97D] font-medium">perfume ideal</span>
             </h1>
             <p className="text-white/50 text-lg leading-relaxed">
-              Respondé unas preguntas rápidas y te recomendaremos las fragancias perfectas para vos.
+              Responde unas preguntas rápidas y te recomendaremos las fragancias perfectas para ti.
             </p>
             <p className="text-white/30 text-sm">Solo toma 2 minutos ⏱️</p>
             <button
               onClick={next}
-              className="mt-8 px-10 py-4 bg-gradient-to-r from-amber-500 to-amber-600 text-black font-semibold rounded-full text-lg hover:from-amber-400 hover:to-amber-500 transition-all active:scale-95 shadow-lg shadow-amber-500/20"
+              className="mt-8 px-10 py-4 bg-gradient-to-r from-[#8B7355] to-[#6B5740] text-white font-semibold rounded-full text-lg hover:from-[#9B8365] hover:to-[#7B6750] transition-all active:scale-95 shadow-lg shadow-[#8B7355]/20"
             >
               Empezar
             </button>
@@ -288,8 +434,8 @@ export default function QuestionnairePage() {
                     }}
                     className={`w-full text-left px-5 py-4 rounded-2xl border transition-all active:scale-[0.98] ${
                       answers[currentQuestion.id] === opt.value
-                        ? 'border-amber-500 bg-amber-500/10 text-amber-300'
-                        : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+                        ? 'border-[#8B7355] bg-[#8B7355]/10 text-[#C4A97D]'
+                        : 'border-white/10 bg-white/5 hover:border-[#8B7355]/30 hover:bg-white/10'
                     }`}
                   >
                     <span className="mr-3 text-lg">{(opt as any).emoji}</span>
@@ -320,8 +466,8 @@ export default function QuestionnairePage() {
                       }}
                       className={`w-full text-left px-5 py-4 rounded-2xl border transition-all active:scale-[0.98] ${
                         isSelected
-                          ? 'border-amber-500 bg-amber-500/10 text-amber-300'
-                          : 'border-white/10 bg-white/5 hover:border-white/20'
+                          ? 'border-[#8B7355] bg-[#8B7355]/10 text-[#C4A97D]'
+                          : 'border-white/10 bg-white/5 hover:border-[#8B7355]/30'
                       }`}
                     >
                       <span className="mr-3">{isSelected ? '✓' : '○'}</span>
@@ -338,10 +484,46 @@ export default function QuestionnairePage() {
                 value={answers[currentQuestion.id] || ''}
                 onChange={(e) => setAnswer(currentQuestion.id, e.target.value)}
                 placeholder={currentQuestion.placeholder}
-                className="w-full px-5 py-4 rounded-2xl bg-white/5 border border-white/10 text-white placeholder:text-white/25 focus:outline-none focus:border-amber-500/50 text-lg"
+                className="w-full px-5 py-4 rounded-2xl bg-[#1a1510]/60 border border-[#8B7355]/20 text-white placeholder:text-white/25 focus:outline-none focus:border-[#8B7355]/60 text-lg"
                 onKeyDown={(e) => e.key === 'Enter' && canProceed() && next()}
                 autoFocus
               />
+            )}
+
+            {currentQuestion.type === 'city' && mapsLoaded && (
+              <CityAutocomplete
+                value={answers[currentQuestion.id] || ''}
+                onChange={(v) => setAnswer(currentQuestion.id, v)}
+                placeholder={currentQuestion.placeholder || ''}
+              />
+            )}
+            {currentQuestion.type === 'city' && !mapsLoaded && (
+              <input
+                type="text"
+                value={answers[currentQuestion.id] || ''}
+                onChange={(e) => setAnswer(currentQuestion.id, e.target.value)}
+                placeholder={currentQuestion.placeholder}
+                className="w-full px-5 py-4 rounded-2xl bg-[#1a1510]/60 border border-[#8B7355]/20 text-white placeholder:text-white/25 focus:outline-none focus:border-[#8B7355]/60 text-lg"
+                onKeyDown={(e) => e.key === 'Enter' && canProceed() && next()}
+                autoFocus
+              />
+            )}
+
+            {currentQuestion.type === 'perfume' && (
+              <div>
+                <PerfumeAutocomplete
+                  value={answers[currentQuestion.id] || ''}
+                  onChange={(v) => setAnswer(currentQuestion.id, v)}
+                  onTyping={setPerfumeTyping}
+                  placeholder={currentQuestion.placeholder || ''}
+                />
+                <button
+                  onClick={() => { setAnswer(currentQuestion.id, 'No tengo'); setPerfumeTyping(false); setTimeout(next, 200); }}
+                  className="mt-3 text-sm text-white/30 hover:text-white/50 transition-colors underline underline-offset-4"
+                >
+                  No tengo ninguno en mente
+                </button>
+              </div>
             )}
 
             {/* Nav buttons */}
@@ -356,9 +538,16 @@ export default function QuestionnairePage() {
                 <button
                   onClick={next}
                   disabled={!canProceed()}
-                  className="flex-1 px-6 py-3 rounded-full bg-amber-500 text-black font-medium disabled:opacity-30 disabled:cursor-not-allowed hover:bg-amber-400 transition-all active:scale-95"
+                  className="flex-1 px-6 py-3 rounded-full bg-[#8B7355] text-white font-medium disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#9B8365] transition-all active:scale-95"
                 >
-                  Siguiente →
+                  {currentQuestion.type === 'perfume' && perfumeTyping ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      Buscando...
+                    </span>
+                  ) : (
+                    'Siguiente →'
+                  )}
                 </button>
               )}
             </div>
@@ -370,7 +559,7 @@ export default function QuestionnairePage() {
           <div className="w-full animate-fadeIn space-y-6">
             <h2 className="text-2xl font-light mb-2">¡Casi listo! ✨</h2>
             <p className="text-white/40 text-sm mb-6">
-              Dejanos tus datos para enviarte las recomendaciones
+              Déjanos tus datos para enviarte las recomendaciones
             </p>
 
             <div className="space-y-4">
@@ -379,7 +568,7 @@ export default function QuestionnairePage() {
                 value={contact.name}
                 onChange={(e) => setContact((c) => ({ ...c, name: e.target.value }))}
                 placeholder="Tu nombre *"
-                className="w-full px-5 py-4 rounded-2xl bg-white/5 border border-white/10 text-white placeholder:text-white/25 focus:outline-none focus:border-amber-500/50"
+                className="w-full px-5 py-4 rounded-2xl bg-[#1a1510]/60 border border-[#8B7355]/20 text-white placeholder:text-white/25 focus:outline-none focus:border-[#8B7355]/60"
                 autoFocus
               />
               <input
@@ -387,14 +576,14 @@ export default function QuestionnairePage() {
                 value={contact.email}
                 onChange={(e) => setContact((c) => ({ ...c, email: e.target.value }))}
                 placeholder="Tu email (opcional)"
-                className="w-full px-5 py-4 rounded-2xl bg-white/5 border border-white/10 text-white placeholder:text-white/25 focus:outline-none focus:border-amber-500/50"
+                className="w-full px-5 py-4 rounded-2xl bg-[#1a1510]/60 border border-[#8B7355]/20 text-white placeholder:text-white/25 focus:outline-none focus:border-[#8B7355]/60"
               />
               <input
                 type="tel"
                 value={contact.phone}
                 onChange={(e) => setContact((c) => ({ ...c, phone: e.target.value }))}
                 placeholder="Tu WhatsApp *"
-                className="w-full px-5 py-4 rounded-2xl bg-white/5 border border-white/10 text-white placeholder:text-white/25 focus:outline-none focus:border-amber-500/50"
+                className="w-full px-5 py-4 rounded-2xl bg-[#1a1510]/60 border border-[#8B7355]/20 text-white placeholder:text-white/25 focus:outline-none focus:border-[#8B7355]/60"
               />
 
               <div>
@@ -406,8 +595,8 @@ export default function QuestionnairePage() {
                       onClick={() => setContact((c) => ({ ...c, budget: c.budget === opt.value ? '' : opt.value }))}
                       className={`px-4 py-3 rounded-xl text-sm border transition-all ${
                         contact.budget === opt.value
-                          ? 'border-amber-500 bg-amber-500/10 text-amber-300'
-                          : 'border-white/10 bg-white/5 text-white/60 hover:border-white/20'
+                          ? 'border-[#8B7355] bg-[#8B7355]/10 text-[#C4A97D]'
+                          : 'border-white/10 bg-white/5 text-white/60 hover:border-[#8B7355]/30'
                       }`}
                     >
                       {opt.label}
@@ -427,7 +616,7 @@ export default function QuestionnairePage() {
               <button
                 onClick={submit}
                 disabled={!contact.name.trim() || !contact.phone.trim() || submitting}
-                className="flex-1 px-6 py-4 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 text-black font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:from-amber-400 hover:to-amber-500 transition-all active:scale-95"
+                className="flex-1 px-6 py-4 rounded-full bg-gradient-to-r from-[#8B7355] to-[#6B5740] text-white font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:from-[#9B8365] hover:to-[#7B6750] transition-all active:scale-95"
               >
                 {submitting ? (
                   <span className="flex items-center justify-center gap-2">
@@ -452,6 +641,40 @@ export default function QuestionnairePage() {
         .animate-fadeIn {
           animation: fadeIn 0.4s ease-out;
         }
+        /* Google Maps autocomplete dropdown styling */
+        .pac-container {
+          background: #1a1510 !important;
+          border: 1px solid rgba(139, 115, 85, 0.2) !important;
+          border-radius: 16px !important;
+          margin-top: 8px !important;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.5) !important;
+          font-family: inherit !important;
+          overflow: hidden !important;
+        }
+        .pac-item {
+          border: none !important;
+          padding: 12px 16px !important;
+          color: #fff !important;
+          cursor: pointer !important;
+          font-size: 14px !important;
+          line-height: 1.4 !important;
+        }
+        .pac-item:hover {
+          background: rgba(139, 115, 85, 0.1) !important;
+        }
+        .pac-item-query {
+          color: #C4A97D !important;
+          font-size: 14px !important;
+        }
+        .pac-matched {
+          font-weight: 600 !important;
+        }
+        .pac-icon { display: none !important; }
+        .pac-item span:last-child {
+          color: rgba(255,255,255,0.4) !important;
+          font-size: 12px !important;
+        }
+        .pac-logo::after { display: none !important; }
       `}</style>
     </div>
   );

@@ -185,7 +185,7 @@ export default function ResultsPage() {
         )}
 
         <p className="text-center text-white/20 text-xs">
-          Pedí tu muestra y probá antes de comprar 🌿
+          Pide tu muestra y prueba antes de comprar 🌿
         </p>
       </div>
 
