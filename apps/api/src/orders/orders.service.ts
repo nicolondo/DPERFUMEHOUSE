@@ -195,7 +195,7 @@ export class OrdersService {
         paymentStatus: true,
         createdAt: true,
         customer: {
-          select: { name: true },
+          select: { name: true, email: true, phone: true, documentType: true, documentNumber: true },
         },
         seller: {
           select: { name: true, phone: true },

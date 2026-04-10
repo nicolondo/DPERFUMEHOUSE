@@ -58,7 +58,7 @@ interface OrderPublic {
   tax: string;
   shipping: string;
   total: string;
-  customer: { name: string };
+  customer: { name: string; email?: string | null; phone?: string | null; documentType?: string | null; documentNumber?: string | null };
   seller: { name: string; phone: string };
   paymentLink: { url: string; status: string } | null;
   items: Array<{
@@ -178,7 +178,7 @@ export default function PayPage() {
   const [publicDataError, setPublicDataError] = useState(false);
   const [pseBanks, setPseBanks] = useState<Array<{ financial_institution_name: string; financial_institution_code: string }>>([]);
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
-  const [acceptanceChecked, setAcceptanceChecked] = useState(false);
+  const [acceptanceChecked, setAcceptanceChecked] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [transactionId, setTransactionId] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
@@ -341,6 +341,7 @@ export default function PayPage() {
   const handleRetry = useCallback(() => {
     setPaymentStatus(null); setTransactionId(null); setPaymentMethod(null);
     setNequiWaiting(false); setCollectReference(undefined); setError('');
+    setAcceptanceChecked(true);
     setPseBankCode(''); setPseLegalId(''); setPseEmail('');
   }, []);
 
@@ -524,7 +525,16 @@ export default function PayPage() {
                 onClick={() => {
                   const next = paymentMethod === m.id ? null : m.id;
                   setPaymentMethod(next);
-                  setAcceptanceChecked(false);
+                  setAcceptanceChecked(true);
+                  // Pre-fill PSE fields from customer data
+                  if (next === 'PSE' && order) {
+                    if (order.customer.email) setPseEmail(order.customer.email);
+                    if (order.customer.documentNumber) setPseLegalId(order.customer.documentNumber);
+                    if (order.customer.documentType) {
+                      const dt = order.customer.documentType.toUpperCase();
+                      if (['CC', 'NIT', 'CE', 'PP'].includes(dt)) setPseLegalIdType(dt);
+                    }
+                  }
                   if (next && !publicData && !publicDataLoading) fetchPublicData();
                 }}
                 className={`rounded-2xl border p-4 text-center transition-all duration-150 cursor-pointer active:scale-[0.96] ${
