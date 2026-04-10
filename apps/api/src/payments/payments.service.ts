@@ -470,19 +470,29 @@ export class PaymentsService {
         idOrNumber,
       );
 
-    const order = await this.prisma.order.findFirst({
-      where: isUuid
-        ? { id: idOrNumber }
-        : { orderNumber: idOrNumber },
-      include: {
-        customer: true,
-        items: {
-          include: {
-            variant: { include: { images: true } },
-          },
+    // Normalize: if not UUID and missing PH- prefix, try both variants
+    const candidates: string[] = isUuid
+      ? []
+      : [
+          idOrNumber,
+          idOrNumber.startsWith('PH-') ? idOrNumber : `PH-${idOrNumber}`,
+        ].filter((v, i, arr) => arr.indexOf(v) === i);
+
+    const include = {
+      customer: true,
+      items: {
+        include: {
+          variant: { include: { images: true } },
         },
       },
-    });
+    };
+
+    const order = isUuid
+      ? await this.prisma.order.findFirst({ where: { id: idOrNumber }, include })
+      : await this.prisma.order.findFirst({
+          where: { orderNumber: { in: candidates } },
+          include,
+        });
 
     if (!order) {
       throw new NotFoundException(`Order ${idOrNumber} not found`);
