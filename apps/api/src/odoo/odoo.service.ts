@@ -550,7 +550,6 @@ export class OdooService {
         'search_read',
         [
           [
-            ['origin', 'like', `SO`],
             ['sale_id', '=', saleOrderId],
           ],
         ],

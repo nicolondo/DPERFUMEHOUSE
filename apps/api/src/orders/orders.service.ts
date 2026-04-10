@@ -780,8 +780,8 @@ export class OrdersService {
       throw new NotFoundException(`Order ${orderId} not found`);
     }
 
-    if (order.status !== 'PAID') {
-      throw new BadRequestException(`Order must be in PAID status to sync with Odoo`);
+    if (order.status !== 'PAID' && order.status !== 'DELIVERED') {
+      throw new BadRequestException(`Order must be in PAID or DELIVERED status to sync with Odoo`);
     }
 
     // Step 1: Ensure Odoo partner exists (recover if stored ID is invalid)
