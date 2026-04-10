@@ -474,7 +474,7 @@ export class PaymentsService {
         customer: true,
         items: {
           include: {
-            variant: { include: { product: true } },
+            variant: { include: { images: true } },
           },
         },
       },
@@ -519,12 +519,15 @@ export class PaymentsService {
         customerName: order.customer.name,
         customerPhone: order.customer.phone || '',
         total: Number(order.total),
-        items: order.items.map((item) => ({
-          productName: item.variant.product.name,
-          quantity: item.quantity,
-          price: Number(item.unitPrice),
-          imageUrl: (item.variant.product as any).imageUrl || undefined,
-        })),
+        items: order.items.map((item) => {
+          const primaryImg = item.variant.images?.find((img) => img.isPrimary) || item.variant.images?.[0];
+          return {
+            productName: item.variant.name,
+            quantity: item.quantity,
+            price: Number(item.unitPrice),
+            imageUrl: primaryImg?.thumbnailUrl || primaryImg?.url || undefined,
+          };
+        }),
       },
     };
   }
@@ -641,7 +644,7 @@ export class PaymentsService {
     }
 
     const customerEmail =
-      body.customerEmail || order.customer.email || '';
+      body.customerEmail || order.customer?.email || '';
 
     const result = await this.wompiService.createTransaction({
       amountInCents,
