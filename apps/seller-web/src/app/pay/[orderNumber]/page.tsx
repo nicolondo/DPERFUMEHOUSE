@@ -662,11 +662,10 @@ export default function PayPage() {
                   type="button"
                   disabled={!pseBankCode || !pseLegalId || !pseEmail || submitting}
                   onClick={() => submitDirectTransaction({
-                    financial_institution_code: pseBankCode,
-                    payment_description: `Pedido ${order?.orderNumber}`,
-                    user_type: pseUserType,
-                    user_legal_id_type: pseLegalIdType,
-                    user_legal_id: pseLegalId,
+                    financialInstitutionCode: pseBankCode,
+                    userType: pseUserType,
+                    userLegalIdType: pseLegalIdType,
+                    userLegalId: pseLegalId,
                     customerEmail: pseEmail,
                   })}
                   className="w-full py-3 rounded-xl font-semibold text-sm transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"

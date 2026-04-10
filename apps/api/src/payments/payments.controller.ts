@@ -13,31 +13,56 @@ import {
   ParseUUIDPipe,
   Logger,
 } from '@nestjs/common';
+import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { PaymentsService } from './payments.service';
 
 class CreatePaymentLinkBodyDto {
+  @IsString() @IsNotEmpty()
   orderId: string;
 }
 
 class DirectTransactionBodyDto {
+  @IsString() @IsNotEmpty()
   paymentMethod: string;
+
+  @IsString() @IsNotEmpty()
   acceptanceToken: string;
+
   // Card
+  @IsOptional() @IsString()
   token?: string;
+
+  @IsOptional() @IsNumber()
   installments?: number;
+
+  @IsOptional() @IsString()
   customerEmail?: string;
-  // Nequi
+
+  // Nequi / Daviplata
+  @IsOptional() @IsString()
   phoneNumber?: string;
+
   // PSE
+  @IsOptional() @IsString()
   financialInstitutionCode?: string;
-  userType?: number;
+
+  @IsOptional()
+  userType?: number | string;
+
+  @IsOptional() @IsString()
   userLegalIdType?: string;
+
+  @IsOptional() @IsString()
   userLegalId?: string;
+
   // Daviplata
+  @IsOptional() @IsString()
   documentType?: string;
+
+  @IsOptional() @IsString()
   documentNumber?: string;
 }
 

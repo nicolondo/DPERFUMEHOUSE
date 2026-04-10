@@ -635,8 +635,7 @@ export class PaymentsService {
           payment_description: `Pago pedido ${reference}`.substring(0, 64),
         };
         break;
-      }
-      case 'BANCOLOMBIA_TRANSFER':
+      }      case 'BANCOLOMBIA_TRANSFER':
         paymentMethodPayload = {
           type: 'BANCOLOMBIA_TRANSFER',
           user_type: 'PERSON',
