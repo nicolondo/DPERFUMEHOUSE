@@ -383,7 +383,7 @@ export default function PayPage() {
     return (
       <div className="min-h-screen bg-[#0a0703] flex items-center justify-center p-6">
         <div className="w-full max-w-md text-center space-y-5">
-          <img src={`${process.env.NEXT_PUBLIC_APP_URL || ''}/icons/logo-email.png`} alt="D Perfume House" className="h-10 mx-auto opacity-80" />
+          <img src="/icons/logo-dperfumehouse.svg" alt="D Perfume House" style={{ width: 200 }} className="mx-auto opacity-90" />
           <div className="w-14 h-14 rounded-full bg-emerald-500/15 border-2 border-emerald-500 flex items-center justify-center mx-auto">
             <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth={2.5} className="w-7 h-7">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
@@ -426,9 +426,10 @@ export default function PayPage() {
 
         {/* Logo */}
         <img
-          src={`${process.env.NEXT_PUBLIC_APP_URL || ''}/icons/logo-email.png`}
+          src="/icons/logo-dperfumehouse.svg"
           alt="D Perfume House"
-          className="h-10 mx-auto opacity-90"
+          style={{ width: 200 }}
+          className="mx-auto opacity-90"
         />
 
         {/* Header */}
