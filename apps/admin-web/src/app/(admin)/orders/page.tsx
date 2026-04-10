@@ -1,14 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { fetchOrders, fetchUsers } from '@/lib/api';
+import api from '@/lib/api';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Input, Select } from '@/components/ui/input';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Search } from 'lucide-react';
+import { Search, Trash2 } from 'lucide-react';
 
 const orderStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info' | 'orange' | 'brown'> = {
   DRAFT: 'default',
@@ -56,7 +57,18 @@ const paymentStatusLabels: Record<string, string> = {
 
 export default function OrdersPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
+
+  const deleteOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { data } = await api.delete(`/orders/${orderId}`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
   const [status, setStatus] = useState('');
   const [sellerId, setSellerId] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -150,6 +162,26 @@ export default function OrdersPage() {
       key: 'createdAt',
       header: 'Fecha',
       render: (item) => <span className="text-sm text-white/50">{formatDate(item.createdAt)}</span>,
+    },
+    {
+      key: 'actions',
+      header: '',
+      render: (item) =>
+        item.status === 'PENDING' ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm(`¿Eliminar pedido #${item.orderNumber || item.id?.slice(0, 8)}? Esta acción no se puede deshacer.`)) {
+                deleteOrderMutation.mutate(item.id);
+              }
+            }}
+            disabled={deleteOrderMutation.isPending}
+            className="p-1.5 rounded-lg text-status-danger/60 hover:text-status-danger hover:bg-status-danger/10 transition-colors disabled:opacity-40"
+            title="Eliminar pedido"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        ) : null,
     },
   ];
 
