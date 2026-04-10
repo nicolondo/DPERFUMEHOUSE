@@ -357,7 +357,7 @@ export default function PayPage() {
   }, [orderNumber, paymentMethod]);
 
   const handleCardToken = useCallback((token: string, installments: number) => {
-    submitDirectTransaction({ token, installments, customerEmail: order?.customer?.name || '' });
+    submitDirectTransaction({ token, installments, customerEmail: order?.customer?.email || '' });
   }, [submitDirectTransaction, order]);
 
   const handleRetry = useCallback(() => {
