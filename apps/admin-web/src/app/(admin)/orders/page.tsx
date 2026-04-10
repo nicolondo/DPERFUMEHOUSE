@@ -167,7 +167,7 @@ export default function OrdersPage() {
       key: 'actions',
       header: '',
       render: (item) =>
-        item.status === 'PENDING' ? (
+        (item.status === 'PENDING' || item.status === 'PENDING_PAYMENT') ? (
           <button
             onClick={(e) => {
               e.stopPropagation();

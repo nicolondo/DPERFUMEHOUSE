@@ -1022,9 +1022,9 @@ export class OrdersService {
       throw new NotFoundException(`Order ${orderId} not found`);
     }
 
-    if (order.status !== 'PENDING') {
+    if (!['PENDING', 'PENDING_PAYMENT'].includes(order.status)) {
       throw new BadRequestException(
-        `Only PENDING orders can be deleted. Current status: ${order.status}`,
+        `Only PENDING or PENDING_PAYMENT orders can be deleted. Current status: ${order.status}`,
       );
     }
 

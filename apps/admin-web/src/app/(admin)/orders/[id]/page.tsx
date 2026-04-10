@@ -323,7 +323,7 @@ export default function OrderDetailPage() {
                 {cancelShipmentMutation.isPending ? 'Cancelando...' : 'Cancelar Guía'}
               </Button>
             )}
-            {order.status === 'PENDING' && (
+            {(order.status === 'PENDING' || order.status === 'PENDING_PAYMENT') && (
               <Button
                 variant="danger"
                 icon={<Trash2 className="h-4 w-4" />}
