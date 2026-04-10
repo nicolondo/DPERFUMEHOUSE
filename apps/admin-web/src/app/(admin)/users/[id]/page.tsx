@@ -505,7 +505,7 @@ export default function UserDetailPage() {
               {
                 key: 'name',
                 header: 'Cliente',
-                render: (c) => (
+                render: (c: any) => (
                   <div>
                     <p className="font-medium text-white">{c.name}</p>
                     <p className="text-xs text-white/50">{c.email}</p>
@@ -515,17 +515,17 @@ export default function UserDetailPage() {
               {
                 key: 'phone',
                 header: 'Teléfono',
-                render: (c) => <span className="text-white/70">{c.phone ? `${c.phoneCode || ''} ${c.phone}`.trim() : '-'}</span>,
+                render: (c: any) => <span className="text-white/70">{c.phone ? `${c.phoneCode || ''} ${c.phone}`.trim() : '-'}</span>,
               },
               {
                 key: 'city',
                 header: 'Ciudad',
-                render: (c) => <span className="text-white/70">{c.addresses?.[0]?.city || '-'}</span>,
+                render: (c: any) => <span className="text-white/70">{c.addresses?.[0]?.city || '-'}</span>,
               },
               {
                 key: 'createdAt',
                 header: 'Fecha',
-                render: (c) => <span className="text-white/50">{formatDate(c.createdAt)}</span>,
+                render: (c: any) => <span className="text-white/50">{formatDate(c.createdAt)}</span>,
               },
             ]}
             data={customersData?.items ?? customersData ?? []}
