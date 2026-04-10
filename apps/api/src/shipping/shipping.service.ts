@@ -182,17 +182,24 @@ export class ShippingService {
   private async buildPackages(order: { items: Array<{ quantity: number; unitPrice: any }>; subtotal: any }) {
     const pkg = await this.getDefaultPackage();
     const totalItems = order.items.reduce((sum, i) => sum + i.quantity, 0);
+    const ITEMS_PER_BOX = 4;
+    const DECLARED_VALUE_PER_ITEM = 20000;
+    const numBoxes = Math.ceil(totalItems / ITEMS_PER_BOX);
 
-    return [{
-      type: 'box',
-      content: 'Perfumes',
-      amount: totalItems,
-      declaredValue: Number(order.subtotal),
-      lengthUnit: 'CM',
-      weightUnit: 'KG',
-      weight: pkg.weight * totalItems,
-      dimensions: pkg.dimensions,
-    }];
+    return Array.from({ length: numBoxes }, (_, i) => {
+      const isLastBox = i === numBoxes - 1;
+      const itemsInBox = isLastBox ? totalItems - i * ITEMS_PER_BOX : ITEMS_PER_BOX;
+      return {
+        type: 'box',
+        content: 'Perfumes',
+        amount: 1,
+        declaredValue: itemsInBox * DECLARED_VALUE_PER_ITEM,
+        lengthUnit: 'CM',
+        weightUnit: 'KG',
+        weight: pkg.weight * itemsInBox,
+        dimensions: pkg.dimensions,
+      };
+    });
   }
 
   async getOrderForShipping(orderId: string) {
