@@ -319,14 +319,19 @@ export default function PayPage() {
 
   /* ---- submit direct transaction ---- */
   const submitDirectTransaction = useCallback(async (methodData: Record<string, any>) => {
-    if (!publicData) return;
     setSubmitting(true);
     setError('');
     try {
+      // Always fetch a fresh acceptance token — Wompi tokens are single-use
+      const pdRes = await fetch(`${API_URL}/payments/wompi-public-data/${orderNumber}`);
+      if (!pdRes.ok) throw new Error('No se pudo conectar con la pasarela de pago.');
+      const freshData = await pdRes.json();
+      setPublicData(freshData);
+
       const res = await fetch(`${API_URL}/payments/direct-transaction/${orderNumber}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentMethod, acceptanceToken: publicData.acceptanceToken, ...methodData }),
+        body: JSON.stringify({ paymentMethod, acceptanceToken: freshData.acceptanceToken, ...methodData }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error al procesar el pago.');
@@ -341,7 +346,7 @@ export default function PayPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [publicData, orderNumber, paymentMethod]);
+  }, [orderNumber, paymentMethod]);
 
   const handleCardToken = useCallback((token: string, installments: number) => {
     submitDirectTransaction({ token, installments, customerEmail: order?.customer?.name || '' });
