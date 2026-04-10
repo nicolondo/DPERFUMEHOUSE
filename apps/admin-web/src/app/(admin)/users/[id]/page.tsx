@@ -347,7 +347,14 @@ export default function UserDetailPage() {
             <div>
               <p className="text-xs font-medium text-white/50">Comision L1 / L2</p>
               <p className="text-lg font-bold text-white">
-                {user.commissionRate != null ? formatPercent(user.commissionRate) : '-'}
+                {user.commissionScaleEnabled ? (
+                  <span className="inline-flex items-center gap-1">
+                    <TrendingUp className="h-4 w-4 text-accent" />
+                    <span className="text-accent">Escala</span>
+                  </span>
+                ) : (
+                  user.commissionRate != null ? formatPercent(user.commissionRate) : '-'
+                )}
                 {' / '}
                 {user.commissionRateL2 != null ? formatPercent(user.commissionRateL2) : '-'}
               </p>
