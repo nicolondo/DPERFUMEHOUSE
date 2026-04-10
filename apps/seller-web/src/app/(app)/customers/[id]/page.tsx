@@ -12,7 +12,6 @@ import {
   ShoppingBag,
   Sparkles,
   MessageCircle,
-  Send,
   Check,
   X,
 } from 'lucide-react';
@@ -47,7 +46,6 @@ export default function CustomerDetailPage() {
   const updateAddress = useUpdateAddress();
   const [showBrandPicker, setShowBrandPicker] = useState(false);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
-  const [sendMethod, setSendMethod] = useState<'whatsapp-email' | 'email'>('whatsapp-email');
 
   // Build brand → full category name map
   const fullCategories: string[] = Array.isArray(categoriesData) ? categoriesData : [];
@@ -225,7 +223,6 @@ export default function CustomerDetailPage() {
           onClick={() => {
             if (!id) return;
             setSelectedBrands([...sellerBrands]);
-            setSendMethod('whatsapp-email');
             setShowBrandPicker(true);
           }}
           disabled={createLead.isPending}
@@ -295,56 +292,45 @@ export default function CustomerDetailPage() {
               {/* Divider */}
               <div className="h-px bg-white/10 mb-5" />
 
-              {/* Send Method */}
-              <div className="mb-6">
+              {/* Send Method — triggers send directly */}
+              <div>
                 <p className="text-xs font-medium text-white/50 uppercase tracking-wider mb-2.5">Enviar por</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => setSendMethod('whatsapp-email')}
-                    className={`flex flex-col items-center gap-2 p-3.5 rounded-xl border transition-all duration-200 ${
-                      sendMethod === 'whatsapp-email'
-                        ? 'bg-emerald-500/15 border-emerald-500/40 shadow-sm shadow-emerald-500/10'
-                        : 'bg-white/5 border-white/10 hover:bg-white/10'
-                    }`}
+                    onClick={() => {
+                      if (selectedBrands.length === 0 || createLead.isPending) return;
+                      setShowBrandPicker(false);
+                      handleSendQuestionnaire(selectedBrands, 'whatsapp-email');
+                    }}
+                    disabled={selectedBrands.length === 0 || createLead.isPending}
+                    className="flex flex-col items-center gap-2 p-3.5 rounded-xl border transition-all duration-200 bg-emerald-500/15 border-emerald-500/40 shadow-sm shadow-emerald-500/10 hover:bg-emerald-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <div className="flex items-center gap-1.5">
-                      <MessageCircle className={`h-4 w-4 ${sendMethod === 'whatsapp-email' ? 'text-emerald-400' : 'text-white/40'}`} />
-                      <span className="text-lg">+</span>
-                      <Mail className={`h-4 w-4 ${sendMethod === 'whatsapp-email' ? 'text-emerald-400' : 'text-white/40'}`} />
+                      <MessageCircle className="h-4 w-4 text-emerald-400" />
+                      <span className="text-lg text-emerald-400">+</span>
+                      <Mail className="h-4 w-4 text-emerald-400" />
                     </div>
-                    <span className={`text-xs font-medium ${sendMethod === 'whatsapp-email' ? 'text-emerald-300' : 'text-white/40'}`}>WhatsApp + Email</span>
+                    <span className="text-xs font-medium text-emerald-300">WhatsApp + Email</span>
                   </button>
                   <button
-                    onClick={() => setSendMethod('email')}
-                    className={`flex flex-col items-center gap-2 p-3.5 rounded-xl border transition-all duration-200 ${
-                      sendMethod === 'email'
-                        ? 'bg-blue-500/15 border-blue-500/40 shadow-sm shadow-blue-500/10'
-                        : 'bg-white/5 border-white/10 hover:bg-white/10'
-                    }`}
+                    onClick={() => {
+                      if (selectedBrands.length === 0 || createLead.isPending || !customer?.email) return;
+                      setShowBrandPicker(false);
+                      handleSendQuestionnaire(selectedBrands, 'email');
+                    }}
+                    disabled={selectedBrands.length === 0 || createLead.isPending || !customer?.email}
+                    className="flex flex-col items-center gap-2 p-3.5 rounded-xl border transition-all duration-200 bg-blue-500/15 border-blue-500/40 shadow-sm shadow-blue-500/10 hover:bg-blue-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    <Mail className={`h-4 w-4 ${sendMethod === 'email' ? 'text-blue-400' : 'text-white/40'}`} />
-                    <span className={`text-xs font-medium ${sendMethod === 'email' ? 'text-blue-300' : 'text-white/40'}`}>Solo Email</span>
+                    <Mail className="h-4 w-4 text-blue-400" />
+                    <span className="text-xs font-medium text-blue-300">Solo Email</span>
                   </button>
                 </div>
-                {sendMethod === 'email' && !customer?.email && (
-                  <p className="mt-2 text-xs text-red-400/80 flex items-center gap-1">
-                    <X className="h-3 w-3" /> Este cliente no tiene email registrado
+                {!customer?.email && (
+                  <p className="mt-2 text-xs text-white/30 flex items-center gap-1">
+                    <Mail className="h-3 w-3" /> Sin email — solo WhatsApp disponible
                   </p>
                 )}
               </div>
-
-              {/* Action Button */}
-              <button
-                onClick={() => {
-                  setShowBrandPicker(false);
-                  handleSendQuestionnaire(selectedBrands, sendMethod);
-                }}
-                disabled={selectedBrands.length === 0 || createLead.isPending || (sendMethod === 'email' && !customer?.email)}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500/20 to-amber-600/20 border border-amber-500/30 text-sm font-semibold text-amber-300 hover:from-amber-500/30 hover:to-amber-600/30 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Send className="h-4 w-4" />
-                {createLead.isPending ? 'Enviando...' : 'Enviar Cuestionario'}
-              </button>
             </div>
           </div>
         )}
