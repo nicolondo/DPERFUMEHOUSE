@@ -191,11 +191,17 @@ export default function PayPage() {
   const [pseLegalId, setPseLegalId] = useState('');
   const [pseEmail, setPseEmail] = useState('');
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  // true when user returns from bank redirect (prevents re-redirect loop)
+  const isReturnFromRedirect = useRef(false);
 
   /* ---- redirect result ---- */
   useEffect(() => {
     const txId = searchParams.get('id');
-    if (txId) { setTransactionId(txId); setPaymentStatus('PENDING'); }
+    if (txId) {
+      setTransactionId(txId);
+      setPaymentStatus('PENDING');
+      isReturnFromRedirect.current = true;
+    }
   }, [searchParams]);
 
   /* ---- fetch public data (wompi acceptance token) ---- */
@@ -271,7 +277,7 @@ export default function PayPage() {
         if (res.ok) {
           const d = await res.json();
           // PSE / Bancolombia Transfer: redirect to bank when async URL is ready
-          if (d.asyncPaymentUrl) {
+          if (d.asyncPaymentUrl && !isReturnFromRedirect.current) {
             if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
             window.location.href = d.asyncPaymentUrl;
             return;
@@ -348,6 +354,14 @@ export default function PayPage() {
         setTransactionId(data.data.id);
         setPaymentStatus(data.data.status || 'PENDING');
         if (paymentMethod === 'NEQUI') setNequiWaiting(true);
+        // Redirect immediately for bank-redirect methods
+        if (paymentMethod === 'BANCOLOMBIA_TRANSFER' || paymentMethod === 'DAVIPLATA') {
+          const bankUrl = data.data?.redirect_url || data.data?.redirectUrl || data.redirectUrl;
+          if (bankUrl) {
+            window.location.href = bankUrl;
+            return;
+          }
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Error al procesar el pago.');
@@ -425,6 +439,28 @@ export default function PayPage() {
       CARD: 'Tarjeta', NEQUI: 'Nequi', PSE: 'PSE',
       BANCOLOMBIA_TRANSFER: 'Bancolombia', BANCOLOMBIA_COLLECT: 'Corresponsal', DAVIPLATA: 'Daviplata',
     };
+    // PENDING after returning from bank redirect — show verification state with retry
+    if (paymentStatus === 'PENDING' && isReturnFromRedirect.current) {
+      return (
+        <div className="min-h-screen bg-[#0a0703] flex items-center justify-center p-6">
+          <div className="w-full max-w-md text-center space-y-5">
+            <img src="/icons/logo-dperfumehouse.svg" alt="D Perfume House" style={{ width: 200 }} className="mx-auto opacity-90" />
+            <div className="w-14 h-14 rounded-full border-2 border-[#c9a96e]/30 border-t-[#c9a96e] animate-spin mx-auto" />
+            <div className="space-y-2">
+              <p className="text-[#fff7eb] font-semibold">Verificando tu pago...</p>
+              <p className="text-[#6b4f35] text-sm">Estamos confirmando el estado de tu transacción con Bancolombia.</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="mt-4 px-5 py-2.5 rounded-xl border border-[#2e1f0e] text-[#9c8568] text-sm hover:border-[#c9a96e]/30 transition-colors cursor-pointer"
+            >
+              Intentar con otro método de pago
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-[#0a0703] flex items-center justify-center p-6">
         <div className="w-full max-w-md">
