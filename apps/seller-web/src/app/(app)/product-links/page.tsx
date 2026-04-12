@@ -344,7 +344,7 @@ export default function ProductLinksPage() {
                         <button
                           onClick={() => !isOutOfStock && !hasLink && handleGenerate(product.id)}
                           disabled={isOutOfStock || hasLink || generateLink.isPending && generateLink.variables === product.id}
-                          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                             hasLink
                               ? 'bg-accent-gold/20 text-accent-gold cursor-default'
                               : isOutOfStock
@@ -357,7 +357,7 @@ export default function ProductLinksPage() {
                           {generateLink.isPending && generateLink.variables === product.id ? (
                             <><div className="h-3 w-3 rounded-full border-2 border-black/30 border-t-black animate-spin" /> Generando...</>
                           ) : hasLink ? (
-                            <><Link2 className="h-3.5 w-3.5" /> Link creado</>
+                            <><Check className="h-3.5 w-3.5" /> Creado</>
                           ) : (
                             <><Link2 className="h-3.5 w-3.5" /> Generar Link</>
                           )}
