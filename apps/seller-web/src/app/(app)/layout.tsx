@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/auth.store';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { PageSpinner } from '@/components/ui/spinner';
 import { NotificationPrompt } from '@/components/ui/notification-prompt';
+import { InstallPrompt } from '@/components/ui/install-prompt';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -57,6 +58,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </main>
       <BottomNav />
       <NotificationPrompt />
+      <InstallPrompt />
     </div>
   );
 }
