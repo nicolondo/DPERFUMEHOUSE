@@ -116,7 +116,7 @@
 
   input, textarea, select {
     @apply outline-none;
-    font-size: 16px;
+    font-size: 16px !important;
   }
 
   ::selection {
