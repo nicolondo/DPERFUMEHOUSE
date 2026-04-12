@@ -52,5 +52,6 @@
   ],
   "categories": ["shopping", "business"],
   "lang": "es",
-  "dir": "ltr"
+  "dir": "ltr",
+  "gcm_sender_id": "733287910276"
 }

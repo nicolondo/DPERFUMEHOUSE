@@ -94,6 +94,32 @@ export class EmailProcessor extends WorkerHost {
         return { sent: true };
       }
 
+      case 'send-shipped-notification': {
+        const sent = await this.emailService.sendShippedNotification(job.data);
+        if (!sent) {
+          throw new Error(
+            `Failed to send shipped notification to ${job.data.customerEmail}`,
+          );
+        }
+        this.logger.log(
+          `Shipped notification sent to ${job.data.customerEmail} for order ${job.data.orderNumber}`,
+        );
+        return { sent: true };
+      }
+
+      case 'send-delivered-notification': {
+        const sent = await this.emailService.sendDeliveredNotification(job.data);
+        if (!sent) {
+          throw new Error(
+            `Failed to send delivered notification to ${job.data.customerEmail}`,
+          );
+        }
+        this.logger.log(
+          `Delivered notification sent to ${job.data.customerEmail} for order ${job.data.orderNumber}`,
+        );
+        return { sent: true };
+      }
+
       default:
         this.logger.warn(`Unknown email job type: ${job.name}`);
         throw new Error(`Unknown email job type: ${job.name}`);

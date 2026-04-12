@@ -13,6 +13,7 @@ import { OdooService } from '../odoo/odoo.service';
 import { PaymentsService } from '../payments/payments.service';
 import { CommissionsService } from '../commissions/commissions.service';
 import { Prisma, OrderStatus, PaymentMethod, CommissionStatus } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateOrderBodyDto } from './dto';
 
 export interface FindAllOrdersParams {
@@ -34,6 +35,7 @@ export class OrdersService {
     private readonly odooService: OdooService,
     private readonly paymentsService: PaymentsService,
     private readonly commissionsService: CommissionsService,
+    private readonly notificationsService: NotificationsService,
     private readonly configService: ConfigService,
     @InjectQueue('email-send') private readonly emailQueue: Queue,
   ) {
@@ -896,6 +898,12 @@ export class OrdersService {
   async markAsShipped(orderId: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
+      include: {
+        shipment: true,
+        customer: { select: { id: true, name: true, email: true, phone: true } },
+        seller: { select: { id: true, name: true } },
+        items: { include: { variant: { select: { name: true, sku: true, price: true } } } },
+      },
     });
 
     if (!order) {
@@ -917,17 +925,69 @@ export class OrdersService {
           select: { id: true, name: true, email: true, phone: true },
         },
         items: true,
+        shipment: true,
       },
     });
 
     this.logger.log(`Order ${order.orderNumber} manually marked as SHIPPED`);
+
+    // Send email to customer with tracking info
+    if (order.customer.email) {
+      const trackingNumber = order.shipment?.trackingNumber || null;
+      const trackUrl = order.shipment?.trackUrl || null;
+      const carrier = order.shipment?.carrier || null;
+
+      await this.emailQueue.add(
+        'send-shipped-notification',
+        {
+          customerEmail: order.customer.email,
+          customerName: order.customer.name,
+          orderNumber: order.orderNumber,
+          trackingNumber,
+          trackUrl,
+          carrier,
+          items: order.items.map((item) => ({
+            name: item.variant?.name || 'Producto',
+            quantity: item.quantity,
+            price: Number(item.unitPrice),
+          })),
+          total: Number(order.total),
+        },
+        {
+          removeOnComplete: 10,
+          removeOnFail: 20,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 3000 },
+        },
+      );
+    }
+
+    // Send push notification to seller
+    try {
+      const fmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
+      await this.notificationsService.sendToUser(
+        order.sellerId,
+        '📦 Pedido enviado',
+        `El pedido ${order.orderNumber} de ${order.customer.name} ha sido enviado`,
+        { type: 'order_shipped', orderId: order.id, orderNumber: order.orderNumber },
+        `/orders`,
+      );
+    } catch (e) {
+      this.logger.warn(`Failed to send shipped push notification: ${e.message}`);
+    }
+
     return updated;
   }
 
   async markAsDelivered(orderId: string, notes?: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      include: { shipment: true },
+      include: {
+        shipment: true,
+        customer: { select: { id: true, name: true, email: true, phone: true } },
+        seller: { select: { id: true, name: true } },
+        items: { include: { variant: { select: { name: true, sku: true, price: true } } } },
+      },
     });
 
     if (!order) {
@@ -1000,6 +1060,44 @@ export class OrdersService {
     });
 
     this.logger.log(`Order ${order.orderNumber} manually marked as DELIVERED (entrega en persona)`);
+
+    // Send email to customer about delivery
+    if (order.customer.email) {
+      await this.emailQueue.add(
+        'send-delivered-notification',
+        {
+          customerEmail: order.customer.email,
+          customerName: order.customer.name,
+          orderNumber: order.orderNumber,
+          items: order.items.map((item) => ({
+            name: item.variant?.name || 'Producto',
+            quantity: item.quantity,
+            price: Number(item.unitPrice),
+          })),
+          total: Number(order.total),
+        },
+        {
+          removeOnComplete: 10,
+          removeOnFail: 20,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 3000 },
+        },
+      );
+    }
+
+    // Send push notification to seller
+    try {
+      await this.notificationsService.sendToUser(
+        order.sellerId,
+        '✅ Pedido entregado',
+        `El pedido ${order.orderNumber} de ${order.customer.name} fue entregado exitosamente`,
+        { type: 'order_delivered', orderId: order.id, orderNumber: order.orderNumber },
+        `/orders`,
+      );
+    } catch (e) {
+      this.logger.warn(`Failed to send delivered push notification: ${e.message}`);
+    }
+
     return result;
   }
 
