@@ -50,7 +50,7 @@ class DirectTransactionBodyDto {
   financialInstitutionCode?: string;
 
   @IsOptional()
-  userType?: number | string;
+  userType?: number;
 
   @IsOptional() @IsString()
   userLegalIdType?: string;
