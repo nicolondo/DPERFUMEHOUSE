@@ -187,10 +187,25 @@ export default function ConfigPage() {
                 </p>
               </div>
               <div>
-                <p className="text-xs text-white/30">Tasa de Comision</p>
-                <p className="text-sm font-medium text-white">
-                  {seller?.commissionRate ? `${(seller.commissionRate * 100).toFixed(0)}%` : '-'}
-                </p>
+                <p className="text-xs text-white/30">Comisión</p>
+                {seller?.commissionScaleEnabled && seller?.effectiveScaleTiers?.length > 0 ? (
+                  <div className="mt-1 space-y-1">
+                    {seller.effectiveScaleTiers.map((tier: any, i: number) => (
+                      <div key={i} className="flex justify-between text-sm text-white">
+                        <span className="text-white/50">
+                          {tier.maxSales
+                            ? `$${(tier.minSales / 1000000).toFixed(0)}M – $${(tier.maxSales / 1000000).toFixed(0)}M`
+                            : `$${(tier.minSales / 1000000).toFixed(0)}M+`}
+                        </span>
+                        <span className="font-medium text-accent-purple">{tier.ratePercent}%</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm font-medium text-white">
+                    {seller?.commissionRate ? `${(seller.commissionRate * 100).toFixed(0)}%` : '-'}
+                  </p>
+                )}
               </div>
             </div>
           </CardBody>

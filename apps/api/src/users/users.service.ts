@@ -533,7 +533,14 @@ export class UsersService {
   }
 
   async getProfile(userId: string) {
-    return this.findOne(userId);
+    const profile = await this.findOne(userId);
+    if (profile.commissionScaleEnabled) {
+      const tiers = profile.commissionScaleUseGlobal
+        ? await this.getGlobalCommissionScale()
+        : (Array.isArray(profile.commissionScaleOverride) ? profile.commissionScaleOverride as CommissionScaleTier[] : []);
+      return { ...profile, effectiveScaleTiers: tiers };
+    }
+    return profile;
   }
 
   async getDownline(userId: string) {
