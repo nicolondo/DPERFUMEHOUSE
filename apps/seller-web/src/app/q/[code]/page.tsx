@@ -138,9 +138,8 @@ function CityAutocomplete({ value, onChange, placeholder }: { value: string; onC
     if (autocompleteRef.current) return;
 
     autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
-      types: ['(cities)'],
       componentRestrictions: { country: 'co' },
-      fields: ['formatted_address', 'name'],
+      fields: ['formatted_address', 'name', 'address_components'],
     });
 
     autocompleteRef.current.addListener('place_changed', () => {

@@ -697,7 +697,7 @@ export default function PayPage() {
                   <select
                     value={pseBankCode}
                     onChange={(e) => setPseBankCode(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] text-sm focus:outline-none focus:border-[#c9a96e]/50 cursor-pointer"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] text-base focus:outline-none focus:border-[#c9a96e]/50 cursor-pointer"
                   >
                     <option value="">Selecciona tu banco...</option>
                     {pseBanks.map((b) => (
@@ -713,7 +713,7 @@ export default function PayPage() {
                     <select
                       value={pseUserType}
                       onChange={(e) => setPseUserType(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] text-sm focus:outline-none focus:border-[#c9a96e]/50 cursor-pointer"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] text-base focus:outline-none focus:border-[#c9a96e]/50 cursor-pointer"
                     >
                       <option value="0">Natural</option>
                       <option value="1">Jurídica</option>
@@ -724,7 +724,7 @@ export default function PayPage() {
                     <select
                       value={pseLegalIdType}
                       onChange={(e) => setPseLegalIdType(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] text-sm focus:outline-none focus:border-[#c9a96e]/50 cursor-pointer"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] text-base focus:outline-none focus:border-[#c9a96e]/50 cursor-pointer"
                     >
                       <option value="CC">Cédula (CC)</option>
                       <option value="NIT">NIT</option>
@@ -741,7 +741,7 @@ export default function PayPage() {
                     placeholder="1234567890"
                     value={pseLegalId}
                     onChange={(e) => setPseLegalId(e.target.value.replace(/\D/g, ''))}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] placeholder:text-[#4a3825] text-sm focus:outline-none focus:border-[#c9a96e]/50 font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] placeholder:text-[#4a3825] text-base focus:outline-none focus:border-[#c9a96e]/50 font-mono"
                   />
                 </div>
                 <div>
@@ -751,7 +751,7 @@ export default function PayPage() {
                     placeholder="tu@correo.com"
                     value={pseEmail}
                     onChange={(e) => setPseEmail(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] placeholder:text-[#4a3825] text-sm focus:outline-none focus:border-[#c9a96e]/50"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#1a1610] border border-[#c9a96e]/15 text-[#fff7eb] placeholder:text-[#4a3825] text-base focus:outline-none focus:border-[#c9a96e]/50"
                   />
                 </div>
                 <button
