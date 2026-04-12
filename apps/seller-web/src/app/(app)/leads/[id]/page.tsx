@@ -333,7 +333,7 @@ export default function LeadDetailPage() {
       {showAppointmentForm && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowAppointmentForm(false)}>
           <div
-            className="w-full max-w-lg rounded-t-3xl bg-surface-raised border-t border-glass-border p-6 pb-10"
+            className="w-full max-w-lg rounded-t-3xl bg-surface-raised border-t border-glass-border p-6 pb-10 max-h-[85dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-white mb-4">Agendar Cita</h3>
@@ -345,7 +345,7 @@ export default function LeadDetailPage() {
                   type="date"
                   value={appointmentData.appointmentDate}
                   onChange={(e) => setAppointmentData(d => ({ ...d, appointmentDate: e.target.value }))}
-                  className="w-full rounded-xl border border-glass-border bg-glass-50 px-4 py-3 text-sm text-white focus:outline-none focus:border-accent-purple/50"
+                  className="w-full rounded-xl border border-glass-border bg-glass-50 px-4 py-3 text-white focus:outline-none focus:border-accent-purple/50 appearance-none [-webkit-appearance:none] [&::-webkit-date-and-time-value]:text-white"
                 />
               </div>
               <div>
@@ -354,7 +354,7 @@ export default function LeadDetailPage() {
                   type="time"
                   value={appointmentData.appointmentTime}
                   onChange={(e) => setAppointmentData(d => ({ ...d, appointmentTime: e.target.value }))}
-                  className="w-full rounded-xl border border-glass-border bg-glass-50 px-4 py-3 text-sm text-white focus:outline-none focus:border-accent-purple/50"
+                  className="w-full rounded-xl border border-glass-border bg-glass-50 px-4 py-3 text-white focus:outline-none focus:border-accent-purple/50 appearance-none [-webkit-appearance:none] [&::-webkit-date-and-time-value]:text-white"
                 />
               </div>
               <div>
@@ -364,7 +364,7 @@ export default function LeadDetailPage() {
                   value={appointmentData.appointmentLocation}
                   placeholder="Ej: Showroom, casa del cliente..."
                   onChange={(e) => setAppointmentData(d => ({ ...d, appointmentLocation: e.target.value }))}
-                  className="w-full rounded-xl border border-glass-border bg-glass-50 px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-accent-purple/50"
+                  className="w-full rounded-xl border border-glass-border bg-glass-50 px-4 py-3 text-white placeholder:text-white/20 focus:outline-none focus:border-accent-purple/50"
                 />
               </div>
               <div>
@@ -373,7 +373,7 @@ export default function LeadDetailPage() {
                   value={appointmentData.appointmentNotes}
                   placeholder="Notas adicionales..."
                   onChange={(e) => setAppointmentData(d => ({ ...d, appointmentNotes: e.target.value }))}
-                  className="w-full rounded-xl border border-glass-border bg-glass-50 px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-accent-purple/50 min-h-[80px] resize-none"
+                  className="w-full rounded-xl border border-glass-border bg-glass-50 px-4 py-3 text-white placeholder:text-white/20 focus:outline-none focus:border-accent-purple/50 min-h-[80px] resize-none"
                 />
               </div>
             </div>
@@ -381,7 +381,7 @@ export default function LeadDetailPage() {
             <button
               onClick={handleScheduleAppointment}
               disabled={!appointmentData.appointmentDate}
-              className="mt-4 w-full py-3 rounded-full bg-accent-purple text-white font-medium text-sm disabled:opacity-30"
+              className="mt-4 w-full py-3 rounded-full bg-accent-purple text-white font-medium disabled:opacity-30"
             >
               Confirmar Cita
             </button>
