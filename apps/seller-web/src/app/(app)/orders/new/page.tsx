@@ -132,7 +132,7 @@ export default function NewOrderPage() {
   };
 
   return (
-    <div>
+    <div className="pb-28">
       <PageHeader
         title="Nuevo Pedido"
         onBack={handleBack}
