@@ -82,7 +82,7 @@ export class NotificationsService implements OnModuleInit {
           badge: `${sellerAppUrl}/icons/icon-72x72.png`,
           ...(url ? { data: { url } } : {}),
         },
-        fcmOptions: url ? { link: url } : undefined,
+        fcmOptions: url ? { link: `${sellerAppUrl}${url}` } : undefined,
       },
       data: data || {},
     };

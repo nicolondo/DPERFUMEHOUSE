@@ -20,9 +20,24 @@ export function useNotifications() {
       registerToken();
     }
 
-    // Listen for foreground messages — just log, the SW/OS handles display
+    // Listen for foreground messages — show native notification
     onForegroundMessage((payload) => {
-      console.log('[Push] Foreground message received:', payload.notification?.title);
+      const title = payload.notification?.title || 'D Perfume House';
+      const body = payload.notification?.body || '';
+      console.log('[Push] Foreground message:', title);
+
+      // Show native notification even when app is in foreground
+      if (Notification.permission === 'granted') {
+        const n = new Notification(title, {
+          body,
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-72x72.png',
+        });
+        n.onclick = () => {
+          window.focus();
+          n.close();
+        };
+      }
     });
   }, [isAuthenticated]);
 
