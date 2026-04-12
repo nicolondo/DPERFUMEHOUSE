@@ -235,7 +235,7 @@ export default function CustomerDetailPage() {
         {/* Brand Picker + Send Method Modal */}
         {showBrandPicker && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowBrandPicker(false)}>
-            <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border border-white/10 rounded-t-3xl sm:rounded-3xl p-6 w-full max-w-md mx-0 sm:mx-4 animate-in slide-in-from-bottom duration-300" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border border-white/10 rounded-t-3xl sm:rounded-3xl p-6 pb-24 sm:pb-6 w-full max-w-md mx-0 sm:mx-4 max-h-[85dvh] overflow-y-auto animate-in slide-in-from-bottom duration-300" onClick={(e) => e.stopPropagation()}>
               {/* Handle bar (mobile) */}
               <div className="flex justify-center mb-4 sm:hidden">
                 <div className="w-10 h-1 rounded-full bg-white/20" />
