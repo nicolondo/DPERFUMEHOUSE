@@ -10,10 +10,11 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { LoginDto, RegisterDto, ForgotPasswordDto, ResetPasswordDto, GoogleAuthDto } from './dto/login.dto';
+import { LoginDto, RegisterDto, ForgotPasswordDto, ResetPasswordDto, GoogleAuthDto, AppleAuthDto } from './dto/login.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { EmailService } from '../email/email.service';
 import { OAuth2Client } from 'google-auth-library';
+import * as jose from 'jose';
 
 @Injectable()
 export class AuthService {
@@ -398,6 +399,121 @@ export class AuthService {
         passwordHash,
         name: name || email.split('@')[0],
         googleId,
+        role: 'SELLER_L1',
+        isActive: false,
+        pendingApproval: true,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    });
+
+    await this.emailService.sendRegistrationRequestReceived(
+      newUser.email,
+      newUser.name,
+    );
+
+    return {
+      pendingApproval: true,
+      message: 'Solicitud enviada. El administrador revisará tu cuenta.',
+      user: { id: newUser.id, email: newUser.email, name: newUser.name },
+    };
+  }
+
+  async appleLogin(dto: AppleAuthDto) {
+    const clientId = this.configService.get<string>('APPLE_CLIENT_ID');
+    if (!clientId) {
+      throw new BadRequestException('Apple authentication is not configured');
+    }
+
+    // Verify Apple's id_token using Apple's JWKS
+    let payload: jose.JWTPayload;
+    try {
+      const JWKS = jose.createRemoteJWKSet(
+        new URL('https://appleid.apple.com/auth/keys'),
+      );
+      const { payload: verified } = await jose.jwtVerify(dto.idToken, JWKS, {
+        issuer: 'https://appleid.apple.com',
+        audience: clientId,
+      });
+      payload = verified;
+    } catch {
+      throw new UnauthorizedException('Token de Apple inválido');
+    }
+
+    const appleId = payload.sub;
+    const email = payload.email as string | undefined;
+
+    if (!appleId || !email) {
+      throw new UnauthorizedException('Token de Apple inválido — falta email');
+    }
+
+    // Check if user exists by email or appleId
+    let user = await this.prisma.user.findFirst({
+      where: { OR: [{ email }, { appleId }] },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        pendingApproval: true,
+        canManageSellers: true,
+        odooCompanyId: true,
+        appleId: true,
+      },
+    });
+
+    if (user) {
+      // Link Apple account if not yet linked
+      if (!user.appleId) {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { appleId },
+        });
+      }
+
+      if (!user.isActive) {
+        if (user.pendingApproval) {
+          throw new ForbiddenException('Tu solicitud de registro está pendiente de aprobación por el administrador');
+        }
+        throw new ForbiddenException('Tu cuenta ha sido desactivada. Contacta al administrador');
+      }
+
+      const tokens = await this.generateTokens({
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+        odooCompanyId: user.odooCompanyId ?? undefined,
+      });
+
+      await this.updateRefreshToken(user.id, tokens.refreshToken);
+
+      return {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          canManageSellers: user.canManageSellers,
+        },
+      };
+    }
+
+    // New user — register with pending approval
+    const randomPassword = crypto.randomBytes(32).toString('hex');
+    const passwordHash = await bcrypt.hash(randomPassword, 12);
+
+    const newUser = await this.prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        name: dto.name || email.split('@')[0],
+        appleId,
         role: 'SELLER_L1',
         isActive: false,
         pendingApproval: true,

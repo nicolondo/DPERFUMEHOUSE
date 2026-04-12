@@ -103,6 +103,7 @@ model User {
   phone                String?
   phoneCode            String?      @default("+57") @map("phone_code")
   googleId             String?      @unique @map("google_id")
+  appleId              String?      @unique @map("apple_id")
   role                 UserRole     @default(SELLER_L1)
   parentId             String?      @map("parent_id") @db.Uuid
   parent               User?        @relation("UserHierarchy", fields: [parentId], references: [id])

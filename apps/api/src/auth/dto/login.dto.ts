@@ -8,6 +8,18 @@ export class GoogleAuthDto {
   credential: string;
 }
 
+export class AppleAuthDto {
+  @ApiProperty({ description: 'Apple ID token (id_token) from Sign in with Apple' })
+  @IsString()
+  @IsNotEmpty()
+  idToken: string;
+
+  @ApiPropertyOptional({ description: 'User name (only provided on first Apple sign-in)' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+}
+
 export class LoginDto {
   @ApiProperty({ example: 'seller@dperfumehouse.com' })
   @IsEmail()

@@ -13,7 +13,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { LoginDto, AuthResponseDto, RefreshTokenDto, RegisterDto, ForgotPasswordDto, ResetPasswordDto, GoogleAuthDto } from './dto/login.dto';
+import { LoginDto, AuthResponseDto, RefreshTokenDto, RegisterDto, ForgotPasswordDto, ResetPasswordDto, GoogleAuthDto, AppleAuthDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from './decorators/current-user.decorator';
 import { AuthGuard } from '@nestjs/passport';
@@ -52,6 +52,15 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid Google token' })
   async googleAuth(@Body() dto: GoogleAuthDto) {
     return this.authService.googleLogin(dto);
+  }
+
+  @Post('apple')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Authenticate or register with Apple' })
+  @ApiResponse({ status: 200, description: 'Apple auth successful' })
+  @ApiResponse({ status: 401, description: 'Invalid Apple token' })
+  async appleAuth(@Body() dto: AppleAuthDto) {
+    return this.authService.appleLogin(dto);
   }
 
   @Post('refresh')

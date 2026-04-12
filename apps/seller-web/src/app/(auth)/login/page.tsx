@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -45,6 +45,21 @@ function getErrorMessage(err: unknown): string {
   return 'Error inesperado. Intenta de nuevo.';
 }
 
+let appleScriptLoaded = false;
+function loadAppleScript(): Promise<void> {
+  if (appleScriptLoaded || (window as any).AppleID) {
+    appleScriptLoaded = true;
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
+    s.onload = () => { appleScriptLoaded = true; resolve(); };
+    s.onerror = () => reject(new Error('No se pudo cargar Apple Sign In'));
+    document.head.appendChild(s);
+  });
+}
+
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -52,8 +67,16 @@ export default function LoginPage() {
   const [registerLoading, setRegisterLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
   const { login, isLoading } = useAuth();
   const { showToast } = useToast();
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined') {
+      setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+    }
+  }, []);
 
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -122,6 +145,58 @@ export default function LoginPage() {
       showToast('error', msg);
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    setAppleLoading(true);
+    setLoginError('');
+    try {
+      // Load Apple JS SDK
+      await loadAppleScript();
+      const appleClientId = process.env.NEXT_PUBLIC_APPLE_CLIENT_ID;
+      if (!appleClientId) throw new Error('Apple Sign In no configurado');
+
+      (window as any).AppleID.auth.init({
+        clientId: appleClientId,
+        scope: 'name email',
+        redirectURI: window.location.origin + '/api/auth/apple/callback',
+        usePopup: true,
+      });
+
+      const response = await (window as any).AppleID.auth.signIn();
+      const idToken = response.authorization?.id_token;
+      if (!idToken) throw new Error('No se obtuvo token de Apple');
+
+      // Apple only gives the name on the FIRST sign-in
+      const appleName = response.user
+        ? `${response.user.name?.firstName || ''} ${response.user.name?.lastName || ''}`.trim()
+        : undefined;
+
+      const { data } = await api.post('/auth/apple', {
+        idToken,
+        name: appleName || undefined,
+      });
+
+      if (data.pendingApproval) {
+        setRegisterSuccess(true);
+        setMode('register');
+        return;
+      }
+
+      const { accessToken, refreshToken, user } = data;
+      localStorage.setItem('access_token', accessToken);
+      localStorage.setItem('refresh_token', refreshToken);
+      localStorage.setItem('user', JSON.stringify(user));
+      window.location.href = '/dashboard';
+    } catch (err: unknown) {
+      // User cancelled is not an error
+      if (err && typeof err === 'object' && 'error' in err && (err as any).error === 'popup_closed_by_user') return;
+      const msg = getErrorMessage(err);
+      setLoginError(msg);
+      showToast('error', msg);
+    } finally {
+      setAppleLoading(false);
     }
   };
 
@@ -227,6 +302,21 @@ export default function LoginPage() {
                 text="signin_with"
               />
             </div>
+
+            {/* Apple Sign In — only on iOS */}
+            {isIOS && (
+              <button
+                type="button"
+                onClick={handleAppleSignIn}
+                disabled={appleLoading}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-medium text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+                  <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                </svg>
+                {appleLoading ? 'Conectando...' : 'Iniciar con Apple'}
+              </button>
+            )}
 
             <div className="mt-4 text-center">
               <button
@@ -355,6 +445,21 @@ export default function LoginPage() {
                 text="signup_with"
               />
             </div>
+
+            {/* Apple Sign In — only on iOS */}
+            {isIOS && (
+              <button
+                type="button"
+                onClick={handleAppleSignIn}
+                disabled={appleLoading}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-medium text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+                  <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                </svg>
+                {appleLoading ? 'Conectando...' : 'Registrar con Apple'}
+              </button>
+            )}
 
             <div className="mt-4 text-center">
               <button
