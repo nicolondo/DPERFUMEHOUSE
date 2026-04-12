@@ -198,14 +198,30 @@ export default function LeadDetailPage() {
             <div className="space-y-3">
               {recommendations.map((rec: any, i: number) => (
                 <div key={i} className="rounded-xl bg-glass-50 border border-glass-border p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-purple/20 text-xs font-bold text-accent-purple">
-                        {i + 1}
-                      </span>
-                      <span className="text-sm font-medium text-white">{rec.name || rec.productName || 'Perfume'}</span>
+                  <div className="flex items-start gap-3 mb-2">
+                    {rec.product?.images?.[0]?.url ? (
+                      <img
+                        src={rec.product.images[0].url}
+                        alt={rec.name || rec.productName || ''}
+                        className="w-14 h-14 rounded-lg object-cover bg-white/10 flex-shrink-0"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : null}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-purple/20 text-xs font-bold text-accent-purple">
+                            {i + 1}
+                          </span>
+                          <span className="text-sm font-medium text-white truncate">{rec.name || rec.productName || 'Perfume'}</span>
+                        </div>
+                        <span className="text-xs font-medium text-emerald-400 flex-shrink-0">{rec.compatibility || rec.score || 0}%</span>
+                      </div>
+
+                      {rec.product?.price && (
+                        <p className="text-xs text-white/30 mt-1">{formatCurrency(rec.product.price)}</p>
+                      )}
                     </div>
-                    <span className="text-xs font-medium text-emerald-400">{rec.compatibility || rec.score || 0}%</span>
                   </div>
 
                   {rec.mainArgument && (
@@ -220,10 +236,6 @@ export default function LeadDetailPage() {
                       <AlertTriangle className="h-3 w-3 text-red-400/50 mt-0.5 shrink-0" />
                       <p className="text-xs text-white/40 leading-relaxed">{rec.objectionHandling}</p>
                     </div>
-                  )}
-
-                  {rec.product?.price && (
-                    <p className="text-xs text-white/30 mt-1.5">{formatCurrency(rec.product.price)}</p>
                   )}
                 </div>
               ))}
