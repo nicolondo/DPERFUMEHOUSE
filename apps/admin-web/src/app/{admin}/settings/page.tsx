@@ -387,14 +387,14 @@ function DiscountSettings() {
         <div className="grid gap-3">
           {discounts.map((d) => (
             <Card key={d.id} className={cn(!d.isActive && 'opacity-50')}>
-              <div className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-accent-purple/10 text-accent-purple font-bold text-lg">
-                    {Number(d.discountPercent)}%
+              <div className="p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="flex items-center justify-center h-12 min-w-12 px-3 rounded-lg bg-accent-purple/10 text-accent-purple font-bold text-sm whitespace-nowrap">
+                    {parseFloat(Number(d.discountPercent).toFixed(2))}%
                   </div>
-                  <div>
-                    <p className="font-medium">{d.name}</p>
-                    <p className="text-sm text-white/50">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{d.name}</p>
+                    <p className="text-sm text-white/50 truncate">
                       Compras de {d.minQuantity}+ unidades
                       {d.categories && (d.categories as string[]).length > 0 && <span> · Categorías: <span className="text-white/70">{(d.categories as string[]).join(', ')}</span></span>}
                       {d.variant && <span> · Producto: <span className="text-white/70">{d.variant.name}</span></span>}
@@ -402,7 +402,7 @@ function DiscountSettings() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-shrink-0">
                   <Badge variant={d.isActive ? 'success' : 'default'}>
                     {d.isActive ? 'Activo' : 'Inactivo'}
                   </Badge>
