@@ -11,7 +11,7 @@ import { Modal } from '@/components/ui/modal';
 import { PageSpinner } from '@/components/ui/spinner';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { formatCurrency, formatDate, formatDateTime, formatPercent } from '@/lib/utils';
-import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck } from 'lucide-react';
+import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck, MapPin, Printer } from 'lucide-react';
 
 const orderStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
   DRAFT: 'default',
@@ -310,6 +310,45 @@ export default function OrderDetailPage() {
           </div>
         </Card>
       </div>
+
+      {/* Shipping Address */}
+      {order.address && (
+        <Card>
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-purple-muted text-accent-purple">
+                <MapPin className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-white/50">Dirección de Envío</p>
+                <p className="text-sm font-semibold text-white">{order.address.street}</p>
+                {order.address.detail && (
+                  <p className="text-sm text-white/70">{order.address.detail}</p>
+                )}
+                <p className="text-sm text-white/70">
+                  {order.address.city}{order.address.state ? `, ${order.address.state}` : ''}
+                </p>
+                {order.address.phone && (
+                  <p className="text-xs text-white/50 mt-1">
+                    Tel: {order.address.phoneCode || '+57'} {order.address.phone}
+                  </p>
+                )}
+                {order.address.notes && (
+                  <p className="text-xs text-white/40 mt-1 italic">{order.address.notes}</p>
+                )}
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Printer className="h-4 w-4" />}
+              onClick={() => window.open(`/orders/${orderId}/print-address`, '_blank')}
+            >
+              Imprimir
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Order Items */}
       <Card padding={false}>
