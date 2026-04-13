@@ -1237,12 +1237,6 @@ function Step4Summary({
               <span className="text-green-400">- {formatCurrency(totalDiscount)}</span>
             </div>
           )}
-          {discountQuery.data?.items?.filter((i: any) => i.discountPercent > 0).map((i: any) => (
-            <div key={i.variantId} className="flex items-center justify-between text-xs pl-2">
-              <span className="text-white/30">{i.variantName} ({parseFloat(i.discountPercent.toFixed(2))}%)</span>
-              <span className="text-white/30">- {formatCurrency(i.discountAmount)}</span>
-            </div>
-          ))}
           <div className="flex items-center justify-between text-sm">
             <span className="text-white/50">IVA ({Math.round(useCartStore.getState().orderConfig.taxRate * 100)}%)</span>
             <span className="text-white">{formatCurrency(taxAmount)}</span>

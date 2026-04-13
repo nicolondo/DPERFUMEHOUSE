@@ -322,16 +322,30 @@ export class OrdersService {
       total: number;
     }[] = [];
 
+    // Aggregate total quantities by category and globally for discount lookup
+    const categoryTotals = new Map<string, number>();
+    let globalTotal = 0;
+    for (const item of data.items) {
+      const variant = variantMap.get(item.variantId)!;
+      globalTotal += item.quantity;
+      if (variant.categoryName) {
+        categoryTotals.set(variant.categoryName, (categoryTotals.get(variant.categoryName) || 0) + item.quantity);
+      }
+    }
+
     for (const item of data.items) {
       const variant = variantMap.get(item.variantId)!;
       const unitPrice = Number(variant.price);
       const lineGross = unitPrice * item.quantity;
 
-      // Find applicable quantity discount
+      // Find applicable quantity discount using aggregated quantity
+      const aggregatedQty = variant.categoryName
+        ? categoryTotals.get(variant.categoryName) || item.quantity
+        : globalTotal;
       const discount = await this.discountsService.findBestDiscount(
         item.variantId,
         variant.categoryName,
-        item.quantity,
+        aggregatedQty,
       );
 
       const discountPercent = discount ? Number(discount.discountPercent) : 0;

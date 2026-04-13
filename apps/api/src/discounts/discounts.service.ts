@@ -106,6 +106,7 @@ export class DiscountsService {
 
   /**
    * Preview discounts for a list of items (used in order summary).
+   * Aggregates quantities by category so 3 different products of the same category count as 3 units.
    */
   async previewDiscounts(items: { variantId: string; quantity: number }[]) {
     const variantIds = items.map((i) => i.variantId);
@@ -114,6 +115,18 @@ export class DiscountsService {
       select: { id: true, name: true, price: true, categoryName: true },
     });
     const variantMap = new Map(variants.map((v) => [v.id, v]));
+
+    // Aggregate total quantities by category and globally
+    const categoryTotals = new Map<string, number>();
+    let globalTotal = 0;
+    for (const item of items) {
+      const variant = variantMap.get(item.variantId);
+      if (!variant) continue;
+      globalTotal += item.quantity;
+      if (variant.categoryName) {
+        categoryTotals.set(variant.categoryName, (categoryTotals.get(variant.categoryName) || 0) + item.quantity);
+      }
+    }
 
     let subtotal = 0;
     let totalDiscount = 0;
@@ -134,7 +147,11 @@ export class DiscountsService {
       const unitPrice = Number(variant.price);
       const lineTotal = unitPrice * item.quantity;
 
-      const discount = await this.findBestDiscount(item.variantId, variant.categoryName, item.quantity);
+      // Use aggregated quantity for category/global discounts
+      const aggregatedQty = variant.categoryName
+        ? categoryTotals.get(variant.categoryName) || item.quantity
+        : globalTotal;
+      const discount = await this.findBestDiscount(item.variantId, variant.categoryName, aggregatedQty);
       const discountPercent = discount ? Number(discount.discountPercent) : 0;
       const discountAmount = Math.round(lineTotal * discountPercent / 100);
       const finalTotal = lineTotal - discountAmount;
