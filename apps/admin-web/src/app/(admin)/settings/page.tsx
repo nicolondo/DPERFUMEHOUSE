@@ -379,7 +379,7 @@ function DiscountSettings() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={d.isActive ? 'success' : 'secondary'}>
+                  <Badge variant={d.isActive ? 'success' : 'default'}>
                     {d.isActive ? 'Activo' : 'Inactivo'}
                   </Badge>
                   <Button
