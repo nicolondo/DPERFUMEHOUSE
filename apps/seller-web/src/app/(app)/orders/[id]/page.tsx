@@ -364,10 +364,12 @@ export default function OrderDetailPage() {
                 {formatCurrency(Number(order.subtotal))}
               </span>
             </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-white/50">IVA (19%)</span>
-              <span className="text-white">{formatCurrency(Number(order.tax))}</span>
-            </div>
+            {Number(order.discount) > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-green-400">Descuento</span>
+                <span className="text-green-400">- {formatCurrency(Number(order.discount))}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-sm">
               <span className="text-white/50">Envio</span>
               <span className="text-white">
