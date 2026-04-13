@@ -8,11 +8,16 @@ import {
   updateSettings,
   testOdooConnection,
   testPaymentConnection,
+  testWompiConnection,
   fetchPaymentLogs,
   fetchOdooCompanies,
   fetchOdooPricelists,
   fetchOdooCategories,
   fetchProductCategories,
+  fetchDiscounts,
+  createDiscount,
+  updateDiscount,
+  deleteDiscount,
 } from '@/lib/api';
 import api from '@/lib/api';
 import { formatDateTime, cn } from '@/lib/utils';
@@ -40,6 +45,8 @@ import {
   Truck,
   Plus,
   Trash2,
+  Percent,
+  Tag,
 } from 'lucide-react';
 
 type CommissionScaleTier = {
@@ -54,13 +61,14 @@ const DEFAULT_COMMISSION_SCALE: CommissionScaleTier[] = [
   { minSales: 10000000, ratePercent: 30 },
 ];
 
-type Tab = 'odoo' | 'pagos' | 'envios' | 'escalas' | 'general' | 'cuenta';
+type Tab = 'odoo' | 'pagos' | 'envios' | 'escalas' | 'descuentos' | 'general' | 'cuenta';
 
 const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: 'odoo', label: 'Odoo', icon: <Database className="h-4 w-4" /> },
   { key: 'pagos', label: 'Pagos', icon: <CreditCard className="h-4 w-4" /> },
   { key: 'envios', label: 'Envíos', icon: <Truck className="h-4 w-4" /> },
   { key: 'escalas', label: 'Escala de comisiones', icon: <Layers className="h-4 w-4" /> },
+  { key: 'descuentos', label: 'Descuentos', icon: <Percent className="h-4 w-4" /> },
   { key: 'general', label: 'General', icon: <Sliders className="h-4 w-4" /> },
   { key: 'cuenta', label: 'Cuenta', icon: <Lock className="h-4 w-4" /> },
 ];
@@ -73,6 +81,8 @@ const tabMap: Record<string, Tab> = {
   shipping: 'envios',
   escalas: 'escalas',
   'commission-scales': 'escalas',
+  discounts: 'descuentos',
+  descuentos: 'descuentos',
   general: 'general',
   cuenta: 'cuenta',
 };
@@ -110,14 +120,14 @@ function SettingsPageContent() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="border-b border-glass-border">
-        <nav className="flex gap-6" aria-label="Tabs">
+      <div className="border-b border-glass-border -mx-3 sm:-mx-0 px-3 sm:px-0">
+        <nav className="flex gap-1 sm:gap-6 overflow-x-auto scrollbar-hide" aria-label="Tabs">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => handleTabChange(tab.key)}
               className={cn(
-                'flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-medium transition-colors',
+                'flex shrink-0 items-center gap-1.5 sm:gap-2 border-b-2 px-2 sm:px-1 pb-3 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap',
                 activeTab === tab.key
                   ? 'border-accent-purple text-accent-purple'
                   : 'border-transparent text-white/50 hover:border-glass-border hover:text-white/70'
@@ -135,8 +145,293 @@ function SettingsPageContent() {
       {activeTab === 'pagos' && <PaymentSettings />}
       {activeTab === 'envios' && <ShippingSettings />}
       {activeTab === 'escalas' && <CommissionScaleSettings />}
+      {activeTab === 'descuentos' && <DiscountSettings />}
       {activeTab === 'general' && <GeneralSettings />}
       {activeTab === 'cuenta' && <AccountSettings />}
+    </div>
+  );
+}
+
+/* ─── Quantity Discounts ─── */
+type QuantityDiscount = {
+  id: string;
+  name: string;
+  minQuantity: number;
+  discountPercent: number;
+  categories: string[];
+  variantId: string | null;
+  variant: { id: string; name: string; sku: string | null; categoryName: string | null } | null;
+  isActive: boolean;
+  priority: number;
+};
+
+function DiscountSettings() {
+  const queryClient = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    name: '',
+    minQuantity: 3,
+    discountPercent: 5,
+    categories: [] as string[],
+    isActive: true,
+    priority: 0,
+  });
+
+  const { data: discounts = [], isLoading } = useQuery<QuantityDiscount[]>({
+    queryKey: ['discounts'],
+    queryFn: fetchDiscounts,
+  });
+
+  const { data: productCategories = [] } = useQuery<string[]>({
+    queryKey: ['products', 'categories', 'discount-form'],
+    queryFn: fetchProductCategories,
+  });
+
+  const createMut = useMutation({
+    mutationFn: (dto: any) => createDiscount(dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['discounts'] });
+      resetForm();
+    },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: any }) => updateDiscount(id, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['discounts'] });
+      resetForm();
+    },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteDiscount(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['discounts'] }),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      updateDiscount(id, { isActive }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['discounts'] }),
+  });
+
+  function resetForm() {
+    setShowForm(false);
+    setEditId(null);
+    setForm({ name: '', minQuantity: 3, discountPercent: 5, categories: [], isActive: true, priority: 0 });
+  }
+
+  function handleEdit(d: QuantityDiscount) {
+    setEditId(d.id);
+    setForm({
+      name: d.name,
+      minQuantity: d.minQuantity,
+      discountPercent: Number(d.discountPercent),
+      categories: (d.categories as string[]) || [],
+      isActive: d.isActive,
+      priority: d.priority,
+    });
+    setShowForm(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const dto = {
+      name: form.name,
+      minQuantity: form.minQuantity,
+      discountPercent: form.discountPercent,
+      categories: form.categories,
+      isActive: form.isActive,
+      priority: form.priority,
+    };
+    if (editId) {
+      updateMut.mutate({ id: editId, dto });
+    } else {
+      createMut.mutate(dto);
+    }
+  }
+
+  if (isLoading) return <PageSpinner />;
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Tag className="h-5 w-5 text-accent-purple" />
+              Descuentos por Cantidad
+            </CardTitle>
+            <p className="text-sm text-white/50 mt-1">
+              Configura descuentos automáticos cuando un cliente compra varias unidades
+            </p>
+          </div>
+          {!showForm && (
+            <Button onClick={() => { resetForm(); setShowForm(true); }} className="gap-2">
+              <Plus className="h-4 w-4" /> Nuevo descuento
+            </Button>
+          )}
+        </CardHeader>
+      </Card>
+
+      {showForm && (
+        <Card>
+          <div className="p-6">
+            <h3 className="text-lg font-semibold mb-4">
+              {editId ? 'Editar descuento' : 'Nuevo descuento'}
+            </h3>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField label="Nombre de la regla">
+                  <Input
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="Ej: 3+ unidades = 5% dcto"
+                    required
+                  />
+                </FormField>
+                <FormField label="Categorías (opcional)">
+                  <div className="space-y-2 max-h-40 overflow-y-auto rounded-lg border border-white/10 p-3">
+                    {productCategories.length === 0 ? (
+                      <p className="text-sm text-white/40">Sin categorías disponibles</p>
+                    ) : (
+                      productCategories.map((cat) => (
+                        <label key={cat} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={form.categories.includes(cat)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setForm({ ...form, categories: [...form.categories, cat] });
+                              } else {
+                                setForm({ ...form, categories: form.categories.filter((c) => c !== cat) });
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <span className="text-white/80">{cat}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  <p className="text-xs text-white/40 mt-1">Dejar vacío = aplica a todos los productos</p>
+                </FormField>
+                <FormField label="Cantidad mínima">
+                  <Input
+                    type="number"
+                    min={2}
+                    value={form.minQuantity}
+                    onChange={(e) => setForm({ ...form, minQuantity: parseInt(e.target.value) || 2 })}
+                    required
+                  />
+                </FormField>
+                <FormField label="% de descuento">
+                  <Input
+                    type="number"
+                    min={0.000001}
+                    max={100}
+                    step="any"
+                    value={form.discountPercent}
+                    onChange={(e) => setForm({ ...form, discountPercent: parseFloat(e.target.value) || 0 })}
+                    required
+                  />
+                </FormField>
+                <FormField label="Prioridad (mayor = preferido)">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.priority}
+                    onChange={(e) => setForm({ ...form, priority: parseInt(e.target.value) || 0 })}
+                  />
+                </FormField>
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.isActive}
+                    onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                    className="rounded"
+                  />
+                  Activo
+                </label>
+              </div>
+              <div className="flex gap-3">
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {editId ? 'Guardar cambios' : 'Crear descuento'}
+                </Button>
+                <Button type="button" variant="secondary" onClick={resetForm}>
+                  Cancelar
+                </Button>
+              </div>
+            </form>
+          </div>
+        </Card>
+      )}
+
+      {discounts.length === 0 && !showForm ? (
+        <Card>
+          <div className="p-12 text-center">
+            <Percent className="h-12 w-12 text-white/20 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-white/70 mb-2">Sin descuentos configurados</h3>
+            <p className="text-sm text-white/40 mb-6">
+              Crea reglas de descuento para incentivar compras en cantidad
+            </p>
+            <Button onClick={() => setShowForm(true)} className="gap-2">
+              <Plus className="h-4 w-4" /> Crear primer descuento
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid gap-3">
+          {discounts.map((d) => (
+            <Card key={d.id} className={cn(!d.isActive && 'opacity-50')}>
+              <div className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-accent-purple/10 text-accent-purple font-bold text-lg">
+                    {Number(d.discountPercent)}%
+                  </div>
+                  <div>
+                    <p className="font-medium">{d.name}</p>
+                    <p className="text-sm text-white/50">
+                      Compras de {d.minQuantity}+ unidades
+                      {d.categories && (d.categories as string[]).length > 0 && <span> · Categorías: <span className="text-white/70">{(d.categories as string[]).join(', ')}</span></span>}
+                      {d.variant && <span> · Producto: <span className="text-white/70">{d.variant.name}</span></span>}
+                      {(!d.categories || (d.categories as string[]).length === 0) && !d.variant && <span> · Todos los productos</span>}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={d.isActive ? 'success' : 'default'}>
+                    {d.isActive ? 'Activo' : 'Inactivo'}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleMut.mutate({ id: d.id, isActive: !d.isActive })}
+                  >
+                    {d.isActive ? 'Desactivar' : 'Activar'}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => handleEdit(d)}>
+                    Editar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm('¿Eliminar este descuento?')) deleteMut.mutate(d.id);
+                    }}
+                    className="text-red-400 hover:text-red-300"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -697,17 +992,30 @@ function OdooSettings() {
 
 function PaymentSettings() {
   const queryClient = useQueryClient();
+  // Active provider
+  const [activeProvider, setActiveProvider] = useState('myxspend');
+  // MyxSpend
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [postbackUrl, setPostbackUrl] = useState('');
+  // Wompi
+  const [wompiPublicKey, setWompiPublicKey] = useState('');
+  const [wompiPrivateKey, setWompiPrivateKey] = useState('');
+  const [wompiEventsSecret, setWompiEventsSecret] = useState('');
+  const [wompiIntegritySecret, setWompiIntegritySecret] = useState('');
+  const [wompiEnvironment, setWompiEnvironment] = useState('sandbox');
+  // Shared
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [wompiTestResult, setWompiTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [copied, setCopied] = useState('');
   const [logPage, setLogPage] = useState(1);
+  const [myxExpanded, setMyxExpanded] = useState(true);
+  const [wompiExpanded, setWompiExpanded] = useState(true);
 
   const { data: settings, isLoading } = useQuery({
-    queryKey: ['settings', 'payment'],
-    queryFn: () => fetchSettings('payment'),
+    queryKey: ['settings', 'payments'],
+    queryFn: () => fetchSettings('payments'),
   });
 
   const { data: logs, isLoading: logsLoading } = useQuery({
@@ -718,36 +1026,62 @@ function PaymentSettings() {
   useEffect(() => {
     if (settings) {
       const map = new Map(settings.map((s: any) => [s.key, s.value]));
-      setEmail((map.get('payment_email') as string) || '');
-      setPassword((map.get('payment_password') as string) || '');
-      setBaseUrl((map.get('payment_base_url') as string) || '');
-      setPostbackUrl((map.get('payment_postback_url') as string) || '');
+      setActiveProvider((map.get('active_payment_provider') as string) || 'myxspend');
+      // MyxSpend
+      setEmail((map.get('myxspend_email') as string) || '');
+      setPassword((map.get('myxspend_password') as string) || '');
+      setBaseUrl((map.get('myxspend_base_url') as string) || '');
+      setPostbackUrl((map.get('myxspend_postback_url') as string) || '');
+      // Wompi
+      setWompiPublicKey((map.get('wompi_public_key') as string) || '');
+      setWompiPrivateKey((map.get('wompi_private_key') as string) || '');
+      setWompiEventsSecret((map.get('wompi_events_secret') as string) || '');
+      setWompiIntegritySecret((map.get('wompi_integrity_secret') as string) || '');
+      setWompiEnvironment((map.get('wompi_environment') as string) || 'sandbox');
     }
   }, [settings]);
 
   const saveMutation = useMutation({
     mutationFn: () =>
       updateSettings([
-        { key: 'payment_email', value: email },
-        { key: 'payment_password', value: password },
-        { key: 'payment_base_url', value: baseUrl },
+        { key: 'active_payment_provider', value: activeProvider },
+        // MyxSpend
+        { key: 'myxspend_email', value: email },
+        { key: 'myxspend_password', value: password },
+        { key: 'myxspend_base_url', value: baseUrl },
+        // Wompi
+        { key: 'wompi_public_key', value: wompiPublicKey },
+        { key: 'wompi_private_key', value: wompiPrivateKey },
+        { key: 'wompi_events_secret', value: wompiEventsSecret },
+        { key: 'wompi_integrity_secret', value: wompiIntegritySecret },
+        { key: 'wompi_environment', value: wompiEnvironment },
       ]),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings', 'payment'] });
+      queryClient.invalidateQueries({ queryKey: ['settings', 'payments'] });
     },
   });
 
   const testMutation = useMutation({
     mutationFn: testPaymentConnection,
     onSuccess: (data) => setTestResult(data || { success: true, message: 'Conexion exitosa' }),
-    onError: () => setTestResult({ success: false, message: 'Error al conectar con el servicio de pago' }),
+    onError: () => setTestResult({ success: false, message: 'Error al conectar con MyxSpend' }),
   });
 
-  function handleCopyPostback() {
-    navigator.clipboard.writeText(postbackUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const testWompiMutation = useMutation({
+    mutationFn: testWompiConnection,
+    onSuccess: (data) => setWompiTestResult(data || { success: true, message: 'Conexion exitosa' }),
+    onError: () => setWompiTestResult({ success: false, message: 'Error al conectar con Wompi' }),
+  });
+
+  function handleCopy(text: string, label: string) {
+    navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(''), 2000);
   }
+
+  const wompiWebhookUrl = typeof window !== 'undefined'
+    ? `${window.location.origin.replace('admin', 'api').replace(':3001', ':4000')}/api/payments/wompi-webhook`
+    : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'}/payments/wompi-webhook`;
 
   const logColumns: Column<any>[] = [
     {
@@ -759,7 +1093,7 @@ function PaymentSettings() {
       key: 'status',
       header: 'Estado',
       render: (log) => (
-        <Badge variant={log.status === 'success' || log.status === 'COMPLETED' ? 'success' : 'danger'}>
+        <Badge variant={log.status === 'success' || log.status === 'COMPLETED' || log.status === 'APPROVED' ? 'success' : 'danger'}>
           {log.status}
         </Badge>
       ),
@@ -767,7 +1101,7 @@ function PaymentSettings() {
     {
       key: 'amount',
       header: 'Monto',
-      render: (log) => <span className="text-sm">{log.amount ? `$${log.amount}` : '-'}</span>,
+      render: (log) => <span className="text-sm">{log.amount ? `$${Number(log.amount).toLocaleString()}` : '-'}</span>,
     },
     {
       key: 'createdAt',
@@ -780,70 +1114,113 @@ function PaymentSettings() {
 
   return (
     <div className="space-y-6">
+      {/* Active Provider Selector */}
       <Card>
         <CardHeader>
-          <CardTitle>Configuracion de Pagos (MyxSpend)</CardTitle>
+          <CardTitle>Proveedor de Pagos Activo</CardTitle>
         </CardHeader>
-        <div className="space-y-4">
-          <FormField label="Email" required>
-            <Input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="email@ejemplo.com"
-            />
-          </FormField>
-          <FormField label="Password" required>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Contrasena"
-            />
-          </FormField>
-          <FormField label="Base URL" required>
-            <Input
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://api.myxspend.com"
-            />
-          </FormField>
-          <FormField label="Postback URL" hint="URL de notificacion (solo lectura)">
-            <div className="flex gap-2">
-              <Input
-                value={postbackUrl}
-                readOnly
-                className="bg-glass-50"
-              />
-              <Button
-                variant="outline"
-                size="md"
-                onClick={handleCopyPostback}
-                icon={copied ? <CheckCircle className="h-4 w-4 text-status-success" /> : <Copy className="h-4 w-4" />}
-              >
-                {copied ? 'Copiado' : 'Copiar'}
-              </Button>
-            </div>
-          </FormField>
-
-          {testResult && (
-            <div
+        <div className="space-y-3">
+          <p className="text-sm text-white/60">
+            Selecciona el proveedor que se usará para generar nuevos links de pago.
+          </p>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setActiveProvider('myxspend')}
               className={cn(
-                'flex items-center gap-2 rounded-lg p-3 text-sm',
-                testResult.success ? 'bg-status-success-muted text-status-success' : 'bg-status-danger-muted text-status-danger'
+                'flex-1 rounded-lg border-2 p-4 text-left transition-all',
+                activeProvider === 'myxspend'
+                  ? 'border-accent-gold bg-accent-gold/10'
+                  : 'border-white/10 bg-glass-50 hover:border-white/20'
               )}
             >
-              {testResult.success ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-              {testResult.message}
-            </div>
-          )}
+              <div className="font-semibold text-white">MyxSpend</div>
+              <div className="text-sm text-white/50">Pasarela de pagos MyxSpend</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveProvider('wompi')}
+              className={cn(
+                'flex-1 rounded-lg border-2 p-4 text-left transition-all',
+                activeProvider === 'wompi'
+                  ? 'border-accent-gold bg-accent-gold/10'
+                  : 'border-white/10 bg-glass-50 hover:border-white/20'
+              )}
+            >
+              <div className="font-semibold text-white">Wompi</div>
+              <div className="text-sm text-white/50">Plataforma de pagos Bancolombia</div>
+            </button>
+          </div>
+        </div>
+      </Card>
 
-          {saveMutation.isSuccess && (
-            <div className="rounded-lg bg-status-success-muted p-3 text-sm text-status-success">
-              Configuracion guardada correctamente.
-            </div>
-          )}
+      {/* MyxSpend Configuration */}
+      <Card>
+        <CardHeader>
+          <button
+            type="button"
+            onClick={() => setMyxExpanded(!myxExpanded)}
+            className="flex w-full items-center justify-between"
+          >
+            <CardTitle className="flex items-center gap-2">
+              MyxSpend
+              {activeProvider === 'myxspend' && (
+                <Badge variant="success">Activo</Badge>
+              )}
+            </CardTitle>
+            <span className="text-white/50">{myxExpanded ? '▲' : '▼'}</span>
+          </button>
+        </CardHeader>
+        {myxExpanded && (
+          <div className="space-y-4">
+            <FormField label="Email" required>
+              <Input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="email@ejemplo.com"
+              />
+            </FormField>
+            <FormField label="Password" required>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Contrasena"
+              />
+            </FormField>
+            <FormField label="Base URL" required>
+              <Input
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="https://api.myxspend.com/v1"
+              />
+            </FormField>
+            <FormField label="Postback URL" hint="URL de webhook (solo lectura)">
+              <div className="flex gap-2">
+                <Input value={postbackUrl} readOnly className="bg-glass-50" />
+                <Button
+                  variant="outline"
+                  size="md"
+                  onClick={() => handleCopy(postbackUrl, 'postback')}
+                  icon={copied === 'postback' ? <CheckCircle className="h-4 w-4 text-status-success" /> : <Copy className="h-4 w-4" />}
+                >
+                  {copied === 'postback' ? 'Copiado' : 'Copiar'}
+                </Button>
+              </div>
+            </FormField>
 
-          <div className="flex gap-3 pt-2">
+            {testResult && (
+              <div
+                className={cn(
+                  'flex items-center gap-2 rounded-lg p-3 text-sm',
+                  testResult.success ? 'bg-status-success-muted text-status-success' : 'bg-status-danger-muted text-status-danger'
+                )}
+              >
+                {testResult.success ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                {testResult.message}
+              </div>
+            )}
+
             <Button
               variant="outline"
               icon={<Plug className="h-4 w-4" />}
@@ -852,16 +1229,122 @@ function PaymentSettings() {
             >
               Probar Conexion
             </Button>
+          </div>
+        )}
+      </Card>
+
+      {/* Wompi Configuration */}
+      <Card>
+        <CardHeader>
+          <button
+            type="button"
+            onClick={() => setWompiExpanded(!wompiExpanded)}
+            className="flex w-full items-center justify-between"
+          >
+            <CardTitle className="flex items-center gap-2">
+              Wompi
+              {activeProvider === 'wompi' && (
+                <Badge variant="success">Activo</Badge>
+              )}
+            </CardTitle>
+            <span className="text-white/50">{wompiExpanded ? '▲' : '▼'}</span>
+          </button>
+        </CardHeader>
+        {wompiExpanded && (
+          <div className="space-y-4">
+            <FormField label="Ambiente">
+              <Select
+                value={wompiEnvironment}
+                onChange={(e) => setWompiEnvironment(e.target.value)}
+              >
+                <option value="sandbox">Sandbox (Pruebas)</option>
+                <option value="production">Produccion</option>
+              </Select>
+            </FormField>
+            <FormField label="Llave Publica" required>
+              <Input
+                value={wompiPublicKey}
+                onChange={(e) => setWompiPublicKey(e.target.value)}
+                placeholder="pub_test_..."
+              />
+            </FormField>
+            <FormField label="Llave Privada" required>
+              <Input
+                type="password"
+                value={wompiPrivateKey}
+                onChange={(e) => setWompiPrivateKey(e.target.value)}
+                placeholder="prv_test_..."
+              />
+            </FormField>
+            <FormField label="Secreto de Eventos" required hint="Para verificacion de webhooks">
+              <Input
+                type="password"
+                value={wompiEventsSecret}
+                onChange={(e) => setWompiEventsSecret(e.target.value)}
+                placeholder="test_events_..."
+              />
+            </FormField>
+            <FormField label="Secreto de Integridad" hint="Para firma de transacciones">
+              <Input
+                type="password"
+                value={wompiIntegritySecret}
+                onChange={(e) => setWompiIntegritySecret(e.target.value)}
+                placeholder="test_integrity_..."
+              />
+            </FormField>
+            <FormField label="Webhook URL" hint="Configura esta URL en el dashboard de Wompi">
+              <div className="flex gap-2">
+                <Input value={wompiWebhookUrl} readOnly className="bg-glass-50" />
+                <Button
+                  variant="outline"
+                  size="md"
+                  onClick={() => handleCopy(wompiWebhookUrl, 'wompi-webhook')}
+                  icon={copied === 'wompi-webhook' ? <CheckCircle className="h-4 w-4 text-status-success" /> : <Copy className="h-4 w-4" />}
+                >
+                  {copied === 'wompi-webhook' ? 'Copiado' : 'Copiar'}
+                </Button>
+              </div>
+            </FormField>
+
+            {wompiTestResult && (
+              <div
+                className={cn(
+                  'flex items-center gap-2 rounded-lg p-3 text-sm',
+                  wompiTestResult.success ? 'bg-status-success-muted text-status-success' : 'bg-status-danger-muted text-status-danger'
+                )}
+              >
+                {wompiTestResult.success ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                {wompiTestResult.message}
+              </div>
+            )}
+
             <Button
-              icon={<Save className="h-4 w-4" />}
-              onClick={() => saveMutation.mutate()}
-              loading={saveMutation.isPending}
+              variant="outline"
+              icon={<Plug className="h-4 w-4" />}
+              onClick={() => { setWompiTestResult(null); testWompiMutation.mutate(); }}
+              loading={testWompiMutation.isPending}
             >
-              Guardar
+              Probar Conexion Wompi
             </Button>
           </div>
-        </div>
+        )}
       </Card>
+
+      {/* Save Button */}
+      <div className="flex gap-3">
+        {saveMutation.isSuccess && (
+          <div className="flex items-center rounded-lg bg-status-success-muted px-4 py-2 text-sm text-status-success">
+            Configuracion guardada correctamente.
+          </div>
+        )}
+        <Button
+          icon={<Save className="h-4 w-4" />}
+          onClick={() => saveMutation.mutate()}
+          loading={saveMutation.isPending}
+        >
+          Guardar Configuracion de Pagos
+        </Button>
+      </div>
 
       {/* Payment Logs */}
       <div>
@@ -896,6 +1379,8 @@ function ShippingSettings() {
   const [defaultLength, setDefaultLength] = useState('25');
   const [defaultWidth, setDefaultWidth] = useState('20');
   const [defaultHeight, setDefaultHeight] = useState('10');
+  const [senderIdType, setSenderIdType] = useState('CC');
+  const [senderIdNumber, setSenderIdNumber] = useState('');
   const [enviaApiKey, setEnviaApiKey] = useState('');
   const [enviaBaseUrl, setEnviaBaseUrl] = useState('https://api.envia.com');
   const [enviaQueriesUrl, setEnviaQueriesUrl] = useState('https://queries.envia.com');
@@ -917,6 +1402,8 @@ function ShippingSettings() {
       setOriginState((map.get('shipping_origin_state') as string) || '');
       setOriginCountry((map.get('shipping_origin_country') as string) || 'CO');
       setOriginZip((map.get('shipping_origin_zip') as string) || '');
+      setSenderIdType((map.get('shipping_sender_id_type') as string) || 'CC');
+      setSenderIdNumber((map.get('shipping_sender_id_number') as string) || '');
       setDefaultWeight((map.get('shipping_default_weight') as string) || '1');
       setEnviaApiKey((map.get('envia_api_key') as string) || '');
       setEnviaBaseUrl((map.get('envia_base_url') as string) || 'https://api.envia.com');
@@ -943,6 +1430,8 @@ function ShippingSettings() {
         { key: 'shipping_origin_state', value: originState },
         { key: 'shipping_origin_country', value: originCountry },
         { key: 'shipping_origin_zip', value: originZip },
+        { key: 'shipping_sender_id_type', value: senderIdType },
+        { key: 'shipping_sender_id_number', value: senderIdNumber },
         { key: 'shipping_default_weight', value: defaultWeight },
         { key: 'shipping_default_dimensions', value: JSON.stringify({
           length: Number(defaultLength),
@@ -1001,6 +1490,24 @@ function ShippingSettings() {
               <Input value={originZip} onChange={(e) => setOriginZip(e.target.value)} placeholder="110111" />
             </FormField>
           </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <FormField label="Tipo de identificación">
+              <select
+                value={senderIdType}
+                onChange={(e) => setSenderIdType(e.target.value)}
+                className="flex h-9 w-full rounded-lg border border-glass-border bg-glass-100 px-3 py-1.5 text-sm text-white focus:border-accent-purple/50 focus:outline-none focus:ring-2 focus:ring-accent-purple/20 focus:ring-offset-0 transition-colors"
+              >
+                <option value="CC" className="bg-[#1a1a1a] text-white">CC - Cédula de Ciudadanía</option>
+                <option value="NIT" className="bg-[#1a1a1a] text-white">NIT - Número de Identificación Tributaria</option>
+                <option value="CE" className="bg-[#1a1a1a] text-white">CE - Cédula de Extranjería</option>
+                <option value="PP" className="bg-[#1a1a1a] text-white">PP - Pasaporte</option>
+              </select>
+            </FormField>
+            <FormField label="Número de identificación" className="sm:col-span-2">
+              <Input value={senderIdNumber} onChange={(e) => setSenderIdNumber(e.target.value)} placeholder="900123456-7" />
+            </FormField>
+          </div>
+          <p className="text-xs text-gray-500">Requerido por algunas transportadoras como Interrapidísimo para generar guías.</p>
         </div>
       </Card>
 
