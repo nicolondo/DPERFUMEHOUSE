@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import {
   Search,
   Check,
@@ -34,6 +35,7 @@ import { useCustomers, useCustomer, useCreateCustomer, useAddAddress, useUpdateA
 import { useProducts, useCategories, useRequestProduct } from '@/hooks/use-products';
 import { useCreateOrder } from '@/hooks/use-orders';
 import { useCartStore } from '@/store/cart.store';
+import { api } from '@/lib/api';
 import { formatCurrency, getInitials, formatPhone } from '@/lib/utils';
 import type { Customer, Address } from '@/lib/types';
 
@@ -1109,6 +1111,21 @@ function Step4Summary({
 }) {
   const [showCashConfirm, setShowCashConfirm] = useState(false);
 
+  // Fetch discount preview from backend
+  const discountQuery = useQuery({
+    queryKey: ['discount-preview', items.map((i) => `${i.variant.id}:${i.quantity}`).join(',')],
+    queryFn: async () => {
+      const { data } = await api.post('/discounts/preview', {
+        items: items.map((i) => ({ variantId: i.variant.id, quantity: i.quantity })),
+      });
+      return data as { items: any[]; subtotal: number; totalDiscount: number; total: number };
+    },
+    enabled: items.length > 0,
+  });
+
+  const totalDiscount = discountQuery.data?.totalDiscount ?? 0;
+  const adjustedTotal = totalDiscount > 0 ? totalAmount - totalDiscount : totalAmount;
+
   if (!customer) {
     return (
       <EmptyState
@@ -1214,6 +1231,18 @@ function Step4Summary({
             <span className="text-white/50">Subtotal</span>
             <span className="text-white">{formatCurrency(subtotalAmount)}</span>
           </div>
+          {totalDiscount > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-green-400">Descuento por cantidad</span>
+              <span className="text-green-400">- {formatCurrency(totalDiscount)}</span>
+            </div>
+          )}
+          {discountQuery.data?.items?.filter((i: any) => i.discountPercent > 0).map((i: any) => (
+            <div key={i.variantId} className="flex items-center justify-between text-xs pl-2">
+              <span className="text-white/30">{i.variantName} ({parseFloat(i.discountPercent.toFixed(2))}%)</span>
+              <span className="text-white/30">- {formatCurrency(i.discountAmount)}</span>
+            </div>
+          ))}
           <div className="flex items-center justify-between text-sm">
             <span className="text-white/50">IVA ({Math.round(useCartStore.getState().orderConfig.taxRate * 100)}%)</span>
             <span className="text-white">{formatCurrency(taxAmount)}</span>
@@ -1227,7 +1256,7 @@ function Step4Summary({
           <div className="border-t border-glass-border pt-2 flex items-center justify-between">
             <span className="text-base font-bold text-white">Total</span>
             <span className="text-lg font-bold text-accent-purple">
-              {formatCurrency(totalAmount)}
+              {formatCurrency(adjustedTotal)}
             </span>
           </div>
         </div>

@@ -7,7 +7,9 @@ import {
   IsUUID,
   Min,
   Max,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateQuantityDiscountDto {
   @IsString()
@@ -72,4 +74,20 @@ export class UpdateQuantityDiscountDto {
   @IsOptional()
   @IsNumber()
   priority?: number;
+}
+
+export class PreviewDiscountItemDto {
+  @IsUUID()
+  variantId: string;
+
+  @IsNumber()
+  @Min(1)
+  quantity: number;
+}
+
+export class PreviewDiscountsDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PreviewDiscountItemDto)
+  items: PreviewDiscountItemDto[];
 }

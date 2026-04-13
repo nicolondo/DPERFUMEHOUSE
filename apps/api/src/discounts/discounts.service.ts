@@ -103,4 +103,62 @@ export class DiscountsService {
       return !d.variantId && cats.length === 0;
     }) || null;
   }
+
+  /**
+   * Preview discounts for a list of items (used in order summary).
+   */
+  async previewDiscounts(items: { variantId: string; quantity: number }[]) {
+    const variantIds = items.map((i) => i.variantId);
+    const variants = await this.prisma.productVariant.findMany({
+      where: { id: { in: variantIds } },
+      select: { id: true, name: true, price: true, categoryName: true },
+    });
+    const variantMap = new Map(variants.map((v) => [v.id, v]));
+
+    let subtotal = 0;
+    let totalDiscount = 0;
+    const lineItems: {
+      variantId: string;
+      variantName: string;
+      quantity: number;
+      unitPrice: number;
+      lineTotal: number;
+      discountPercent: number;
+      discountAmount: number;
+      finalTotal: number;
+    }[] = [];
+
+    for (const item of items) {
+      const variant = variantMap.get(item.variantId);
+      if (!variant) continue;
+      const unitPrice = Number(variant.price);
+      const lineTotal = unitPrice * item.quantity;
+
+      const discount = await this.findBestDiscount(item.variantId, variant.categoryName, item.quantity);
+      const discountPercent = discount ? Number(discount.discountPercent) : 0;
+      const discountAmount = Math.round(lineTotal * discountPercent / 100);
+      const finalTotal = lineTotal - discountAmount;
+
+      subtotal += lineTotal;
+      totalDiscount += discountAmount;
+
+      lineItems.push({
+        variantId: item.variantId,
+        variantName: variant.name,
+        quantity: item.quantity,
+        unitPrice,
+        lineTotal,
+        discountPercent,
+        discountAmount,
+        finalTotal,
+      });
+    }
+
+    return {
+      items: lineItems,
+      subtotal,
+      totalDiscount,
+      total: subtotal - totalDiscount,
+    };
+  }
 }
