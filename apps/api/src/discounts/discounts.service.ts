@@ -34,7 +34,7 @@ export class DiscountsService {
         name: dto.name,
         minQuantity: dto.minQuantity,
         discountPercent: dto.discountPercent,
-        categoryName: dto.categoryName || null,
+        categories: dto.categories && dto.categories.length > 0 ? dto.categories : [],
         variantId: dto.variantId || null,
         isActive: dto.isActive ?? true,
         priority: dto.priority ?? 0,
@@ -53,7 +53,7 @@ export class DiscountsService {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.minQuantity !== undefined && { minQuantity: dto.minQuantity }),
         ...(dto.discountPercent !== undefined && { discountPercent: dto.discountPercent }),
-        ...(dto.categoryName !== undefined && { categoryName: dto.categoryName || null }),
+        ...(dto.categories !== undefined && { categories: dto.categories || [] }),
         ...(dto.variantId !== undefined && { variantId: dto.variantId || null }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
         ...(dto.priority !== undefined && { priority: dto.priority }),
@@ -79,11 +79,6 @@ export class DiscountsService {
       where: {
         isActive: true,
         minQuantity: { lte: quantity },
-        OR: [
-          { variantId },
-          ...(categoryName ? [{ categoryName, variantId: null }] : []),
-          { categoryName: null, variantId: null },
-        ],
       },
       orderBy: [{ priority: 'desc' }, { minQuantity: 'desc' }],
     });
@@ -94,9 +89,18 @@ export class DiscountsService {
     const variantDiscount = discounts.find((d) => d.variantId === variantId);
     if (variantDiscount) return variantDiscount;
 
-    const categoryDiscount = discounts.find((d) => d.categoryName === categoryName && !d.variantId);
-    if (categoryDiscount) return categoryDiscount;
+    if (categoryName) {
+      const categoryDiscount = discounts.find((d) => {
+        if (d.variantId) return false;
+        const cats = (d.categories as string[]) || [];
+        return cats.length > 0 && cats.includes(categoryName);
+      });
+      if (categoryDiscount) return categoryDiscount;
+    }
 
-    return discounts.find((d) => !d.variantId && !d.categoryName) || null;
+    return discounts.find((d) => {
+      const cats = (d.categories as string[]) || [];
+      return !d.variantId && cats.length === 0;
+    }) || null;
   }
 }

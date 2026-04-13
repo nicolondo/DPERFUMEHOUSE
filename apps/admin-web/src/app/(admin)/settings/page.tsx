@@ -158,7 +158,7 @@ type QuantityDiscount = {
   name: string;
   minQuantity: number;
   discountPercent: number;
-  categoryName: string | null;
+  categories: string[];
   variantId: string | null;
   variant: { id: string; name: string; sku: string | null; categoryName: string | null } | null;
   isActive: boolean;
@@ -173,7 +173,7 @@ function DiscountSettings() {
     name: '',
     minQuantity: 3,
     discountPercent: 5,
-    categoryName: '',
+    categories: [] as string[],
     isActive: true,
     priority: 0,
   });
@@ -181,6 +181,11 @@ function DiscountSettings() {
   const { data: discounts = [], isLoading } = useQuery<QuantityDiscount[]>({
     queryKey: ['discounts'],
     queryFn: fetchDiscounts,
+  });
+
+  const { data: productCategories = [] } = useQuery<string[]>({
+    queryKey: ['products', 'categories', 'discount-form'],
+    queryFn: fetchProductCategories,
   });
 
   const createMut = useMutation({
@@ -213,7 +218,7 @@ function DiscountSettings() {
   function resetForm() {
     setShowForm(false);
     setEditId(null);
-    setForm({ name: '', minQuantity: 3, discountPercent: 5, categoryName: '', isActive: true, priority: 0 });
+    setForm({ name: '', minQuantity: 3, discountPercent: 5, categories: [], isActive: true, priority: 0 });
   }
 
   function handleEdit(d: QuantityDiscount) {
@@ -222,7 +227,7 @@ function DiscountSettings() {
       name: d.name,
       minQuantity: d.minQuantity,
       discountPercent: Number(d.discountPercent),
-      categoryName: d.categoryName || '',
+      categories: (d.categories as string[]) || [],
       isActive: d.isActive,
       priority: d.priority,
     });
@@ -235,7 +240,7 @@ function DiscountSettings() {
       name: form.name,
       minQuantity: form.minQuantity,
       discountPercent: form.discountPercent,
-      categoryName: form.categoryName || null,
+      categories: form.categories,
       isActive: form.isActive,
       priority: form.priority,
     };
@@ -285,12 +290,31 @@ function DiscountSettings() {
                     required
                   />
                 </FormField>
-                <FormField label="Categoría (opcional)">
-                  <Input
-                    value={form.categoryName}
-                    onChange={(e) => setForm({ ...form, categoryName: e.target.value })}
-                    placeholder="Dejar vacío = aplica a todos"
-                  />
+                <FormField label="Categorías (opcional)">
+                  <div className="space-y-2 max-h-40 overflow-y-auto rounded-lg border border-white/10 p-3">
+                    {productCategories.length === 0 ? (
+                      <p className="text-sm text-white/40">Sin categorías disponibles</p>
+                    ) : (
+                      productCategories.map((cat) => (
+                        <label key={cat} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={form.categories.includes(cat)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setForm({ ...form, categories: [...form.categories, cat] });
+                              } else {
+                                setForm({ ...form, categories: form.categories.filter((c) => c !== cat) });
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <span className="text-white/80">{cat}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  <p className="text-xs text-white/40 mt-1">Dejar vacío = aplica a todos los productos</p>
                 </FormField>
                 <FormField label="Cantidad mínima">
                   <Input
@@ -304,9 +328,9 @@ function DiscountSettings() {
                 <FormField label="% de descuento">
                   <Input
                     type="number"
-                    min={1}
+                    min={0.000001}
                     max={100}
-                    step={0.5}
+                    step="any"
                     value={form.discountPercent}
                     onChange={(e) => setForm({ ...form, discountPercent: parseFloat(e.target.value) || 0 })}
                     required
@@ -372,9 +396,9 @@ function DiscountSettings() {
                     <p className="font-medium">{d.name}</p>
                     <p className="text-sm text-white/50">
                       Compras de {d.minQuantity}+ unidades
-                      {d.categoryName && <span> · Categoría: <span className="text-white/70">{d.categoryName}</span></span>}
+                      {d.categories && (d.categories as string[]).length > 0 && <span> · Categorías: <span className="text-white/70">{(d.categories as string[]).join(', ')}</span></span>}
                       {d.variant && <span> · Producto: <span className="text-white/70">{d.variant.name}</span></span>}
-                      {!d.categoryName && !d.variant && <span> · Todos los productos</span>}
+                      {(!d.categories || (d.categories as string[]).length === 0) && !d.variant && <span> · Todos los productos</span>}
                     </p>
                   </div>
                 </div>
