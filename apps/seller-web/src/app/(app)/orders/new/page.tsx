@@ -1238,10 +1238,6 @@ function Step4Summary({
             </div>
           )}
           <div className="flex items-center justify-between text-sm">
-            <span className="text-white/50">IVA ({Math.round(useCartStore.getState().orderConfig.taxRate * 100)}%)</span>
-            <span className="text-white">{formatCurrency(taxAmount)}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
             <span className="text-white/50">Envio</span>
             <span className="text-white">
               {shippingAmount === 0 ? 'Gratis' : formatCurrency(shippingAmount)}
