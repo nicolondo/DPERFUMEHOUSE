@@ -8,6 +8,7 @@ import { OdooModule } from '../odoo/odoo.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { EmailModule } from '../email/email.module';
 import { CommissionsModule } from '../commissions/commissions.module';
+import { DiscountsModule } from '../discounts/discounts.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { CommissionsModule } from '../commissions/commissions.module';
     PaymentsModule,
     EmailModule,
     CommissionsModule,
+    DiscountsModule,
     BullModule.registerQueue({
       name: 'email-send',
     }),

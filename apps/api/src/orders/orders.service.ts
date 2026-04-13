@@ -14,6 +14,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { CommissionsService } from '../commissions/commissions.service';
 import { Prisma, OrderStatus, PaymentMethod, CommissionStatus } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
+import { DiscountsService } from '../discounts/discounts.service';
 import { CreateOrderBodyDto } from './dto';
 
 export interface FindAllOrdersParams {
@@ -36,6 +37,7 @@ export class OrdersService {
     private readonly paymentsService: PaymentsService,
     private readonly commissionsService: CommissionsService,
     private readonly notificationsService: NotificationsService,
+    private readonly discountsService: DiscountsService,
     private readonly configService: ConfigService,
     @InjectQueue('email-send') private readonly emailQueue: Queue,
   ) {
@@ -308,31 +310,50 @@ export class OrdersService {
     // Generate order number: PH-YYYYMMDD-XXXX
     const orderNumber = await this.generateOrderNumber();
 
-    // Calculate totals
+    // Calculate totals with quantity discounts
     let subtotal = 0;
+    let totalDiscount = 0;
     const orderItems: {
       variantId: string;
       quantity: number;
       unitPrice: number;
+      discountPercent: number;
+      discountAmount: number;
       total: number;
     }[] = [];
 
     for (const item of data.items) {
       const variant = variantMap.get(item.variantId)!;
       const unitPrice = Number(variant.price);
-      const itemTotal = unitPrice * item.quantity;
-      subtotal += itemTotal;
+      const lineGross = unitPrice * item.quantity;
+
+      // Find applicable quantity discount
+      const discount = await this.discountsService.findBestDiscount(
+        item.variantId,
+        variant.categoryName,
+        item.quantity,
+      );
+
+      const discountPercent = discount ? Number(discount.discountPercent) : 0;
+      const discountAmount = Math.round(lineGross * discountPercent / 100);
+      const itemTotal = lineGross - discountAmount;
+
+      subtotal += lineGross;
+      totalDiscount += discountAmount;
+
       orderItems.push({
         variantId: item.variantId,
         quantity: item.quantity,
         unitPrice,
+        discountPercent,
+        discountAmount,
         total: itemTotal,
       });
     }
 
     const tax = 0;
     const shipping = 0;
-    const total = subtotal + tax + shipping;
+    const total = subtotal - totalDiscount + tax + shipping;
 
     // Create order in a transaction
     const order = await this.prisma.$transaction(async (tx) => {
@@ -344,6 +365,7 @@ export class OrdersService {
           customerId: data.customerId,
           addressId: data.addressId,
           subtotal,
+          discount: totalDiscount,
           tax,
           shipping,
           total,
@@ -355,6 +377,8 @@ export class OrdersService {
               variantId: item.variantId,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
+              discountPercent: item.discountPercent,
+              discountAmount: item.discountAmount,
               total: item.total,
             })),
           },

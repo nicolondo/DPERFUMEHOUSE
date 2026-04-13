@@ -27,6 +27,7 @@ import {
   Sparkles,
   FlaskConical,
   Target,
+  Percent,
 } from 'lucide-react';
 
 interface NavItem {
@@ -92,6 +93,7 @@ const navigation: NavItem[] = [
       { label: 'Pagos', href: '/settings?tab=payments', icon: <CreditCard className="h-4 w-4" /> },
       { label: 'Envíos', href: '/settings?tab=shipping', icon: <Truck className="h-4 w-4" /> },
       { label: 'Escala comisiones', href: '/settings?tab=escalas', icon: <Layers className="h-4 w-4" /> },
+      { label: 'Descuentos', href: '/settings?tab=discounts', icon: <Percent className="h-4 w-4" /> },
       { label: 'General', href: '/settings?tab=general', icon: <Settings2 className="h-4 w-4" /> },
     ],
   },

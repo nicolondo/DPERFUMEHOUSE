@@ -475,3 +475,24 @@ export async function reorderQuestionnaireQuestions(ids: string[]) {
   const { data } = await api.post('/questionnaire-questions/reorder', { ids });
   return unwrap(data);
 }
+
+// ── Quantity Discounts ──
+
+export async function fetchDiscounts() {
+  const { data } = await api.get('/discounts');
+  return unwrap(data);
+}
+
+export async function createDiscount(dto: any) {
+  const { data } = await api.post('/discounts', dto);
+  return unwrap(data);
+}
+
+export async function updateDiscount(id: string, dto: any) {
+  const { data } = await api.put(`/discounts/${id}`, dto);
+  return unwrap(data);
+}
+
+export async function deleteDiscount(id: string) {
+  await api.delete(`/discounts/${id}`);
+}

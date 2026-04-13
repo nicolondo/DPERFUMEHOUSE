@@ -14,6 +14,10 @@ import {
   fetchOdooPricelists,
   fetchOdooCategories,
   fetchProductCategories,
+  fetchDiscounts,
+  createDiscount,
+  updateDiscount,
+  deleteDiscount,
 } from '@/lib/api';
 import api from '@/lib/api';
 import { formatDateTime, cn } from '@/lib/utils';
@@ -41,6 +45,8 @@ import {
   Truck,
   Plus,
   Trash2,
+  Percent,
+  Tag,
 } from 'lucide-react';
 
 type CommissionScaleTier = {
@@ -55,13 +61,14 @@ const DEFAULT_COMMISSION_SCALE: CommissionScaleTier[] = [
   { minSales: 10000000, ratePercent: 30 },
 ];
 
-type Tab = 'odoo' | 'pagos' | 'envios' | 'escalas' | 'general' | 'cuenta';
+type Tab = 'odoo' | 'pagos' | 'envios' | 'escalas' | 'descuentos' | 'general' | 'cuenta';
 
 const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: 'odoo', label: 'Odoo', icon: <Database className="h-4 w-4" /> },
   { key: 'pagos', label: 'Pagos', icon: <CreditCard className="h-4 w-4" /> },
   { key: 'envios', label: 'Envíos', icon: <Truck className="h-4 w-4" /> },
   { key: 'escalas', label: 'Escala de comisiones', icon: <Layers className="h-4 w-4" /> },
+  { key: 'descuentos', label: 'Descuentos', icon: <Percent className="h-4 w-4" /> },
   { key: 'general', label: 'General', icon: <Sliders className="h-4 w-4" /> },
   { key: 'cuenta', label: 'Cuenta', icon: <Lock className="h-4 w-4" /> },
 ];
@@ -74,6 +81,8 @@ const tabMap: Record<string, Tab> = {
   shipping: 'envios',
   escalas: 'escalas',
   'commission-scales': 'escalas',
+  discounts: 'descuentos',
+  descuentos: 'descuentos',
   general: 'general',
   cuenta: 'cuenta',
 };
@@ -136,8 +145,269 @@ function SettingsPageContent() {
       {activeTab === 'pagos' && <PaymentSettings />}
       {activeTab === 'envios' && <ShippingSettings />}
       {activeTab === 'escalas' && <CommissionScaleSettings />}
+      {activeTab === 'descuentos' && <DiscountSettings />}
       {activeTab === 'general' && <GeneralSettings />}
       {activeTab === 'cuenta' && <AccountSettings />}
+    </div>
+  );
+}
+
+/* ─── Quantity Discounts ─── */
+type QuantityDiscount = {
+  id: string;
+  name: string;
+  minQuantity: number;
+  discountPercent: number;
+  categoryName: string | null;
+  variantId: string | null;
+  variant: { id: string; name: string; sku: string | null; categoryName: string | null } | null;
+  isActive: boolean;
+  priority: number;
+};
+
+function DiscountSettings() {
+  const queryClient = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    name: '',
+    minQuantity: 3,
+    discountPercent: 5,
+    categoryName: '',
+    isActive: true,
+    priority: 0,
+  });
+
+  const { data: discounts = [], isLoading } = useQuery<QuantityDiscount[]>({
+    queryKey: ['discounts'],
+    queryFn: fetchDiscounts,
+  });
+
+  const createMut = useMutation({
+    mutationFn: (dto: any) => createDiscount(dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['discounts'] });
+      resetForm();
+    },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: any }) => updateDiscount(id, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['discounts'] });
+      resetForm();
+    },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteDiscount(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['discounts'] }),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      updateDiscount(id, { isActive }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['discounts'] }),
+  });
+
+  function resetForm() {
+    setShowForm(false);
+    setEditId(null);
+    setForm({ name: '', minQuantity: 3, discountPercent: 5, categoryName: '', isActive: true, priority: 0 });
+  }
+
+  function handleEdit(d: QuantityDiscount) {
+    setEditId(d.id);
+    setForm({
+      name: d.name,
+      minQuantity: d.minQuantity,
+      discountPercent: Number(d.discountPercent),
+      categoryName: d.categoryName || '',
+      isActive: d.isActive,
+      priority: d.priority,
+    });
+    setShowForm(true);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const dto = {
+      name: form.name,
+      minQuantity: form.minQuantity,
+      discountPercent: form.discountPercent,
+      categoryName: form.categoryName || null,
+      isActive: form.isActive,
+      priority: form.priority,
+    };
+    if (editId) {
+      updateMut.mutate({ id: editId, dto });
+    } else {
+      createMut.mutate(dto);
+    }
+  }
+
+  if (isLoading) return <PageSpinner />;
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Tag className="h-5 w-5 text-accent-purple" />
+              Descuentos por Cantidad
+            </CardTitle>
+            <p className="text-sm text-white/50 mt-1">
+              Configura descuentos automáticos cuando un cliente compra varias unidades
+            </p>
+          </div>
+          {!showForm && (
+            <Button onClick={() => { resetForm(); setShowForm(true); }} className="gap-2">
+              <Plus className="h-4 w-4" /> Nuevo descuento
+            </Button>
+          )}
+        </CardHeader>
+      </Card>
+
+      {showForm && (
+        <Card>
+          <div className="p-6">
+            <h3 className="text-lg font-semibold mb-4">
+              {editId ? 'Editar descuento' : 'Nuevo descuento'}
+            </h3>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField label="Nombre de la regla">
+                  <Input
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="Ej: 3+ unidades = 5% dcto"
+                    required
+                  />
+                </FormField>
+                <FormField label="Categoría (opcional)">
+                  <Input
+                    value={form.categoryName}
+                    onChange={(e) => setForm({ ...form, categoryName: e.target.value })}
+                    placeholder="Dejar vacío = aplica a todos"
+                  />
+                </FormField>
+                <FormField label="Cantidad mínima">
+                  <Input
+                    type="number"
+                    min={2}
+                    value={form.minQuantity}
+                    onChange={(e) => setForm({ ...form, minQuantity: parseInt(e.target.value) || 2 })}
+                    required
+                  />
+                </FormField>
+                <FormField label="% de descuento">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100}
+                    step={0.5}
+                    value={form.discountPercent}
+                    onChange={(e) => setForm({ ...form, discountPercent: parseFloat(e.target.value) || 0 })}
+                    required
+                  />
+                </FormField>
+                <FormField label="Prioridad (mayor = preferido)">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.priority}
+                    onChange={(e) => setForm({ ...form, priority: parseInt(e.target.value) || 0 })}
+                  />
+                </FormField>
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.isActive}
+                    onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                    className="rounded"
+                  />
+                  Activo
+                </label>
+              </div>
+              <div className="flex gap-3">
+                <Button type="submit" disabled={createMut.isPending || updateMut.isPending}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {editId ? 'Guardar cambios' : 'Crear descuento'}
+                </Button>
+                <Button type="button" variant="secondary" onClick={resetForm}>
+                  Cancelar
+                </Button>
+              </div>
+            </form>
+          </div>
+        </Card>
+      )}
+
+      {discounts.length === 0 && !showForm ? (
+        <Card>
+          <div className="p-12 text-center">
+            <Percent className="h-12 w-12 text-white/20 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-white/70 mb-2">Sin descuentos configurados</h3>
+            <p className="text-sm text-white/40 mb-6">
+              Crea reglas de descuento para incentivar compras en cantidad
+            </p>
+            <Button onClick={() => setShowForm(true)} className="gap-2">
+              <Plus className="h-4 w-4" /> Crear primer descuento
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid gap-3">
+          {discounts.map((d) => (
+            <Card key={d.id} className={cn(!d.isActive && 'opacity-50')}>
+              <div className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-accent-purple/10 text-accent-purple font-bold text-lg">
+                    {Number(d.discountPercent)}%
+                  </div>
+                  <div>
+                    <p className="font-medium">{d.name}</p>
+                    <p className="text-sm text-white/50">
+                      Compras de {d.minQuantity}+ unidades
+                      {d.categoryName && <span> · Categoría: <span className="text-white/70">{d.categoryName}</span></span>}
+                      {d.variant && <span> · Producto: <span className="text-white/70">{d.variant.name}</span></span>}
+                      {!d.categoryName && !d.variant && <span> · Todos los productos</span>}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={d.isActive ? 'success' : 'secondary'}>
+                    {d.isActive ? 'Activo' : 'Inactivo'}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleMut.mutate({ id: d.id, isActive: !d.isActive })}
+                  >
+                    {d.isActive ? 'Desactivar' : 'Activar'}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => handleEdit(d)}>
+                    Editar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm('¿Eliminar este descuento?')) deleteMut.mutate(d.id);
+                    }}
+                    className="text-red-400 hover:text-red-300"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -26,6 +26,7 @@ import { PerfumeSearchModule } from './perfume-search/perfume-search.module';
 import { ProposalsModule } from './proposals/proposals.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { SellerProductLinksModule } from './seller-product-links/seller-product-links.module';
+import { DiscountsModule } from './discounts/discounts.module';
 
 @Module({
   imports: [
@@ -83,6 +84,7 @@ import { SellerProductLinksModule } from './seller-product-links/seller-product-
     ProposalsModule,
     NotificationsModule,
     SellerProductLinksModule,
+    DiscountsModule,
   ],
 })
 export class AppModule {}
