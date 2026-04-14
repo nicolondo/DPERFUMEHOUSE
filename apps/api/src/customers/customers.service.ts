@@ -19,6 +19,11 @@ import {
   UpdateAddressBodyDto,
 } from './dto';
 
+export interface FindAllCustomersParams {
+  page: number;
+  pageSize: number;
+  search?: string;
+}
 
 @Injectable()
 export class CustomersService {
