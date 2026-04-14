@@ -211,7 +211,9 @@ export interface Lead {
   clientName?: string;
   clientPhone?: string;
   clientEmail?: string;
+  clientCity?: string;
   status: LeadStatus;
+  mode?: string;
   aiAnalysis?: any;
   recommendations?: any[];
   sellerScript?: any;
@@ -219,7 +221,15 @@ export interface Lead {
   appointmentTime?: string;
   appointmentLocation?: string;
   appointmentNotes?: string;
+  appointmentAt?: string;
+  respondedAt?: string;
+  visitedAt?: string;
+  convertedAt?: string;
+  convertedOrder?: any;
   orderId?: string;
+  budgetRange?: string;
+  isForGift?: boolean;
+  giftRecipient?: string;
   createdAt: string;
   updatedAt: string;
 }
