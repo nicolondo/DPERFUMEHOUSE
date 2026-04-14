@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { fetchOrders, fetchSettings } from '@/lib/api';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import { Modal } from '@/components/ui/modal';
 import { PageSpinner } from '@/components/ui/spinner';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { formatCurrency, formatDate, formatDateTime, formatPercent } from '@/lib/utils';
-import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck, MapPin, Printer, ExternalLink, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Package, CreditCard, Clock, FileText, CheckCircle, Truck, MapPin, Printer, ExternalLink, RefreshCw } from 'lucide-react';
 
 const orderStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
   DRAFT: 'default',
@@ -117,6 +118,36 @@ export default function OrderDetailPage() {
     },
   });
 
+  // Fetch order list for prev/next navigation
+  const { data: ordersData } = useQuery({
+    queryKey: ['orders', 'nav'],
+    queryFn: () => fetchOrders({ pageSize: 500 }),
+    staleTime: 60_000,
+  });
+  const orderIds: string[] = (ordersData?.data || []).map((o: any) => o.id);
+  const currentIndex = orderIds.indexOf(orderId);
+  const prevId = currentIndex > 0 ? orderIds[currentIndex - 1] : null;
+  const nextId = currentIndex >= 0 && currentIndex < orderIds.length - 1 ? orderIds[currentIndex + 1] : null;
+
+  // Keyboard left/right arrow navigation
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'ArrowLeft' && prevId) router.push(`/orders/${prevId}`);
+      if (e.key === 'ArrowRight' && nextId) router.push(`/orders/${nextId}`);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [prevId, nextId, router]);
+
+  // Fetch Odoo URL from settings
+  const { data: odooSettings } = useQuery({
+    queryKey: ['settings', 'odoo'],
+    queryFn: () => fetchSettings('odoo'),
+    staleTime: 300_000,
+  });
+  const odooUrl = (odooSettings as any[] | undefined)?.find((s: any) => s.key === 'odoo_url')?.value as string | undefined;
+
   if (isLoading) return <PageSpinner />;
 
   if (error || !order) {
@@ -216,9 +247,36 @@ export default function OrderDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => router.back()}>
-        Volver a Pedidos
-      </Button>
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => router.back()}>
+          Volver a Pedidos
+        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<ChevronLeft className="h-4 w-4" />}
+            onClick={() => prevId && router.push(`/orders/${prevId}`)}
+            disabled={!prevId}
+            title="Pedido anterior (←)"
+          >
+            Anterior
+          </Button>
+          {currentIndex >= 0 && (
+            <span className="text-xs text-white/40 px-1">{currentIndex + 1} / {orderIds.length}</span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => nextId && router.push(`/orders/${nextId}`)}
+            disabled={!nextId}
+            title="Pedido siguiente (→)"
+          >
+            Siguiente
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+      </div>
 
       {/* Order Header */}
       <Card>
@@ -326,9 +384,21 @@ export default function OrderDetailPage() {
             </div>
             <div>
               <p className="text-xs font-medium text-white/50">Pedido Odoo</p>
-              <p className="text-sm font-semibold text-white">
-                {order.orderNumber || order.odooSaleOrderId || '-'}
-              </p>
+              {odooUrl && order.odooSaleOrderId ? (
+                <a
+                  href={`${odooUrl}/odoo/sales/${order.odooSaleOrderId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-semibold text-accent-purple hover:underline flex items-center gap-1"
+                >
+                  {order.orderNumber || order.odooSaleOrderId}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              ) : (
+                <p className="text-sm font-semibold text-white">
+                  {order.orderNumber || order.odooSaleOrderId || '-'}
+                </p>
+              )}
             </div>
           </div>
         </Card>
