@@ -258,18 +258,36 @@ export default function OrdersPage() {
         emptyMessage="No se encontraron pedidos"
       />
 
-      {(data?.data || []).length > 0 && (
-        <div className="flex justify-end">
-          <div className="rounded-xl border border-glass-border bg-glass-50 px-6 py-3 flex items-center gap-6">
-            <span className="text-sm text-white/50">{data?.data?.length} pedido{data?.data?.length !== 1 ? 's' : ''} en esta página</span>
-            <div className="h-4 w-px bg-glass-border" />
-            <span className="text-sm text-white/50">Total página</span>
-            <span className="text-base font-bold text-accent-purple">
-              {formatCurrency((data?.data || []).reduce((sum: number, o: any) => sum + Number(o.total || 0), 0))}
-            </span>
+      {(data?.data || []).length > 0 && (() => {
+        const orders = data?.data || [];
+        const totalAll = orders.reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
+        const totalPaid = orders.filter((o: any) => o.paymentStatus === 'COMPLETED').reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
+        const totalPending = orders.filter((o: any) => o.paymentStatus !== 'COMPLETED').reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
+        return (
+          <div className="flex justify-end">
+            <div className="rounded-xl border border-glass-border bg-glass-50 px-6 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+              <span className="text-sm text-white/50">{orders.length} pedido{orders.length !== 1 ? 's' : ''} en esta página</span>
+              <div className="h-4 w-px bg-glass-border" />
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-white/50">Total</span>
+                <span className="text-base font-bold text-accent-purple">{formatCurrency(totalAll)}</span>
+              </div>
+              <div className="h-4 w-px bg-glass-border" />
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-2 w-2 rounded-full bg-status-success" />
+                <span className="text-sm text-white/50">Pago completado</span>
+                <span className="text-base font-bold text-status-success">{formatCurrency(totalPaid)}</span>
+              </div>
+              <div className="h-4 w-px bg-glass-border" />
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-2 w-2 rounded-full bg-status-warning" />
+                <span className="text-sm text-white/50">Pago pendiente</span>
+                <span className="text-base font-bold text-status-warning">{formatCurrency(totalPending)}</span>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
