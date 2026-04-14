@@ -21,139 +21,219 @@ export default function PrintAddressPage() {
 
   useEffect(() => {
     if (order && !isLoading) {
-      const timer = setTimeout(() => window.print(), 500);
+      const timer = setTimeout(() => window.print(), 600);
       return () => clearTimeout(timer);
     }
   }, [order, isLoading]);
 
-  if (isLoading) return <div className="p-8 text-center">Cargando...</div>;
-  if (error || !order) return <div className="p-8 text-center">Error al cargar pedido</div>;
+  if (isLoading) return <div style={{ padding: 32, textAlign: 'center', fontFamily: 'sans-serif' }}>Cargando...</div>;
+  if (error || !order) return <div style={{ padding: 32, textAlign: 'center', fontFamily: 'sans-serif' }}>Error al cargar pedido</div>;
 
   const addr = order.address;
   const customer = order.customer;
+  const orderDate = new Date(order.createdAt).toLocaleDateString('es-CO', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  });
 
   return (
     <>
-      <style jsx global>{`
+      <style>{`
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; }
+
+        @media screen {
+          body { background: #888; display: flex; justify-content: center; align-items: flex-start; padding: 32px; min-height: 100vh; }
+          .page { background: white; width: 8.5in; min-height: 11in; position: relative; box-shadow: 0 4px 24px rgba(0,0,0,0.4); }
+        }
+
         @media print {
-          body { margin: 0; padding: 0; }
-          @page { size: 5.5in 8.5in; margin: 0.5in; }
+          body { background: white; margin: 0; padding: 0; }
           .no-print { display: none !important; }
+          @page { size: letter portrait; margin: 0; }
+          .page { width: 8.5in; height: 11in; position: relative; overflow: hidden; }
+        }
+
+        .no-print {
+          position: fixed;
+          top: 16px;
+          right: 16px;
+          z-index: 100;
+          display: flex;
+          gap: 8px;
+        }
+        .btn {
+          padding: 8px 18px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          border: none;
+        }
+        .btn-print { background: #92400e; color: white; }
+        .btn-print:hover { background: #78350f; }
+        .btn-close { background: #374151; color: white; }
+        .btn-close:hover { background: #1f2937; }
+
+        /* The label: rotated 90deg, positioned top-right of the page */
+        .label-wrapper {
+          position: absolute;
+          top: 1in;
+          right: 0.75in;
+          /* Label dimensions when rotated: width becomes height and vice versa */
+          /* Original (before rotate): width=3.8in height=5in */
+          transform: rotate(90deg);
+          transform-origin: top right;
+          /* After 90deg rotation, the element's top-right corner stays anchored */
+        }
+
+        .label {
+          width: 3.8in;
+          border: 1.5px solid #333;
+          border-radius: 6px;
+          overflow: hidden;
+          font-family: 'Helvetica Neue', Arial, sans-serif;
+          background: white;
+        }
+
+        .label-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding: 8px 12px;
+          border-bottom: 1px solid #bbb;
+          background: #f9f9f9;
+        }
+        .label-header-brand {
+          font-size: 13px;
+          font-weight: 800;
+          letter-spacing: 0.5px;
+          color: #111;
+          line-height: 1.2;
+        }
+        .label-header-sub {
+          font-size: 9px;
+          color: #666;
+          font-weight: 400;
+          margin-top: 1px;
+        }
+        .label-header-order {
+          text-align: right;
+        }
+        .label-header-num {
+          font-size: 10px;
+          font-weight: 700;
+          color: #222;
+        }
+        .label-header-date {
+          font-size: 9px;
+          color: #666;
+          margin-top: 2px;
+        }
+
+        .label-body {
+          padding: 10px 12px;
+        }
+        .label-section-title {
+          font-size: 8px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 1.2px;
+          color: #888;
+          margin-bottom: 6px;
+        }
+        .label-name {
+          font-size: 18px;
+          font-weight: 800;
+          color: #111;
+          line-height: 1.15;
+          margin-bottom: 8px;
+        }
+        .label-addr-line {
+          font-size: 11px;
+          color: #222;
+          line-height: 1.55;
+        }
+        .label-addr-city {
+          font-size: 12px;
+          font-weight: 700;
+          color: #111;
+          margin-top: 5px;
+          margin-bottom: 5px;
+        }
+        .label-divider {
+          border: none;
+          border-top: 1px solid #ddd;
+          margin: 8px 0;
+        }
+        .label-contact-line {
+          font-size: 10px;
+          color: #444;
+          line-height: 1.55;
+        }
+        .label-notes {
+          font-size: 10px;
+          color: #555;
+          font-style: italic;
+          margin-top: 4px;
         }
       `}</style>
 
-      <div className="no-print fixed top-4 right-4 z-50">
-        <button
-          onClick={() => window.print()}
-          className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 transition"
-        >
-          Imprimir
-        </button>
-        <button
-          onClick={() => window.close()}
-          className="ml-2 rounded-lg bg-neutral-700 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-600 transition"
-        >
-          Cerrar
-        </button>
+      {/* Screen-only controls */}
+      <div className="no-print">
+        <button className="btn btn-print" onClick={() => window.print()}>Imprimir</button>
+        <button className="btn btn-close" onClick={() => window.close()}>Cerrar</button>
       </div>
 
-      <div
-        className="mx-auto bg-white text-black"
-        style={{ width: '5.5in', minHeight: '8.5in', padding: '0.6in', fontFamily: 'system-ui, sans-serif' }}
-      >
-        {/* Header */}
-        <div style={{ borderBottom: '2px solid #333', paddingBottom: '12px', marginBottom: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <h1 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>D PERFUME HOUSE</h1>
-              <p style={{ fontSize: '12px', color: '#666', margin: '2px 0 0' }}>Etiqueta de Envío</p>
+      {/* Letter page */}
+      <div className="page">
+        <div className="label-wrapper">
+          <div className="label">
+            {/* Header */}
+            <div className="label-header">
+              <div>
+                <div className="label-header-brand">D PERFUME HOUSE</div>
+                <div className="label-header-sub">Etiqueta de Envío</div>
+              </div>
+              <div className="label-header-order">
+                <div className="label-header-num">Pedido #{order.orderNumber || orderId.slice(0, 8)}</div>
+                <div className="label-header-date">{orderDate}</div>
+              </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '13px', fontWeight: 600, margin: 0 }}>
-                Pedido #{order.orderNumber || orderId.slice(0, 8)}
-              </p>
-              <p style={{ fontSize: '11px', color: '#666', margin: '2px 0 0' }}>
-                {new Date(order.createdAt).toLocaleDateString('es-CO', {
-                  year: 'numeric', month: 'long', day: 'numeric',
-                })}
-              </p>
+
+            {/* Body */}
+            <div className="label-body">
+              <div className="label-section-title">Destinatario</div>
+              <div className="label-name">
+                {order.customerName || customer?.name || '-'}
+              </div>
+
+              {addr ? (
+                <>
+                  <div className="label-addr-line">{addr.street}</div>
+                  {addr.detail && (
+                    <div className="label-addr-line">{addr.detail}</div>
+                  )}
+                  {addr.notes && (
+                    <div className="label-notes">{addr.notes}</div>
+                  )}
+                  <div className="label-addr-city">
+                    {addr.city}{addr.state ? `, ${addr.state}` : ''}
+                  </div>
+                  <hr className="label-divider" />
+                  <div className="label-contact-line">
+                    Tel: {addr.phoneCode || '+57'} {addr.phone || customer?.phone || '-'}
+                  </div>
+                  {(customer?.email || order.customerEmail) && (
+                    <div className="label-contact-line">
+                      {customer?.email || order.customerEmail}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="label-addr-line" style={{ color: '#999' }}>Sin dirección registrada</div>
+              )}
             </div>
           </div>
-        </div>
-
-        {/* DESTINATARIO */}
-        <div style={{ border: '2px solid #333', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
-          <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: '#888', letterSpacing: '1px', margin: '0 0 8px' }}>
-            Destinatario
-          </p>
-          <p style={{ fontSize: '22px', fontWeight: 700, margin: '0 0 12px' }}>
-            {order.customerName || customer?.name || '-'}
-          </p>
-
-          {addr ? (
-            <>
-              <p style={{ fontSize: '16px', margin: '0 0 4px' }}>{addr.street}</p>
-              {addr.detail && (
-                <p style={{ fontSize: '14px', color: '#444', margin: '0 0 4px' }}>{addr.detail}</p>
-              )}
-              <p style={{ fontSize: '16px', fontWeight: 600, margin: '8px 0 4px' }}>
-                {addr.city}{addr.state ? `, ${addr.state}` : ''}
-              </p>
-              {addr.zip && (
-                <p style={{ fontSize: '14px', color: '#444', margin: '0 0 4px' }}>CP: {addr.zip}</p>
-              )}
-              <div style={{ borderTop: '1px solid #ddd', marginTop: '12px', paddingTop: '12px' }}>
-                <p style={{ fontSize: '14px', margin: '0' }}>
-                  <strong>Tel:</strong> {addr.phoneCode || '+57'} {addr.phone || customer?.phone || '-'}
-                </p>
-                {(customer?.email || order.customerEmail) && (
-                  <p style={{ fontSize: '13px', color: '#444', margin: '4px 0 0' }}>
-                    {customer?.email || order.customerEmail}
-                  </p>
-                )}
-              </div>
-              {addr.notes && (
-                <div style={{ borderTop: '1px solid #ddd', marginTop: '12px', paddingTop: '12px' }}>
-                  <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: '#888', letterSpacing: '1px', margin: '0 0 4px' }}>
-                    Notas
-                  </p>
-                  <p style={{ fontSize: '13px', fontStyle: 'italic', margin: 0 }}>{addr.notes}</p>
-                </div>
-              )}
-            </>
-          ) : (
-            <p style={{ fontSize: '14px', color: '#999' }}>Sin dirección registrada</p>
-          )}
-        </div>
-
-        {/* Productos */}
-        <div style={{ marginBottom: '20px' }}>
-          <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: '#888', letterSpacing: '1px', margin: '0 0 8px' }}>
-            Contenido del Paquete
-          </p>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #ccc' }}>
-                <th style={{ textAlign: 'left', padding: '4px 0', fontWeight: 600 }}>Producto</th>
-                <th style={{ textAlign: 'center', padding: '4px 8px', fontWeight: 600 }}>Cant.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(order.items || order.orderItems || []).map((item: any) => (
-                <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '6px 0' }}>{item.productName || item.variant?.name || '-'}</td>
-                  <td style={{ textAlign: 'center', padding: '6px 8px' }}>{item.quantity}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer */}
-        <div style={{ borderTop: '1px solid #ccc', paddingTop: '12px', textAlign: 'center' }}>
-          <p style={{ fontSize: '11px', color: '#999', margin: 0 }}>
-            D Perfume House · dperfumehouse.com
-          </p>
         </div>
       </div>
     </>
