@@ -11,6 +11,9 @@ import {
   Pencil,
   ShoppingBag,
   Percent,
+  MessageCircle,
+  Send,
+  CheckCircle2,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge, OrderStatusBadge } from '@/components/ui/badge';
@@ -24,7 +27,8 @@ import { AddressAutocomplete, type ParsedAddress } from '@/components/ui/address
 import { PageHeader } from '@/components/layout/page-header';
 import { useCustomer, useAddAddress, useUpdateAddress, usePromoStatus, useCustomerPromoConfig, useUpdateCustomerPromoConfig } from '@/hooks/use-customers';
 import { useOrders } from '@/hooks/use-orders';
-import { formatCurrency, formatDate, getInitials } from '@/lib/utils';
+import { useCreateLeadForCustomer } from '@/hooks/use-leads';
+import { formatCurrency, formatDate, getInitials, getWhatsAppPhone } from '@/lib/utils';
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -40,6 +44,21 @@ export default function CustomerDetailPage() {
   const { data: promoStatus } = usePromoStatus();
   const { data: customerPromoConfig } = useCustomerPromoConfig(id);
   const updatePromoConfig = useUpdateCustomerPromoConfig();
+  const createLead = useCreateLeadForCustomer();
+  const [leadResult, setLeadResult] = useState<{ whatsappMessage: string; lead: { questionnaireUrl: string } } | null>(null);
+  const [leadSent, setLeadSent] = useState(false);
+
+  const handleSendQuestionnaire = async () => {
+    if (!id) return;
+    try {
+      const result = await createLead.mutateAsync({ customerId: id });
+      setLeadResult(result as any);
+      setLeadSent(true);
+    } catch {
+      // handled by react-query
+    }
+  };
+
   const [promoForm, setPromoForm] = useState({
     useGlobal: true,
     discountPercent: '',
@@ -171,6 +190,60 @@ export default function CustomerDetailPage() {
             )}
           </div>
         </Card>
+
+        {/* Questionnaire Card */}
+        {customer.phone && (
+          <Card>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-purple-muted">
+                  <Send className="h-4 w-4 text-accent-purple" />
+                </div>
+                <h3 className="text-sm font-semibold text-white">Cuestionario</h3>
+              </div>
+              {leadSent && (
+                <button
+                  onClick={() => { setLeadSent(false); setLeadResult(null); }}
+                  className="text-xs text-white/30 hover:text-white/60"
+                >
+                  Nuevo
+                </button>
+              )}
+            </div>
+
+            {!leadSent ? (
+              <Button
+                fullWidth
+                variant="ghost"
+                loading={createLead.isPending}
+                onClick={handleSendQuestionnaire}
+                leftIcon={<MessageCircle className="h-4 w-4" />}
+              >
+                Enviar Cuestionario
+              </Button>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 rounded-xl bg-green-500/10 border border-green-500/20 p-3">
+                  <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />
+                  <p className="text-sm text-green-400">¡Cuestionario listo! Envialo por WhatsApp</p>
+                </div>
+                {leadResult && (
+                  <button
+                    onClick={() => {
+                      const phone = getWhatsAppPhone(customer.phone!);
+                      const text = encodeURIComponent(leadResult.whatsappMessage);
+                      window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+                    }}
+                    className="w-full py-3 rounded-full bg-[#25D366] text-white font-medium text-sm flex items-center justify-center gap-2"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Enviar por WhatsApp
+                  </button>
+                )}
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* Promo Discount Card */}
         {promoStatus?.enabled && (
