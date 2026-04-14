@@ -28,6 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PageSpinner } from '@/components/ui/spinner';
 import { Modal } from '@/components/ui/modal';
+import { PaymentLinkModal } from '@/components/ui/payment-link-modal';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { useCustomers, useCustomer, useCreateCustomer, useAddAddress, useUpdateAddress, usePromoStatus } from '@/hooks/use-customers';
@@ -47,6 +48,7 @@ const STEPS = [
 export default function NewOrderPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
+  const [createdOrder, setCreatedOrder] = useState<{ id: string; orderNumber: string; total: number; paymentLink?: { url: string } | null; customerName?: string } | null>(null);
 
   // Scroll to top on step change
   useEffect(() => {
@@ -129,13 +131,25 @@ export default function NewOrderPage() {
         applyPromoDiscount: applyPromoDiscount || undefined,
       });
       resetFlow();
-      router.replace(`/orders/${order.id}`);
+      if (!paymentMethod || paymentMethod === 'ONLINE') {
+        // Show payment link modal immediately
+        setCreatedOrder({
+          id: order.id,
+          orderNumber: order.orderNumber,
+          total: Number(order.total),
+          paymentLink: order.paymentLink ?? null,
+          customerName: order.customer?.name,
+        });
+      } else {
+        router.replace(`/orders/${order.id}`);
+      }
     } catch {
       // Error handled by react-query
     }
   };
 
   return (
+    <>
     <div>
       <PageHeader
         title="Nuevo Pedido"
@@ -233,6 +247,22 @@ export default function NewOrderPage() {
         )}
       </div>
     </div>
+
+    {/* Payment Link Modal — shown immediately after ONLINE order creation */}
+    {createdOrder?.paymentLink?.url && (
+      <PaymentLinkModal
+        isOpen={!!createdOrder}
+        onClose={() => {
+          router.replace(`/orders/${createdOrder!.id}`);
+          setCreatedOrder(null);
+        }}
+        paymentUrl={createdOrder.paymentLink.url}
+        orderNumber={createdOrder.orderNumber}
+        total={createdOrder.total}
+        customerName={createdOrder.customerName}
+      />
+    )}
+    </>
   );
 }
 
