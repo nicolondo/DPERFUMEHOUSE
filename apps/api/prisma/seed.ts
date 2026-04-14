@@ -87,6 +87,7 @@ async function main() {
     { key: 'wompi_environment', value: 'sandbox', group: 'payments', description: 'Wompi environment (sandbox or production)' },
     // Payment provider
     { key: 'active_payment_provider', value: 'myxspend', group: 'payments', description: 'Active payment provider (myxspend or wompi)' },
+    { key: 'cash_payment_enabled', value: 'true', group: 'payments', description: 'Enable cash payments (non-Wompi)' },
     // Commissions
     { key: 'commission_l1_rate', value: '10', group: 'commissions', description: 'Default L1 seller commission rate (%)' },
     { key: 'commission_l2_rate', value: '3', group: 'commissions', description: 'Default L2 seller commission rate (%)' },

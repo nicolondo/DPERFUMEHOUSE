@@ -75,6 +75,7 @@ export default function NewOrderPage() {
   } = useCartStore();
 
   const setOrderConfig = useCartStore((s) => s.setOrderConfig);
+  const cashPaymentEnabled = useCartStore((s) => s.orderConfig.cashPaymentEnabled !== false);
   const createOrder = useCreateOrder();
   const [applyPromoDiscount, setApplyPromoDiscount] = useState(false);
   const { data: promoStatus } = usePromoStatus();
@@ -227,6 +228,7 @@ export default function NewOrderPage() {
             applyPromoDiscount={applyPromoDiscount}
             onTogglePromoDiscount={setApplyPromoDiscount}
             promoStatus={promoStatus}
+            cashPaymentEnabled={cashPaymentEnabled}
           />
         )}
       </div>
@@ -1083,6 +1085,7 @@ function Step4Summary({
   applyPromoDiscount,
   onTogglePromoDiscount,
   promoStatus,
+  cashPaymentEnabled = true,
 }: {
   customer: Customer | null;
   address: Address;
@@ -1102,6 +1105,7 @@ function Step4Summary({
   applyPromoDiscount: boolean;
   onTogglePromoDiscount: (value: boolean) => void;
   promoStatus?: any;
+  cashPaymentEnabled?: boolean;
 }) {
   const [showCashConfirm, setShowCashConfirm] = useState(false);
 
@@ -1312,17 +1316,19 @@ function Step4Summary({
           Confirmar y Generar Link de Pago
         </Button>
 
-        <Button
-          fullWidth
-          size="lg"
-          variant="outline"
-          onClick={() => setShowCashConfirm(true)}
-          disabled={items.length === 0 || isSubmitting}
-          leftIcon={<Banknote className="h-5 w-5" />}
-          className="!py-4 text-base font-semibold border-accent-gold/40 text-accent-gold hover:bg-accent-gold/10 rounded-2xl"
-        >
-          Pago en Efectivo
-        </Button>
+        {cashPaymentEnabled && (
+          <Button
+            fullWidth
+            size="lg"
+            variant="outline"
+            onClick={() => setShowCashConfirm(true)}
+            disabled={items.length === 0 || isSubmitting}
+            leftIcon={<Banknote className="h-5 w-5" />}
+            className="!py-4 text-base font-semibold border-accent-gold/40 text-accent-gold hover:bg-accent-gold/10 rounded-2xl"
+          >
+            Pago en Efectivo
+          </Button>
+        )}
       </div>
 
       {/* Cash payment confirmation modal */}

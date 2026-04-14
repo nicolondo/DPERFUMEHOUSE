@@ -5,6 +5,7 @@ interface OrderConfig {
   taxRate: number;
   shippingCost: number;
   freeShippingThreshold: number;
+  cashPaymentEnabled?: boolean;
 }
 
 interface CartState {
@@ -52,6 +53,7 @@ export const useCartStore = create<CartState>((set, get) => ({
     taxRate: 0,
     shippingCost: 0,
     freeShippingThreshold: 200000,
+    cashPaymentEnabled: true,
   },
 
   setCustomer: (customer) => set({ selectedCustomer: customer }),

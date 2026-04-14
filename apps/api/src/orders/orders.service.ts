@@ -260,6 +260,14 @@ export class OrdersService {
       );
     }
 
+    // Validate cash payment is enabled
+    if (data.paymentMethod === 'CASH') {
+      const cashEnabled = await this.settingsService.get('cash_payment_enabled');
+      if (cashEnabled === 'false') {
+        throw new BadRequestException('El pago en efectivo está desactivado');
+      }
+    }
+
     // Validate variants and check stock
     const variantIds = data.items.map((item) => item.variantId);
     const variants = await this.prisma.productVariant.findMany({
