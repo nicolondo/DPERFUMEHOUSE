@@ -64,14 +64,15 @@ export default function CustomerDetailPage() {
   };
 
   const handleSendEmail = async (leadId: string, withWhatsApp = false) => {
+    // Open WhatsApp BEFORE the async call to avoid browser popup blocking
+    if (withWhatsApp && leadResult && customer?.phone) {
+      const phone = getWhatsAppPhone(customer.phone);
+      const text = encodeURIComponent(leadResult.whatsappMessage);
+      window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+    }
     try {
       await sendEmail.mutateAsync(leadId);
       setEmailSent(true);
-      if (withWhatsApp && leadResult && customer?.phone) {
-        const phone = getWhatsAppPhone(customer.phone);
-        const text = encodeURIComponent(leadResult.whatsappMessage);
-        window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
-      }
     } catch {
       // handled by react-query
     }
@@ -209,67 +210,49 @@ export default function CustomerDetailPage() {
           </div>
         </Card>
 
-        {/* Questionnaire Card */}
+        {/* Questionnaire Button */}
         {customer.phone && (
-          <Card>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-purple-muted">
-                  <Send className="h-4 w-4 text-accent-purple" />
-                </div>
-                <h3 className="text-sm font-semibold text-white">Cuestionario</h3>
-              </div>
-              {leadSent && (
-                <button
-                  onClick={() => { setLeadSent(false); setLeadResult(null); }}
-                  className="text-xs text-white/30 hover:text-white/60"
-                >
-                  Nuevo
-                </button>
+          !leadSent ? (
+            <button
+              onClick={handleSendQuestionnaire}
+              disabled={createLead.isPending}
+              className="w-full flex items-center justify-center gap-2 rounded-2xl border border-glass-border bg-glass-50 backdrop-blur-sm px-4 py-3.5 text-sm font-medium text-white/80 hover:bg-glass-100 hover:text-white transition-colors disabled:opacity-50"
+            >
+              {createLead.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4 text-accent-purple" />}
+              Enviar Cuestionario
+            </button>
+          ) : emailSent ? (
+            <div className="flex items-center gap-2 rounded-2xl bg-green-500/10 border border-green-500/20 px-4 py-3.5">
+              <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />
+              <p className="text-sm text-green-400">¡Cuestionario enviado con éxito!</p>
+              <button onClick={() => { setLeadSent(false); setLeadResult(null); setEmailSent(false); }} className="ml-auto text-xs text-white/30 hover:text-white/60">Nuevo</button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-white/40 px-1 mb-1">¿Cómo querés enviar el cuestionario?</p>
+              {leadResult && (
+                <>
+                  <button
+                    onClick={() => handleSendEmail(leadResult.lead.id, true)}
+                    disabled={sendEmail.isPending}
+                    className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-4 py-3.5 text-sm font-medium text-white disabled:opacity-50"
+                  >
+                    {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                    WhatsApp + Correo electrónico
+                  </button>
+                  <button
+                    onClick={() => handleSendEmail(leadResult.lead.id, false)}
+                    disabled={sendEmail.isPending}
+                    className="w-full flex items-center justify-center gap-2 rounded-2xl border border-glass-border bg-glass-50 backdrop-blur-sm px-4 py-3.5 text-sm font-medium text-white/70 disabled:opacity-50"
+                  >
+                    {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                    Solo Correo electrónico
+                  </button>
+                  <button onClick={() => { setLeadSent(false); setLeadResult(null); }} className="w-full text-xs text-white/30 hover:text-white/60 py-1">Cancelar</button>
+                </>
               )}
             </div>
-
-            {!leadSent ? (
-              <Button
-                fullWidth
-                variant="ghost"
-                loading={createLead.isPending}
-                onClick={handleSendQuestionnaire}
-                leftIcon={<MessageCircle className="h-4 w-4" />}
-              >
-                Enviar Cuestionario
-              </Button>
-            ) : emailSent ? (
-              <div className="flex items-center gap-2 rounded-xl bg-green-500/10 border border-green-500/20 p-3">
-                <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />
-                <p className="text-sm text-green-400">¡Cuestionario enviado con éxito!</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-xs text-white/40 mb-3">¿Cómo querés enviar el cuestionario?</p>
-                {leadResult && (
-                  <>
-                    <button
-                      onClick={() => handleSendEmail(leadResult.lead.id, true)}
-                      disabled={sendEmail.isPending}
-                      className="w-full py-3 rounded-full bg-[#25D366] text-white font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-                      WhatsApp + Correo electrónico
-                    </button>
-                    <button
-                      onClick={() => handleSendEmail(leadResult.lead.id, false)}
-                      disabled={sendEmail.isPending}
-                      className="w-full py-3 rounded-full border border-glass-border text-white/70 font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                      Solo Correo electrónico
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-          </Card>
+          )
         )}
 
         {/* Promo Discount Card */}
