@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Script from 'next/script';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
@@ -266,6 +266,8 @@ function PerfumeAutocomplete({ value, onChange, onTyping, placeholder }: { value
 export default function QuestionnairePage() {
   const params = useParams<{ code: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const catsParam = searchParams.get('cats');
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [sellerInfo, setSeller] = useState<{ sellerId: string; sellerName: string } | null>(null);
@@ -336,6 +338,7 @@ export default function QuestionnairePage() {
         budgetRange: contact.budget || undefined,
         isForGift: answers.forWhom === 'gift',
         giftRecipient: answers.giftRecipient || undefined,
+        selectedCategories: catsParam ? catsParam.split(",").map((c: string) => c.trim()).filter(Boolean) : undefined,
       };
       const res = await fetch(`${API_URL}/leads/questionnaire/${params.code}`, {
         method: 'POST',
