@@ -200,6 +200,40 @@ export interface CreateOrderInput {
   applyPromoDiscount?: boolean;
 }
 
+export type LeadStatus = 'SENT' | 'RESPONDED' | 'APPOINTMENT' | 'VISITED' | 'CONVERTED';
+
+export interface Lead {
+  id: string;
+  sellerId: string;
+  customerId?: string;
+  customer?: Customer;
+  seller?: { id: string; name: string };
+  clientName?: string;
+  clientPhone?: string;
+  clientEmail?: string;
+  status: LeadStatus;
+  aiAnalysis?: any;
+  recommendations?: any[];
+  sellerScript?: any;
+  appointmentDate?: string;
+  appointmentTime?: string;
+  appointmentLocation?: string;
+  appointmentNotes?: string;
+  orderId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LeadStats {
+  total: number;
+  sent: number;
+  responded: number;
+  appointment: number;
+  visited: number;
+  converted: number;
+  conversionRate: number;
+}
+
 // Cart item for local state
 export interface CartItem {
   variant: ProductVariant & { product?: Product };
