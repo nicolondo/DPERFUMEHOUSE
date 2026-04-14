@@ -142,6 +142,7 @@ model User {
   proposals            Proposal[]           @relation("proposals")
   pushTokens           PushToken[]
   sellerProductLinks   SellerProductLink[]
+  promoUsages          SellerPromoUsage[]
 
   @@index([parentId])
   @@index([role])
@@ -176,6 +177,9 @@ model Customer {
   birthday        DateTime?        @db.Date
   language        String           @default("es")
   odooPartnerId   Int?             @map("odoo_partner_id")
+  promoDiscountUseGlobal Boolean   @default(true) @map("promo_discount_use_global")
+  promoDiscountPercent   Decimal?  @map("promo_discount_percent") @db.Decimal(5, 2)
+  promoDiscountLimit     Int?      @map("promo_discount_limit")
   sellerId        String           @map("seller_id") @db.Uuid
   seller          User             @relation(fields: [sellerId], references: [id])
   createdAt       DateTime         @default(now()) @map("created_at")
@@ -275,6 +279,7 @@ model Order {
   address          CustomerAddress? @relation(fields: [addressId], references: [id])
   subtotal         Decimal       @db.Decimal(12, 2)
   discount         Decimal       @default(0) @db.Decimal(12, 2)
+  promoDiscount    Decimal       @default(0) @map("promo_discount") @db.Decimal(12, 2)
   tax              Decimal       @default(0) @db.Decimal(12, 2)
   shipping         Decimal       @default(0) @db.Decimal(12, 2)
   total            Decimal       @db.Decimal(12, 2)
@@ -698,4 +703,19 @@ model QuantityDiscount {
   @@index([isActive])
   @@index([variantId])
   @@map("quantity_discounts")
+}
+
+model SellerPromoUsage {
+  id         String   @id @default(uuid()) @db.Uuid
+  sellerId   String   @map("seller_id") @db.Uuid
+  seller     User     @relation(fields: [sellerId], references: [id])
+  customerId String?  @map("customer_id") @db.Uuid
+  orderId    String   @unique @map("order_id") @db.Uuid
+  yearMonth  String   @map("year_month")
+  percent    Decimal  @db.Decimal(5, 2)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([sellerId, yearMonth])
+  @@index([orderId])
+  @@map("seller_promo_usages")
 }

@@ -10,10 +10,7 @@ import {
   Plus,
   Pencil,
   ShoppingBag,
-  Sparkles,
-  MessageCircle,
-  Check,
-  X,
+  Percent,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge, OrderStatusBadge } from '@/components/ui/badge';
@@ -25,12 +22,9 @@ import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { AddressAutocomplete, type ParsedAddress } from '@/components/ui/address-autocomplete';
 import { PageHeader } from '@/components/layout/page-header';
-import { useCustomer, useAddAddress, useUpdateAddress } from '@/hooks/use-customers';
+import { useCustomer, useAddAddress, useUpdateAddress, usePromoStatus, useCustomerPromoConfig, useUpdateCustomerPromoConfig } from '@/hooks/use-customers';
 import { useOrders } from '@/hooks/use-orders';
-import { useCreateLeadForCustomer } from '@/hooks/use-leads';
-import { useCategories } from '@/hooks/use-products';
-import { formatCurrency, formatDate, getInitials, formatPhone } from '@/lib/utils';
-import api from '@/lib/api';
+import { formatCurrency, formatDate, getInitials } from '@/lib/utils';
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -38,63 +32,24 @@ export default function CustomerDetailPage() {
   const { data: customer, isLoading } = useCustomer(id);
   const { data: ordersData, isLoading: ordersLoading } = useOrders();
   const addAddress = useAddAddress();
-  const createLead = useCreateLeadForCustomer();
-  const { data: categoriesData } = useCategories();
 
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [editingAddress, setEditingAddress] = useState<any>(null);
   const updateAddress = useUpdateAddress();
-  const [showBrandPicker, setShowBrandPicker] = useState(false);
-  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
-
-  // Build brand → full category name map
-  const fullCategories: string[] = Array.isArray(categoriesData) ? categoriesData : [];
-  const categoryMap: Record<string, string> = {};
-  fullCategories.forEach((c: string) => {
-    const parts = c.split('/').map((p: string) => p.trim());
-    const brand = parts.length >= 3 ? parts[2] : parts[parts.length - 1];
-    if (!categoryMap[brand]) categoryMap[brand] = c;
+  const [showPromoModal, setShowPromoModal] = useState(false);
+  const { data: promoStatus } = usePromoStatus();
+  const { data: customerPromoConfig } = useCustomerPromoConfig(id);
+  const updatePromoConfig = useUpdateCustomerPromoConfig();
+  const [promoForm, setPromoForm] = useState({
+    useGlobal: true,
+    discountPercent: '',
+    discountLimit: '',
   });
-  const sellerBrands = Object.keys(categoryMap);
-
-  const handleSendQuestionnaire = async (brands?: string[], method: 'whatsapp-email' | 'email' = 'whatsapp-email') => {
-    if (!id) return;
-    try {
-      const fullNames = (brands || sellerBrands).map(b => categoryMap[b]).filter(Boolean);
-      const result = await createLead.mutateAsync({
-        customerId: id,
-        selectedCategories: fullNames.length > 0 ? fullNames : undefined,
-      });
-      const leadId = result.lead?.id || result.id;
-      const url = result.questionnaireUrl || result.lead?.questionnaireUrl || result.url;
-
-      // Always send email if customer has email
-      if (leadId && customer?.email) {
-        try {
-          await api.post(`/leads/${leadId}/send-email`);
-        } catch {
-          // Non-blocking
-        }
-      }
-
-      // Open WhatsApp if method includes it
-      if (method === 'whatsapp-email') {
-        const phone = customer?.phone?.replace(/\D/g, '');
-        if (phone && url) {
-          const msg = `Hola ${customer?.name?.split(' ')[0]}! 🌿✨ Te comparto este cuestionario rápido para encontrar tu perfume ideal:\n${url}`;
-          window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
-        }
-      }
-    } catch {
-      // handled by react-query
-    }
-  };
   const [addressForm, setAddressForm] = useState({
     label: '',
     street: '',
     detail: '',
     phone: '',
-    phoneCode: '+57',
     city: '',
     state: '',
     country: 'Colombia',
@@ -116,7 +71,6 @@ export default function CustomerDetailPage() {
         street: '',
         detail: '',
         phone: '',
-        phoneCode: '+57',
         city: '',
         state: '',
         country: 'Colombia',
@@ -194,7 +148,7 @@ export default function CustomerDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs text-white/30">Telefono</p>
-                  <p className="text-sm text-white">{formatPhone(customer.phone)}</p>
+                  <p className="text-sm text-white">{customer.phone}</p>
                 </div>
               </div>
             )}
@@ -218,121 +172,55 @@ export default function CustomerDetailPage() {
           </div>
         </Card>
 
-        {/* Send Questionnaire */}
-        <button
-          onClick={() => {
-            if (!id) return;
-            setSelectedBrands([...sellerBrands]);
-            setShowBrandPicker(true);
-          }}
-          disabled={createLead.isPending}
-          className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500/10 to-purple-500/10 border border-amber-500/20 p-4 text-sm font-medium text-amber-300 hover:from-amber-500/15 hover:to-purple-500/15 transition-colors disabled:opacity-50"
-        >
-          <Sparkles className="h-4 w-4" />
-          {createLead.isPending ? 'Enviando...' : 'Enviar Cuestionario de Fragancias'}
-        </button>
-
-        {/* Brand Picker + Send Method Modal */}
-        {showBrandPicker && (
-          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowBrandPicker(false)}>
-            <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border border-white/10 rounded-t-3xl sm:rounded-3xl p-6 pb-8 sm:pb-6 w-full max-w-md mx-0 sm:mx-4 max-h-[85dvh] overflow-y-auto animate-in slide-in-from-bottom duration-300" onClick={(e) => e.stopPropagation()}>
-              {/* Handle bar (mobile) */}
-              <div className="flex justify-center mb-4 sm:hidden">
-                <div className="w-10 h-1 rounded-full bg-white/20" />
-              </div>
-
-              {/* Header */}
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/15">
-                    <Sparkles className="h-4 w-4 text-amber-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-white">Cuestionario de Fragancias</h3>
-                    <p className="text-xs text-white/40">Selecciona marcas y metodo de envio</p>
-                  </div>
+        {/* Promo Discount Card */}
+        {promoStatus?.enabled && (
+          <Card>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-purple-muted">
+                  <Percent className="h-4 w-4 text-accent-purple" />
                 </div>
-                <button onClick={() => setShowBrandPicker(false)} className="p-1.5 rounded-lg hover:bg-white/5 text-white/30 hover:text-white/60 transition-colors">
-                  <X className="h-5 w-5" />
-                </button>
+                <h3 className="text-sm font-semibold text-white">Descuento Promo</h3>
               </div>
-
-              {/* Brand Selection */}
-              <div className="mb-5">
-                <div className="flex items-center justify-between mb-2.5">
-                  <p className="text-xs font-medium text-white/50 uppercase tracking-wider">Marcas</p>
-                  <button
-                    onClick={() => setSelectedBrands(selectedBrands.length === sellerBrands.length ? [] : [...sellerBrands])}
-                    className="text-xs text-amber-400/80 hover:text-amber-400 transition-colors"
-                  >
-                    {selectedBrands.length === sellerBrands.length ? 'Deseleccionar' : 'Seleccionar todas'}
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {sellerBrands.map((brand) => {
-                    const isSelected = selectedBrands.includes(brand);
-                    return (
-                      <button
-                        key={brand}
-                        onClick={() => setSelectedBrands(prev => isSelected ? prev.filter(b => b !== brand) : [...prev, brand])}
-                        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                          isSelected
-                            ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 shadow-sm shadow-amber-500/10'
-                            : 'bg-white/5 border border-white/10 text-white/40 hover:bg-white/10 hover:text-white/60'
-                        }`}
-                      >
-                        {isSelected && <Check className="h-3.5 w-3.5" />}
-                        {brand}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="h-px bg-white/10 mb-5" />
-
-              {/* Send Method — triggers send directly */}
+              <button
+                onClick={() => {
+                  setPromoForm({
+                    useGlobal: customerPromoConfig?.promoDiscountUseGlobal ?? true,
+                    discountPercent: customerPromoConfig?.promoDiscountPercent != null
+                      ? String(customerPromoConfig.promoDiscountPercent)
+                      : '',
+                    discountLimit: customerPromoConfig?.promoDiscountLimit != null
+                      ? String(customerPromoConfig.promoDiscountLimit)
+                      : '',
+                  });
+                  setShowPromoModal(true);
+                }}
+                className="p-1.5 text-white/30 hover:text-accent-purple"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-white/50 uppercase tracking-wider mb-2.5">Enviar por</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => {
-                      if (selectedBrands.length === 0 || createLead.isPending) return;
-                      setShowBrandPicker(false);
-                      handleSendQuestionnaire(selectedBrands, 'whatsapp-email');
-                    }}
-                    disabled={selectedBrands.length === 0 || createLead.isPending}
-                    className="flex flex-col items-center gap-2 p-3.5 rounded-xl border transition-all duration-200 bg-emerald-500/15 border-emerald-500/40 shadow-sm shadow-emerald-500/10 hover:bg-emerald-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <MessageCircle className="h-4 w-4 text-emerald-400" />
-                      <span className="text-lg text-emerald-400">+</span>
-                      <Mail className="h-4 w-4 text-emerald-400" />
-                    </div>
-                    <span className="text-xs font-medium text-emerald-300">WhatsApp + Email</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (selectedBrands.length === 0 || createLead.isPending || !customer?.email) return;
-                      setShowBrandPicker(false);
-                      handleSendQuestionnaire(selectedBrands, 'email');
-                    }}
-                    disabled={selectedBrands.length === 0 || createLead.isPending || !customer?.email}
-                    className="flex flex-col items-center gap-2 p-3.5 rounded-xl border transition-all duration-200 bg-blue-500/15 border-blue-500/40 shadow-sm shadow-blue-500/10 hover:bg-blue-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <Mail className="h-4 w-4 text-blue-400" />
-                    <span className="text-xs font-medium text-blue-300">Solo Email</span>
-                  </button>
-                </div>
-                {!customer?.email && (
-                  <p className="mt-2 text-xs text-white/30 flex items-center gap-1">
-                    <Mail className="h-3 w-3" /> Sin email — solo WhatsApp disponible
-                  </p>
-                )}
+                <p className="text-xs text-white/50">Descuentos disponibles este mes</p>
+                <p className="text-sm font-semibold text-white mt-0.5">
+                  {promoStatus.remaining > 0 ? (
+                    <span className="text-accent-purple">{promoStatus.remaining} de {promoStatus.globalLimit}</span>
+                  ) : (
+                    <span className="text-white/30">0 de {promoStatus.globalLimit} (agotados)</span>
+                  )}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-white/50">Descuento</p>
+                <p className="text-base font-bold text-accent-purple">
+                  {customerPromoConfig?.promoDiscountUseGlobal === false && customerPromoConfig?.promoDiscountPercent != null
+                    ? `${customerPromoConfig.promoDiscountPercent}%`
+                    : `${promoStatus.globalPercent}%`}
+                </p>
               </div>
             </div>
-          </div>
+          </Card>
         )}
 
         {/* Addresses Section */}
@@ -382,7 +270,7 @@ export default function CustomerDetailPage() {
                         {address.city}, {address.state}
                       </p>
                       {address.phone && (
-                        <p className="text-xs text-white/30">{formatPhone(address.phone)}</p>
+                        <p className="text-xs text-white/30">{address.phone}</p>
                       )}
                       {address.notes && (
                         <p className="mt-1 text-xs text-white/30 italic">
@@ -451,6 +339,63 @@ export default function CustomerDetailPage() {
         </div>
       </div>
 
+      {/* Promo Config Modal */}
+      <Modal
+        isOpen={showPromoModal}
+        onClose={() => setShowPromoModal(false)}
+        title="Configuracion de Descuento"
+      >
+        <div className="space-y-4">
+          <label className="flex items-center gap-2 text-sm text-white/70">
+            <input
+              type="checkbox"
+              checked={promoForm.useGlobal}
+              onChange={(e) => setPromoForm((prev) => ({ ...prev, useGlobal: e.target.checked }))}
+              className="h-4 w-4 rounded border-glass-border bg-glass-50 text-accent-purple focus:ring-accent-purple/50"
+            />
+            Usar configuracion global
+          </label>
+
+          {!promoForm.useGlobal && (
+            <>
+              <Input
+                label="Porcentaje de descuento (%)"
+                type="number"
+                min="1"
+                max="100"
+                placeholder={`Global: ${promoStatus?.globalPercent ?? '-'}%`}
+                value={promoForm.discountPercent}
+                onChange={(e) => setPromoForm((prev) => ({ ...prev, discountPercent: e.target.value }))}
+              />
+              <Input
+                label="Usos por mes"
+                type="number"
+                min="1"
+                placeholder={`Global: ${promoStatus?.globalLimit ?? '-'} veces`}
+                value={promoForm.discountLimit}
+                onChange={(e) => setPromoForm((prev) => ({ ...prev, discountLimit: e.target.value }))}
+              />
+            </>
+          )}
+
+          <Button
+            fullWidth
+            loading={updatePromoConfig.isPending}
+            onClick={async () => {
+              await updatePromoConfig.mutateAsync({
+                customerId: id!,
+                useGlobal: promoForm.useGlobal,
+                discountPercent: promoForm.discountPercent ? Number(promoForm.discountPercent) : undefined,
+                discountLimit: promoForm.discountLimit ? Number(promoForm.discountLimit) : undefined,
+              });
+              setShowPromoModal(false);
+            }}
+          >
+            Guardar
+          </Button>
+        </div>
+      </Modal>
+
       {/* Add Address Modal */}
       <Modal
         isOpen={showAddressModal}
@@ -493,12 +438,8 @@ export default function CustomerDetailPage() {
           <PhoneInput
             label="Telefono de contacto"
             value={addressForm.phone}
-            phoneCode={addressForm.phoneCode}
             onChange={(val) =>
               setAddressForm((prev) => ({ ...prev, phone: val }))
-            }
-            onCodeChange={(code) =>
-              setAddressForm((prev) => ({ ...prev, phoneCode: code }))
             }
           />
           {(addressForm.city || addressForm.state) && (
@@ -586,7 +527,6 @@ function EditAddressModal({
     street: address.street || '',
     detail: address.detail || '',
     phone: address.phone || '',
-    phoneCode: address.phoneCode || '+57',
     city: address.city || '',
     state: address.state || '',
     notes: address.notes || '',
@@ -631,9 +571,7 @@ function EditAddressModal({
           </label>
           <PhoneInput
             value={form.phone}
-            phoneCode={form.phoneCode}
             onChange={(val) => setForm((p) => ({ ...p, phone: val }))}
-            onCodeChange={(code) => setForm((p) => ({ ...p, phoneCode: code }))}
             placeholder="3001234567"
           />
         </div>

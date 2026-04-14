@@ -15,6 +15,7 @@ import { CommissionsService } from '../commissions/commissions.service';
 import { Prisma, OrderStatus, PaymentMethod, CommissionStatus } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { DiscountsService } from '../discounts/discounts.service';
+import { SettingsService } from '../settings/settings.service';
 import { CreateOrderBodyDto } from './dto';
 
 export interface FindAllOrdersParams {
@@ -38,6 +39,7 @@ export class OrdersService {
     private readonly commissionsService: CommissionsService,
     private readonly notificationsService: NotificationsService,
     private readonly discountsService: DiscountsService,
+    private readonly settingsService: SettingsService,
     private readonly configService: ConfigService,
     @InjectQueue('email-send') private readonly emailQueue: Queue,
   ) {
@@ -367,7 +369,44 @@ export class OrdersService {
 
     const tax = 0;
     const shipping = 0;
-    const total = subtotal - totalDiscount + tax + shipping;
+
+    // Promo discount logic
+    let promoDiscount = 0;
+    let promoPercent = 0;
+    if (data.applyPromoDiscount) {
+      // Get customer's config or fall back to global
+      const customerRecord = await this.prisma.customer.findUnique({
+        where: { id: data.customerId },
+        select: { promoDiscountUseGlobal: true, promoDiscountPercent: true, promoDiscountLimit: true },
+      });
+      let effectivePercent: number;
+      let effectiveLimit: number;
+      if (customerRecord && !customerRecord.promoDiscountUseGlobal && customerRecord.promoDiscountPercent !== null && customerRecord.promoDiscountLimit !== null) {
+        effectivePercent = Number(customerRecord.promoDiscountPercent);
+        effectiveLimit = customerRecord.promoDiscountLimit!;
+      } else {
+        const [settingPercent, settingLimit] = await Promise.all([
+          this.settingsService.get('seller_promo_discount_percent'),
+          this.settingsService.get('seller_promo_discount_limit'),
+        ]);
+        effectivePercent = parseFloat(settingPercent || '0');
+        effectiveLimit = parseInt(settingLimit || '0');
+      }
+
+      if (effectivePercent > 0 && effectiveLimit > 0) {
+        const yearMonth = new Date().toISOString().slice(0, 7);
+        const usedCount = await this.prisma.sellerPromoUsage.count({
+          where: { sellerId, yearMonth },
+        });
+        if (usedCount >= effectiveLimit) {
+          throw new BadRequestException('No tienes descuentos promocionales disponibles este mes');
+        }
+        promoPercent = effectivePercent;
+        promoDiscount = Math.round((subtotal - totalDiscount) * effectivePercent / 100);
+      }
+    }
+
+    const total = subtotal - totalDiscount - promoDiscount + tax + shipping;
 
     // Create order in a transaction
     const order = await this.prisma.$transaction(async (tx) => {
@@ -380,6 +419,7 @@ export class OrdersService {
           addressId: data.addressId,
           subtotal,
           discount: totalDiscount,
+          promoDiscount,
           tax,
           shipping,
           total,
@@ -417,6 +457,20 @@ export class OrdersService {
         await tx.productVariant.update({
           where: { id: item.variantId },
           data: { stock: { decrement: item.quantity } },
+        });
+      }
+
+      // Record promo discount usage
+      if (data.applyPromoDiscount && promoDiscount > 0) {
+        const yearMonth = new Date().toISOString().slice(0, 7);
+        await tx.sellerPromoUsage.create({
+          data: {
+            sellerId,
+            customerId: data.customerId,
+            orderId: createdOrder.id,
+            yearMonth,
+            percent: promoPercent,
+          },
         });
       }
 

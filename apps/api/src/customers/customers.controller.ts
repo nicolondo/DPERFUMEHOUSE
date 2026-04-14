@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Param,
   Body,
@@ -18,6 +19,7 @@ import {
   UpdateCustomerBodyDto,
   CreateAddressBodyDto,
   UpdateAddressBodyDto,
+  UpdatePromoConfigDto,
 } from './dto';
 
 @Controller('customers')
@@ -64,6 +66,11 @@ export class CustomersController {
       return [];
     }
     return this.customersService.getFollowUpCustomers(sellerId, days ? parseInt(days, 10) : 45);
+  }
+
+  @Get('promo-status')
+  async getPromoStatus(@CurrentUser() user: CurrentUserPayload) {
+    return this.customersService.getPromoStatus(user.sub);
   }
 
   @Get(':id')
@@ -127,6 +134,24 @@ export class CustomersController {
   ) {
     const sellerId = user.role === 'ADMIN' ? null : user.sub;
     return this.customersService.deleteAddress(customerId, addressId, sellerId);
+  }
+
+  @Get(':id/promo-config')
+  async getCustomerPromoConfig(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    const sellerId = user.role === 'ADMIN' ? null : user.sub;
+    return this.customersService.getCustomerPromoConfig(id, sellerId || user.sub);
+  }
+
+  @Patch(':id/promo-config')
+  async updateCustomerPromoConfig(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: UpdatePromoConfigDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.customersService.updateCustomerPromoConfig(id, user.sub, body);
   }
 
   @Delete(':id')

@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { OdooService } from '../odoo/odoo.service';
 import { EmailService } from '../email/email.service';
+import { SettingsService } from '../settings/settings.service';
 import { Prisma } from '@prisma/client';
 import {
   CreateCustomerBodyDto,
@@ -18,11 +19,6 @@ import {
   UpdateAddressBodyDto,
 } from './dto';
 
-export interface FindAllCustomersParams {
-  page: number;
-  pageSize: number;
-  search?: string;
-}
 
 @Injectable()
 export class CustomersService {
@@ -34,6 +30,7 @@ export class CustomersService {
     private readonly prisma: PrismaService,
     private readonly odooService: OdooService,
     private readonly emailService: EmailService,
+    private readonly settingsService: SettingsService,
     private readonly configService: ConfigService,
   ) {
     this.sellerAppUrl = this.configService.get<string>('SELLER_APP_URL', 'http://localhost:3000');
@@ -649,5 +646,52 @@ export class CustomersService {
         };
       })
       .sort((a, b) => b.daysSinceLastOrder - a.daysSinceLastOrder);
+  }
+
+  async getPromoStatus(sellerId: string) {
+    const [settingPercent, settingLimit] = await Promise.all([
+      this.settingsService.get('seller_promo_discount_percent'),
+      this.settingsService.get('seller_promo_discount_limit'),
+    ]);
+    const globalPercent = parseFloat(settingPercent || '0');
+    const globalLimit = parseInt(settingLimit || '0');
+
+    const yearMonth = new Date().toISOString().slice(0, 7);
+    const used = await this.prisma.sellerPromoUsage.count({
+      where: { sellerId, yearMonth },
+    });
+    const remaining = Math.max(0, globalLimit - used);
+
+    return { globalPercent, globalLimit, used, remaining, enabled: globalLimit > 0 && globalPercent > 0 };
+  }
+
+  async getCustomerPromoConfig(customerId: string, sellerId: string) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, sellerId },
+      select: { id: true, promoDiscountUseGlobal: true, promoDiscountPercent: true, promoDiscountLimit: true },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+    return customer;
+  }
+
+  async updateCustomerPromoConfig(
+    customerId: string,
+    sellerId: string,
+    dto: { useGlobal: boolean; discountPercent?: number; discountLimit?: number },
+  ) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, sellerId },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    return this.prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        promoDiscountUseGlobal: dto.useGlobal,
+        promoDiscountPercent: dto.useGlobal ? null : (dto.discountPercent ?? null),
+        promoDiscountLimit: dto.useGlobal ? null : (dto.discountLimit ?? null),
+      },
+      select: { id: true, promoDiscountUseGlobal: true, promoDiscountPercent: true, promoDiscountLimit: true },
+    });
   }
 }

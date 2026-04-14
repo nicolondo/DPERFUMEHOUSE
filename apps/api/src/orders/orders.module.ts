@@ -9,6 +9,7 @@ import { PaymentsModule } from '../payments/payments.module';
 import { EmailModule } from '../email/email.module';
 import { CommissionsModule } from '../commissions/commissions.module';
 import { DiscountsModule } from '../discounts/discounts.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { DiscountsModule } from '../discounts/discounts.module';
     EmailModule,
     CommissionsModule,
     DiscountsModule,
+    SettingsModule,
     BullModule.registerQueue({
       name: 'email-send',
     }),

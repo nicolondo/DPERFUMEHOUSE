@@ -6,6 +6,7 @@ import {
   IsInt,
   IsUUID,
   IsIn,
+  IsBoolean,
   Min,
   ValidateNested,
   ArrayMinSize,
@@ -42,6 +43,10 @@ export class CreateOrderBodyDto {
   @IsIn(['ONLINE', 'CASH'])
   @IsOptional()
   paymentMethod?: 'ONLINE' | 'CASH';
+
+  @IsBoolean()
+  @IsOptional()
+  applyPromoDiscount?: boolean;
 }
 
 export class UpdateOrderAddressDto {

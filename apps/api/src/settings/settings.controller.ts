@@ -42,10 +42,14 @@ export class SettingsController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get public order configuration (tax, shipping)' })
   async getOrderConfig() {
-    const taxRate = await this.settingsService.get('tax_rate');
-    const shippingCost = await this.settingsService.get('default_shipping_cost');
-    const freeShippingThreshold = await this.settingsService.get('free_shipping_threshold');
-    const activePaymentProvider = await this.settingsService.get('active_payment_provider');
+    const [taxRate, shippingCost, freeShippingThreshold, activePaymentProvider, promoDiscountPercent, promoDiscountLimit] = await Promise.all([
+      this.settingsService.get('tax_rate'),
+      this.settingsService.get('default_shipping_cost'),
+      this.settingsService.get('free_shipping_threshold'),
+      this.settingsService.get('active_payment_provider'),
+      this.settingsService.get('seller_promo_discount_percent'),
+      this.settingsService.get('seller_promo_discount_limit'),
+    ]);
 
     const rawTax = parseFloat(taxRate || '19');
     // If stored as percentage (e.g. 19), convert to decimal (0.19)
@@ -56,6 +60,8 @@ export class SettingsController {
       shippingCost: parseFloat(shippingCost || '0'),
       freeShippingThreshold: parseFloat(freeShippingThreshold || '200000'),
       activePaymentProvider: activePaymentProvider || 'myxspend',
+      promoDiscountPercent: parseFloat(promoDiscountPercent || '0'),
+      promoDiscountLimit: parseInt(promoDiscountLimit || '0'),
     };
   }
 

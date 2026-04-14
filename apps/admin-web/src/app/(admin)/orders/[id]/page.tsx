@@ -342,7 +342,7 @@ export default function OrderDetailPage() {
               variant="outline"
               size="sm"
               icon={<Printer className="h-4 w-4" />}
-              onClick={() => window.open(`/orders/${orderId}/print-address`, '_blank')}
+              onClick={() => window.open(`/print/orders/${orderId}`, '_blank')}
             >
               Imprimir
             </Button>

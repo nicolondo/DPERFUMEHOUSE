@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
 import {
   Search,
   Check,
@@ -19,7 +18,7 @@ import {
   Pencil,
   X,
   Banknote,
-  Truck,
+  Percent,
 } from 'lucide-react';
 import { Input, Textarea } from '@/components/ui/input';
 import { AddressAutocomplete, type ParsedAddress } from '@/components/ui/address-autocomplete';
@@ -31,12 +30,11 @@ import { PageSpinner } from '@/components/ui/spinner';
 import { Modal } from '@/components/ui/modal';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
-import { useCustomers, useCustomer, useCreateCustomer, useAddAddress, useUpdateAddress } from '@/hooks/use-customers';
+import { useCustomers, useCustomer, useCreateCustomer, useAddAddress, useUpdateAddress, usePromoStatus } from '@/hooks/use-customers';
 import { useProducts, useCategories, useRequestProduct } from '@/hooks/use-products';
 import { useCreateOrder } from '@/hooks/use-orders';
 import { useCartStore } from '@/store/cart.store';
-import { api } from '@/lib/api';
-import { formatCurrency, getInitials, formatPhone } from '@/lib/utils';
+import { formatCurrency, getInitials } from '@/lib/utils';
 import type { Customer, Address } from '@/lib/types';
 
 const STEPS = [
@@ -78,6 +76,8 @@ export default function NewOrderPage() {
 
   const setOrderConfig = useCartStore((s) => s.setOrderConfig);
   const createOrder = useCreateOrder();
+  const [applyPromoDiscount, setApplyPromoDiscount] = useState(false);
+  const { data: promoStatus } = usePromoStatus();
 
   // Fetch order config (tax, shipping) from backend
   useEffect(() => {
@@ -125,15 +125,8 @@ export default function NewOrderPage() {
         items: orderItems,
         notes: notes || undefined,
         paymentMethod,
+        applyPromoDiscount: applyPromoDiscount || undefined,
       });
-      // Auto-generate payment link for online orders
-      if (!paymentMethod || paymentMethod === 'ONLINE') {
-        try {
-          await api.post(`/orders/${order.id}/process`);
-        } catch {
-          // Non-blocking: user can still generate the link from the order page
-        }
-      }
       resetFlow();
       router.replace(`/orders/${order.id}`);
     } catch {
@@ -142,7 +135,7 @@ export default function NewOrderPage() {
   };
 
   return (
-    <div className="pb-28">
+    <div>
       <PageHeader
         title="Nuevo Pedido"
         onBack={handleBack}
@@ -231,6 +224,9 @@ export default function NewOrderPage() {
             addItem={addItem}
             removeItem={removeItem}
             updateQuantity={updateQuantity}
+            applyPromoDiscount={applyPromoDiscount}
+            onTogglePromoDiscount={setApplyPromoDiscount}
+            promoStatus={promoStatus}
           />
         )}
       </div>
@@ -265,7 +261,6 @@ function Step1SelectCustomer({
     documentNumber: '',
   });
   const [newPhone, setNewPhone] = useState('');
-  const [newPhoneCode, setNewPhoneCode] = useState('+57');
   const [createError, setCreateError] = useState('');
 
   const handleCreateCustomer = async () => {
@@ -276,14 +271,12 @@ function Step1SelectCustomer({
         name: newForm.name,
         email: newForm.email || undefined,
         phone: newPhone,
-        phoneCode: newPhoneCode,
         documentType: newForm.documentType || undefined,
         documentNumber: newForm.documentNumber || undefined,
       });
       setShowNewCustomer(false);
       setNewForm({ name: '', email: '', phone: '', documentType: 'CC', documentNumber: '' });
       setNewPhone('');
-      setNewPhoneCode('+57');
       onSelect(created);
       onContinue();
     } catch (err: any) {
@@ -344,7 +337,7 @@ function Step1SelectCustomer({
                   </p>
                   <p className="text-xs text-white/50 truncate">
                     {customer.email || ''}
-                    {customer.phone ? `${customer.email ? ' · ' : ''}${formatPhone(customer.phone)}` : ''}
+                    {customer.phone ? `${customer.email ? ' · ' : ''}${customer.phone}` : ''}
                   </p>
                 </div>
                 {isSelected && (
@@ -376,7 +369,7 @@ function Step1SelectCustomer({
           />
           <div>
             <label className="block text-sm font-medium text-white/70 mb-1.5">Telefono *</label>
-            <PhoneInput value={newPhone} onChange={setNewPhone} phoneCode={newPhoneCode} onCodeChange={setNewPhoneCode} />
+            <PhoneInput value={newPhone} onChange={setNewPhone} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -384,7 +377,7 @@ function Step1SelectCustomer({
               <select
                 value={newForm.documentType}
                 onChange={(e) => setNewForm((f) => ({ ...f, documentType: e.target.value }))}
-                className="w-full rounded-xl border border-glass-border bg-glass-100 px-4 py-3 text-base text-white appearance-none focus:outline-none focus:border-accent-purple/50 focus:ring-2 focus:ring-accent-purple/20"
+                className="w-full rounded-xl border border-glass-border bg-glass-50 px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-accent-gold/50"
               >
                 <option value="CC">C.C</option>
                 <option value="NIT">NIT</option>
@@ -447,7 +440,6 @@ function Step2SelectAddress({
     street: '',
     detail: '',
     phone: customer.phone || '',
-    phoneCode: '+57',
     city: '',
     state: '',
     country: 'Colombia',
@@ -459,7 +451,6 @@ function Step2SelectAddress({
     street: '',
     detail: '',
     phone: '',
-    phoneCode: '+57',
     city: '',
     state: '',
     notes: '',
@@ -488,7 +479,6 @@ function Step2SelectAddress({
       street: address.street,
       detail: address.detail || '',
       phone: address.phone || '',
-      phoneCode: (address as any).phoneCode || '+57',
       city: address.city,
       state: address.state,
       notes: address.notes || '',
@@ -573,7 +563,7 @@ function Step2SelectAddress({
                       {address.city}, {address.state}
                     </p>
                     {address.phone && (
-                      <p className="text-xs text-white/30">{formatPhone(address.phone)}</p>
+                      <p className="text-xs text-white/30">{address.phone}</p>
                     )}
                   </div>
                   <button
@@ -650,12 +640,8 @@ function Step2SelectAddress({
             <PhoneInput
               label="Telefono de contacto"
               value={addressForm.phone}
-              phoneCode={addressForm.phoneCode}
               onChange={(val) =>
                 setAddressForm((prev) => ({ ...prev, phone: val }))
-              }
-              onCodeChange={(code) =>
-                setAddressForm((prev) => ({ ...prev, phoneCode: code }))
               }
             />
             {(addressForm.city || addressForm.state) && (
@@ -736,12 +722,8 @@ function Step2SelectAddress({
             <PhoneInput
               label="Telefono de contacto"
               value={editForm.phone}
-              phoneCode={editForm.phoneCode}
               onChange={(val) =>
                 setEditForm((prev) => ({ ...prev, phone: val }))
-              }
-              onCodeChange={(code) =>
-                setEditForm((prev) => ({ ...prev, phoneCode: code }))
               }
             />
             {(editForm.city || editForm.state) && (
@@ -885,7 +867,7 @@ function Step3SelectProducts({
           description="No se encontraron productos"
         />
       ) : (
-        <div className={`grid grid-cols-2 gap-3 ${count > 0 ? 'pb-40' : ''}`}>
+        <div className="grid grid-cols-2 gap-3">
           {products.map((product: any) => {
             const inStock = product.stock > 0;
             const price = typeof product.price === 'string' ? parseFloat(product.price) : product.price;
@@ -1055,8 +1037,7 @@ function Step3SelectProducts({
 
       {/* Floating bottom bar */}
       {count > 0 && (
-        <div className="fixed inset-x-0 bottom-[5.5rem] z-30 flex justify-center px-3">
-        <div className="w-full max-w-[600px] rounded-2xl border border-glass-border bg-surface-raised p-4 shadow-glass">
+        <div className="fixed inset-x-0 bottom-[4.5rem] z-30 mx-3 rounded-2xl border border-glass-border bg-surface-raised p-4 shadow-glass">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5 text-brand-gold" />
@@ -1073,7 +1054,6 @@ function Step3SelectProducts({
               Continuar
             </Button>
           </div>
-        </div>
         </div>
       )}
     </div>
@@ -1100,6 +1080,9 @@ function Step4Summary({
   addItem,
   removeItem,
   updateQuantity,
+  applyPromoDiscount,
+  onTogglePromoDiscount,
+  promoStatus,
 }: {
   customer: Customer | null;
   address: Address;
@@ -1116,23 +1099,11 @@ function Step4Summary({
   addItem: (variant: any) => void;
   removeItem: (variantId: string) => void;
   updateQuantity: (variantId: string, quantity: number) => void;
+  applyPromoDiscount: boolean;
+  onTogglePromoDiscount: (value: boolean) => void;
+  promoStatus?: any;
 }) {
   const [showCashConfirm, setShowCashConfirm] = useState(false);
-
-  // Fetch discount preview from backend
-  const discountQuery = useQuery({
-    queryKey: ['discount-preview', items.map((i) => `${i.variant.id}:${i.quantity}`).join(',')],
-    queryFn: async () => {
-      const { data } = await api.post('/discounts/preview', {
-        items: items.map((i) => ({ variantId: i.variant.id, quantity: i.quantity })),
-      });
-      return data as { items: any[]; subtotal: number; totalDiscount: number; total: number };
-    },
-    enabled: items.length > 0,
-  });
-
-  const totalDiscount = discountQuery.data?.totalDiscount ?? 0;
-  const adjustedTotal = totalDiscount > 0 ? totalAmount - totalDiscount : totalAmount;
 
   if (!customer) {
     return (
@@ -1159,7 +1130,7 @@ function Step4Summary({
             {customer.email && (
               <p className="text-xs text-white/50">{customer.email}</p>
             )}
-            <p className="text-xs text-white/50">{formatPhone(customer.phone)}</p>
+            <p className="text-xs text-white/50">{customer.phone}</p>
           </div>
         </div>
         <div className="border-t border-glass-border pt-3">
@@ -1174,7 +1145,7 @@ function Step4Summary({
               </p>
               {address.phone && (
                 <p className="text-xs text-white/30 mt-0.5">
-                  Tel: {formatPhone(address.phone)}
+                  Tel: {address.phone}
                 </p>
               )}
             </div>
@@ -1239,12 +1210,6 @@ function Step4Summary({
             <span className="text-white/50">Subtotal</span>
             <span className="text-white">{formatCurrency(subtotalAmount)}</span>
           </div>
-          {totalDiscount > 0 && (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-green-400">Descuento por cantidad</span>
-              <span className="text-green-400">- {formatCurrency(totalDiscount)}</span>
-            </div>
-          )}
           <div className="flex items-center justify-between text-sm">
             <span className="text-white/50">Envio</span>
             <span className="text-white">
@@ -1254,11 +1219,48 @@ function Step4Summary({
           <div className="border-t border-glass-border pt-2 flex items-center justify-between">
             <span className="text-base font-bold text-white">Total</span>
             <span className="text-lg font-bold text-accent-purple">
-              {formatCurrency(adjustedTotal)}
+              {formatCurrency(totalAmount)}
             </span>
           </div>
         </div>
       </Card>
+
+      {/* Promo Discount Toggle */}
+      {promoStatus?.enabled && (
+        <Card>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-purple-muted">
+                <Percent className="h-4 w-4 text-accent-purple" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">
+                  Descuento especial ({promoStatus.globalPercent}%)
+                </p>
+                <p className="text-xs text-white/40">
+                  {promoStatus.remaining > 0
+                    ? `${promoStatus.remaining} de ${promoStatus.globalLimit} disponibles`
+                    : 'Sin descuentos disponibles este mes'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={promoStatus.remaining === 0}
+              onClick={() => onTogglePromoDiscount(!applyPromoDiscount)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                applyPromoDiscount ? 'bg-accent-purple' : 'bg-glass-200'
+              } ${promoStatus.remaining === 0 ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  applyPromoDiscount ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </Card>
+      )}
 
       {/* Notes */}
       <Card>

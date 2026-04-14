@@ -88,3 +88,45 @@ export function useUpdateAddress() {
     },
   });
 }
+
+export function usePromoStatus() {
+  return useQuery({
+    queryKey: ['promo-status'],
+    queryFn: async () => {
+      const { data } = await api.get('/customers/promo-status');
+      return unwrap(data);
+    },
+  });
+}
+
+export function useCustomerPromoConfig(customerId: string | undefined) {
+  return useQuery({
+    queryKey: ['customer-promo-config', customerId],
+    queryFn: async () => {
+      const { data } = await api.get(`/customers/${customerId}/promo-config`);
+      return unwrap(data);
+    },
+    enabled: !!customerId,
+  });
+}
+
+export function useUpdateCustomerPromoConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      customerId,
+      ...dto
+    }: {
+      customerId: string;
+      useGlobal: boolean;
+      discountPercent?: number;
+      discountLimit?: number;
+    }) => {
+      const { data } = await api.patch(`/customers/${customerId}/promo-config`, dto);
+      return unwrap(data);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['customer-promo-config', variables.customerId] });
+    },
+  });
+}

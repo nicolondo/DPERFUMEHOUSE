@@ -5,6 +5,10 @@ import {
   IsBoolean,
   IsNotEmpty,
   IsDateString,
+  IsNumber,
+  IsInt,
+  Min,
+  Max,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -226,4 +230,21 @@ export class UpdateAddressBodyDto {
   @IsString()
   @IsOptional()
   notes?: string;
+}
+
+
+export class UpdatePromoConfigDto {
+  @IsBoolean()
+  useGlobal: boolean;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @IsOptional()
+  discountPercent?: number;
+
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  discountLimit?: number;
 }

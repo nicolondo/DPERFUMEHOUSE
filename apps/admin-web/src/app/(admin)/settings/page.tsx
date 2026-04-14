@@ -1599,6 +1599,8 @@ function GeneralSettings() {
   const [taxRate, setTaxRate] = useState('');
   const [shippingCost, setShippingCost] = useState('');
   const [defaultNewUserCategory, setDefaultNewUserCategory] = useState('');
+  const [promoDiscountPercent, setPromoDiscountPercent] = useState('');
+  const [promoDiscountLimit, setPromoDiscountLimit] = useState('');
 
   const formatCommissionForInput = (raw: unknown, fallback: string) => {
     const value = String(raw ?? '').trim();
@@ -1637,6 +1639,8 @@ function GeneralSettings() {
       setTaxRate(Number.isFinite(taxNum) && taxNum > 0 && taxNum <= 1 ? String(taxNum * 100) : (rawTax || '19'));
       setShippingCost((map.get('default_shipping_cost') as string) || (map.get('default_shipping') as string) || '15000');
       setDefaultNewUserCategory((map.get('default_new_user_category') as string) || '');
+      setPromoDiscountPercent((map.get('seller_promo_discount_percent') as string) || '0');
+      setPromoDiscountLimit((map.get('seller_promo_discount_limit') as string) || '0');
     }
   }, [generalSettings, commissionSettings]);
 
@@ -1648,6 +1652,8 @@ function GeneralSettings() {
         { key: 'tax_rate', value: taxRate },
         { key: 'default_shipping_cost', value: shippingCost },
         { key: 'default_new_user_category', value: defaultNewUserCategory },
+        { key: 'seller_promo_discount_percent', value: promoDiscountPercent },
+        { key: 'seller_promo_discount_limit', value: promoDiscountLimit },
       ]),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -1722,6 +1728,35 @@ function GeneralSettings() {
               ))}
             </Select>
           </FormField>
+        </div>
+
+        {/* Promo Discount */}
+        <div className="border-t border-glass-border pt-4">
+          <p className="text-sm font-semibold text-white mb-1">Descuento Promocional de Vendedores</p>
+          <p className="text-xs text-white/40 mb-3">Cada vendedor puede aplicar un descuento especial X veces al mes en nuevos pedidos. Poner 0 en usos para deshabilitar.</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField label="% de Descuento" hint="Porcentaje que se aplica sobre el total del pedido">
+              <Input
+                type="number"
+                step="1"
+                min="0"
+                max="100"
+                value={promoDiscountPercent}
+                onChange={(e) => setPromoDiscountPercent(e.target.value)}
+                placeholder="0"
+              />
+            </FormField>
+            <FormField label="Usos por Mes" hint="Cuántas veces puede usar el descuento cada vendedor al mes">
+              <Input
+                type="number"
+                step="1"
+                min="0"
+                value={promoDiscountLimit}
+                onChange={(e) => setPromoDiscountLimit(e.target.value)}
+                placeholder="0"
+              />
+            </FormField>
+          </div>
         </div>
 
         {saveMutation.isSuccess && (
