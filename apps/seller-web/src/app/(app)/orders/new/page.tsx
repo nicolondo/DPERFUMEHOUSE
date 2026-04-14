@@ -32,7 +32,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { useCustomers, useCustomer, useCreateCustomer, useAddAddress, useUpdateAddress, usePromoStatus } from '@/hooks/use-customers';
 import { useProducts, useCategories, useRequestProduct } from '@/hooks/use-products';
-import { useCreateOrder } from '@/hooks/use-orders';
+import { useCreateOrder, usePreviewDiscounts } from '@/hooks/use-orders';
 import { useCartStore } from '@/store/cart.store';
 import { formatCurrency, getInitials } from '@/lib/utils';
 import type { Customer, Address } from '@/lib/types';
@@ -1105,6 +1105,17 @@ function Step4Summary({
 }) {
   const [showCashConfirm, setShowCashConfirm] = useState(false);
 
+  const cartItems = items.map((item) => ({ variantId: item.variant.id, quantity: item.quantity }));
+  const { data: previewData } = usePreviewDiscounts(cartItems);
+
+  // quantityDiscountedSubtotal: subtotal after quantity discounts, before promo
+  const quantityDiscountedSubtotal = previewData?.total ?? subtotalAmount;
+  const promoDiscountAmount =
+    applyPromoDiscount && promoStatus?.globalPercent
+      ? Math.round(quantityDiscountedSubtotal * promoStatus.globalPercent / 100)
+      : 0;
+  const displayTotal = quantityDiscountedSubtotal - promoDiscountAmount + shippingAmount + taxAmount;
+
   if (!customer) {
     return (
       <EmptyState
@@ -1210,6 +1221,14 @@ function Step4Summary({
             <span className="text-white/50">Subtotal</span>
             <span className="text-white">{formatCurrency(subtotalAmount)}</span>
           </div>
+          {previewData && previewData.totalDiscount > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-green-400">Desc. cantidad</span>
+              <span className="text-green-400">
+                -{formatCurrency(previewData.totalDiscount)}
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between text-sm">
             <span className="text-white/50">Envio</span>
             <span className="text-white">
@@ -1220,18 +1239,14 @@ function Step4Summary({
             <div className="flex items-center justify-between text-sm">
               <span className="text-accent-purple">Descuento ({promoStatus.globalPercent}%)</span>
               <span className="text-accent-purple">
-                -{formatCurrency(Math.round(subtotalAmount * promoStatus.globalPercent / 100))}
+                -{formatCurrency(promoDiscountAmount)}
               </span>
             </div>
           )}
           <div className="border-t border-glass-border pt-2 flex items-center justify-between">
             <span className="text-base font-bold text-white">Total</span>
             <span className="text-lg font-bold text-accent-purple">
-              {formatCurrency(
-                applyPromoDiscount && promoStatus?.globalPercent
-                  ? totalAmount - Math.round(subtotalAmount * promoStatus.globalPercent / 100)
-                  : totalAmount
-              )}
+              {formatCurrency(displayTotal)}
             </span>
           </div>
         </div>

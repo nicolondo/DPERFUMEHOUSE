@@ -92,3 +92,29 @@ export function useUpdateOrderAddress() {
     },
   });
 }
+
+export function usePreviewDiscounts(items: { variantId: string; quantity: number }[]) {
+  return useQuery({
+    queryKey: ['discounts', 'preview', items],
+    queryFn: async () => {
+      if (items.length === 0) return { items: [], subtotal: 0, totalDiscount: 0, total: 0 };
+      const { data } = await api.post('/discounts/preview', { items });
+      return unwrap(data) as {
+        items: {
+          variantId: string;
+          variantName: string;
+          quantity: number;
+          unitPrice: number;
+          lineTotal: number;
+          discountPercent: number;
+          discountAmount: number;
+          finalTotal: number;
+        }[];
+        subtotal: number;
+        totalDiscount: number;
+        total: number;
+      };
+    },
+    enabled: items.length > 0,
+  });
+}
