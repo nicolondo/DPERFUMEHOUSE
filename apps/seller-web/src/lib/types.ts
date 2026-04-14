@@ -236,12 +236,14 @@ export interface Lead {
 
 export interface LeadStats {
   total: number;
-  sent: number;
-  responded: number;
-  appointment: number;
-  visited: number;
-  converted: number;
-  conversionRate: number;
+  newLeads?: number;
+  byStatus?: Record<string, number>;
+  sent?: number;
+  responded?: number;
+  appointment?: number;
+  visited?: number;
+  converted?: number;
+  conversionRate?: number;
 }
 
 // Cart item for local state
