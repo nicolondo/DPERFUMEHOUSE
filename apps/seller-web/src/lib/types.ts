@@ -108,11 +108,12 @@ export type OrderStatus =
   | 'CANCELLED';
 
 export type PaymentStatus =
-  | 'pending'
-  | 'processing'
-  | 'completed'
-  | 'failed'
-  | 'refunded';
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'REFUNDED'
+  | 'EXPIRED';
 
 export interface Order {
   id: string;

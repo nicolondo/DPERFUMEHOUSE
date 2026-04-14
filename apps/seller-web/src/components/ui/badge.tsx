@@ -39,8 +39,13 @@ export function Badge({ children, variant = 'default', className }: BadgeProps) 
 // Convenience mappers
 const orderStatusMap: Record<OrderStatus, { label: string; variant: BadgeVariant }> = {
   DRAFT: { label: 'Borrador', variant: 'default' },
+  PENDING: { label: 'Pendiente', variant: 'warning' },
+  CONFIRMED: { label: 'Confirmado', variant: 'info' },
+  CONFIRMED_ODOO: { label: 'En Odoo', variant: 'info' },
+  PAYMENT_PENDING: { label: 'Pago Pendiente', variant: 'warning' },
   PENDING_PAYMENT: { label: 'Pago Pendiente', variant: 'warning' },
   PAID: { label: 'Pagado', variant: 'success' },
+  PREPARING: { label: 'Preparando', variant: 'info' },
   SHIPPED: { label: 'Enviado', variant: 'orange' },
   DELIVERED: { label: 'Entregado', variant: 'brown' },
   CANCELLED: { label: 'Cancelado', variant: 'danger' },
@@ -54,6 +59,7 @@ export function OrderStatusBadge({ status }: { status: string }) {
 
 const paymentStatusMap: Record<PaymentStatus, { label: string; variant: BadgeVariant }> = {
   PENDING: { label: 'Pendiente', variant: 'warning' },
+  PROCESSING: { label: 'Procesando', variant: 'info' },
   COMPLETED: { label: 'Completado', variant: 'success' },
   FAILED: { label: 'Fallido', variant: 'danger' },
   EXPIRED: { label: 'Expirado', variant: 'default' },
