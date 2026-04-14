@@ -469,7 +469,7 @@ export default function OrderDetailPage() {
               onChange={(e) => setDeliveryNotes(e.target.value)}
               placeholder="Ej: Entregado a Carlos Gómez en punto de encuentro acordado..."
               rows={3}
-              className="w-full rounded-lg border border-glass-border bg-surface-base px-3 py-2 text-sm text-white placeholder-white/30 focus:border-accent-purple/50 focus:outline-none focus:ring-1 focus:ring-accent-purple/30 resize-none"
+              className="w-full rounded-lg border border-glass-border bg-glass-100 px-3 py-2 text-sm text-white placeholder-white/30 focus:border-accent-purple/50 focus:outline-none focus:ring-1 focus:ring-accent-purple/30 resize-none"
             />
           </div>
           <div className="flex justify-end gap-3 pt-2">
