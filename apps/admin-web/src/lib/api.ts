@@ -194,8 +194,8 @@ export async function fetchOrders(params?: {
   status?: string;
   paymentStatus?: string;
   sellerId?: string;
-  dateFrom?: string;
-  dateTo?: string;
+  from?: string;
+  to?: string;
 }) {
   const { data } = await api.get('/orders', { params });
   return unwrap(data);

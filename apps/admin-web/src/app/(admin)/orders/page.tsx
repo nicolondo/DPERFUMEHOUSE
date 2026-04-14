@@ -82,8 +82,8 @@ export default function OrdersPage() {
         pageSize: 20,
         status: status || undefined,
         sellerId: sellerId || undefined,
-        dateFrom: dateFrom || undefined,
-        dateTo: dateTo || undefined,
+        from: dateFrom || undefined,
+        to: dateTo ? dateTo + 'T23:59:59' : undefined,
       }),
   });
 
@@ -257,6 +257,19 @@ export default function OrdersPage() {
         keyExtractor={(item) => item.id}
         emptyMessage="No se encontraron pedidos"
       />
+
+      {(data?.data || []).length > 0 && (
+        <div className="flex justify-end">
+          <div className="rounded-xl border border-glass-border bg-glass-50 px-6 py-3 flex items-center gap-6">
+            <span className="text-sm text-white/50">{data?.data?.length} pedido{data?.data?.length !== 1 ? 's' : ''} en esta página</span>
+            <div className="h-4 w-px bg-glass-border" />
+            <span className="text-sm text-white/50">Total página</span>
+            <span className="text-base font-bold text-accent-purple">
+              {formatCurrency((data?.data || []).reduce((sum: number, o: any) => sum + Number(o.total || 0), 0))}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
