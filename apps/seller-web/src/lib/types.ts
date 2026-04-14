@@ -236,8 +236,8 @@ export interface Lead {
 
 export interface LeadStats {
   total: number;
-  newLeads?: number;
-  byStatus?: Record<string, number>;
+  newLeads: number;
+  byStatus: Record<string, number>;
   sent?: number;
   responded?: number;
   appointment?: number;
