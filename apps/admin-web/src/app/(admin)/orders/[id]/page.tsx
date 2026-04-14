@@ -90,7 +90,7 @@ export default function OrderDetailPage() {
       const { data } = await api.get(`/shipping/track/${orderId}`);
       return data;
     },
-    onSuccess: (data) => setTrackingData(data),
+    onSuccess: (data) => setTrackingData(data.tracking ?? null),
   });
 
   const markPaidMutation = useMutation({
