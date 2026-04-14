@@ -479,7 +479,7 @@ export class OrdersService {
 
     // ONLINE orders: auto-process (payment link + email)
     // CASH orders: stay as DRAFT until manually marked as paid
-    if (data.paymentMethod === 'ONLINE') {
+    if (data.paymentMethod !== 'CASH') {
       try {
         const processed = await this.processOrder(order.id, sellerId);
         return processed;
