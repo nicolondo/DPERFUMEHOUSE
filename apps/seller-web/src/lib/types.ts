@@ -93,6 +93,7 @@ export interface ProductVariant {
 }
 
 export type OrderStatus =
+  | 'DRAFT'
   | 'PENDING'
   | 'CONFIRMED'
   | 'CONFIRMED_ODOO'
