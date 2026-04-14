@@ -11,7 +11,7 @@ import { Modal } from '@/components/ui/modal';
 import { PageSpinner } from '@/components/ui/spinner';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { formatCurrency, formatDate, formatDateTime, formatPercent } from '@/lib/utils';
-import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck, MapPin, Printer } from 'lucide-react';
+import { ArrowLeft, Package, CreditCard, Clock, FileText, CheckCircle, Truck, MapPin, Printer, ExternalLink, RefreshCw } from 'lucide-react';
 
 const orderStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
   DRAFT: 'default',
@@ -56,6 +56,42 @@ export default function OrderDetailPage() {
 
   const [deliverModalOpen, setDeliverModalOpen] = useState(false);
   const [deliveryNotes, setDeliveryNotes] = useState('');
+
+  // Shipping state
+  const [shippingRates, setShippingRates] = useState<any[]>([]);
+  const [selectedRate, setSelectedRate] = useState<{ carrier: string; service: string } | null>(null);
+  const [trackingData, setTrackingData] = useState<any>(null);
+
+  const quoteRatesMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.get(`/shipping/rates/${orderId}`);
+      return data;
+    },
+    onSuccess: (data) => {
+      setShippingRates(data.rates || []);
+    },
+  });
+
+  const generateLabelMutation = useMutation({
+    mutationFn: async ({ carrier, service }: { carrier: string; service: string }) => {
+      const { data } = await api.post(`/shipping/labels/${orderId}`, { carrier, service });
+      return data;
+    },
+    onSuccess: () => {
+      setShippingRates([]);
+      setSelectedRate(null);
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
+
+  const trackMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.get(`/shipping/track/${orderId}`);
+      return data;
+    },
+    onSuccess: (data) => setTrackingData(data),
+  });
 
   const markPaidMutation = useMutation({
     mutationFn: async () => {
@@ -389,6 +425,182 @@ export default function OrderDetailPage() {
           </div>
         </div>
       </Card>
+
+      {/* Shipping / Envia.com section */}
+      {(order.status === 'PAID' || order.status === 'SHIPPED' || order.status === 'DELIVERED') && (
+        <Card padding={false}>
+          <div className="border-b border-glass-border px-6 py-4 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Truck className="h-5 w-5 text-white/40" />
+              Envío
+            </h3>
+            {order.status === 'PAID' && !order.shipment && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={quoteRatesMutation.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+                onClick={() => quoteRatesMutation.mutate()}
+                disabled={quoteRatesMutation.isPending}
+              >
+                {quoteRatesMutation.isPending ? 'Cotizando...' : 'Cotizar Envío'}
+              </Button>
+            )}
+            {(order.status === 'SHIPPED' || order.shipment?.trackingNumber) && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={trackMutation.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                onClick={() => trackMutation.mutate()}
+                disabled={trackMutation.isPending}
+              >
+                {trackMutation.isPending ? 'Rastreando...' : 'Rastrear Envío'}
+              </Button>
+            )}
+          </div>
+          <div className="p-6 space-y-4">
+            {/* Existing shipment info */}
+            {order.shipment && (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                <div>
+                  <p className="text-xs text-white/40">Transportadora</p>
+                  <p className="text-sm font-semibold text-white">{order.shipment.carrier || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/40">Servicio</p>
+                  <p className="text-sm font-semibold text-white">{order.shipment.service || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/40">Guía</p>
+                  <p className="text-sm font-semibold text-white">{order.shipment.trackingNumber || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/40">Estado envío</p>
+                  <p className="text-sm font-semibold text-white">{order.shipment.status || '-'}</p>
+                </div>
+                {order.shipment.totalPrice && (
+                  <div>
+                    <p className="text-xs text-white/40">Costo guía</p>
+                    <p className="text-sm font-semibold text-white">{formatCurrency(order.shipment.totalPrice)}</p>
+                  </div>
+                )}
+                {order.shipment.trackUrl && (
+                  <div>
+                    <p className="text-xs text-white/40">Rastreo</p>
+                    <a href={order.shipment.trackUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-sm text-accent-purple hover:underline flex items-center gap-1">
+                      Ver rastreo <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                )}
+                {order.shipment.labelUrl && (
+                  <div>
+                    <p className="text-xs text-white/40">Etiqueta</p>
+                    <a href={order.shipment.labelUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-sm text-accent-purple hover:underline flex items-center gap-1">
+                      Descargar guía <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Quote error */}
+            {quoteRatesMutation.isError && (
+              <div className="rounded-lg bg-status-danger-muted border border-status-danger/30 px-4 py-3 text-sm text-status-danger">
+                {(quoteRatesMutation.error as any)?.response?.data?.message || 'Error al cotizar. Verifica la configuración de envíos.'}
+              </div>
+            )}
+
+            {/* Rates list */}
+            {shippingRates.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-white/70">Seleccioná una opción de envío:</p>
+                {shippingRates.map((rate: any, idx: number) => {
+                  const key = `${rate.carrier}-${rate.service}`;
+                  const isSelected = selectedRate?.carrier === rate.carrier && selectedRate?.service === rate.service;
+                  return (
+                    <button
+                      key={key || idx}
+                      onClick={() => setSelectedRate({ carrier: rate.carrier, service: rate.service })}
+                      className={`w-full flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors ${
+                        isSelected
+                          ? 'border-accent-purple bg-accent-purple-muted'
+                          : 'border-glass-border bg-glass-50 hover:bg-glass-100'
+                      }`}
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-white">{rate.carrier} — {rate.serviceDescription || rate.service}</p>
+                        {rate.deliveryEstimate && (
+                          <p className="text-xs text-white/50 mt-0.5">Entrega: {rate.deliveryEstimate}</p>
+                        )}
+                      </div>
+                      <p className="text-base font-bold text-accent-purple whitespace-nowrap ml-4">
+                        {formatCurrency(Number(rate.totalPrice))}
+                      </p>
+                    </button>
+                  );
+                })}
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button variant="ghost" size="sm" onClick={() => { setShippingRates([]); setSelectedRate(null); }}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={generateLabelMutation.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+                    onClick={() => selectedRate && generateLabelMutation.mutate(selectedRate)}
+                    disabled={!selectedRate || generateLabelMutation.isPending}
+                  >
+                    {generateLabelMutation.isPending ? 'Generando guía...' : 'Generar Guía'}
+                  </Button>
+                </div>
+                {generateLabelMutation.isError && (
+                  <p className="text-xs text-status-danger">
+                    {(generateLabelMutation.error as any)?.response?.data?.message || 'Error al generar la guía'}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* No shipment yet and no rates loaded */}
+            {!order.shipment && shippingRates.length === 0 && !quoteRatesMutation.isPending && order.status === 'PAID' && (
+              <p className="text-sm text-white/40 text-center py-2">Cotizá el envío para generar la guía con envia.com</p>
+            )}
+
+            {/* Tracking result */}
+            {trackingData && (
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <Badge variant="info">{trackingData.status}</Badge>
+                  {trackingData.estimatedDelivery && (
+                    <span className="text-xs text-white/50">Entrega estimada: {trackingData.estimatedDelivery}</span>
+                  )}
+                  {trackingData.deliveredAt && (
+                    <span className="text-xs text-status-success">Entregado: {formatDateTime(trackingData.deliveredAt)}</span>
+                  )}
+                </div>
+                {(trackingData.events || trackingData.eventHistory || []).length > 0 && (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {(trackingData.events || trackingData.eventHistory || []).map((ev: any, i: number) => (
+                      <div key={i} className="flex gap-3 text-xs">
+                        <span className="text-white/30 whitespace-nowrap">{formatDateTime(ev.timestamp || ev.date)}</span>
+                        <span className="text-white/60">{ev.location || ''}</span>
+                        <span className="text-white/80">{ev.description || ev.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {trackingData.trackUrl && (
+                  <a href={trackingData.trackUrl} target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-accent-purple hover:underline flex items-center gap-1">
+                    Ver rastreo oficial <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Payment Events Timeline */}
       <Card padding={false}>
