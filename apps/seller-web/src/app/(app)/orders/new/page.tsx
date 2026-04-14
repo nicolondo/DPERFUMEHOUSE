@@ -1216,10 +1216,22 @@ function Step4Summary({
               {shippingAmount === 0 ? 'Gratis' : formatCurrency(shippingAmount)}
             </span>
           </div>
+          {applyPromoDiscount && promoStatus?.globalPercent && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-accent-purple">Descuento ({promoStatus.globalPercent}%)</span>
+              <span className="text-accent-purple">
+                -{formatCurrency(Math.round(subtotalAmount * promoStatus.globalPercent / 100))}
+              </span>
+            </div>
+          )}
           <div className="border-t border-glass-border pt-2 flex items-center justify-between">
             <span className="text-base font-bold text-white">Total</span>
             <span className="text-lg font-bold text-accent-purple">
-              {formatCurrency(totalAmount)}
+              {formatCurrency(
+                applyPromoDiscount && promoStatus?.globalPercent
+                  ? totalAmount - Math.round(subtotalAmount * promoStatus.globalPercent / 100)
+                  : totalAmount
+              )}
             </span>
           </div>
         </div>
