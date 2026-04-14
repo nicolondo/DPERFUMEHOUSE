@@ -93,15 +93,16 @@ export interface ProductVariant {
 }
 
 export type OrderStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'confirmed_odoo'
-  | 'payment_pending'
-  | 'paid'
-  | 'preparing'
-  | 'shipped'
-  | 'delivered'
-  | 'cancelled';
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'CONFIRMED_ODOO'
+  | 'PAYMENT_PENDING'
+  | 'PENDING_PAYMENT'
+  | 'PAID'
+  | 'PREPARING'
+  | 'SHIPPED'
+  | 'DELIVERED'
+  | 'CANCELLED';
 
 export type PaymentStatus =
   | 'pending'
