@@ -126,6 +126,14 @@ export default function NewOrderPage() {
         notes: notes || undefined,
         paymentMethod,
       });
+      // Auto-generate payment link for online orders
+      if (!paymentMethod || paymentMethod === 'ONLINE') {
+        try {
+          await api.post(`/orders/${order.id}/process`);
+        } catch {
+          // Non-blocking: user can still generate the link from the order page
+        }
+      }
       resetFlow();
       router.replace(`/orders/${order.id}`);
     } catch {
