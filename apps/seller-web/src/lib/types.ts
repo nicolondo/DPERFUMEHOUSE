@@ -9,6 +9,8 @@ export interface User {
   sellerId?: string;
   phone?: string;
   commissionRate?: number;
+  canManageSellers?: boolean;
+  canViewAllOrders?: boolean;
 }
 
 export interface Seller {
