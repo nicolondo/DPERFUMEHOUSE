@@ -117,7 +117,6 @@ export default function EditCustomerPage() {
         name: data.name,
         email: data.email || undefined,
         phone: phone || data.phone,
-        phoneCode: phoneCode,
         documentType: data.documentType || undefined,
         documentNumber: data.documentNumber || undefined,
         notes: data.notes || undefined,
