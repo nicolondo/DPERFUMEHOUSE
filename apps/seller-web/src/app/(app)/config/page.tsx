@@ -13,6 +13,7 @@ import {
   Lock,
   Eye,
   EyeOff,
+  Percent,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -21,11 +22,13 @@ import { Badge } from '@/components/ui/badge';
 import { PageSpinner } from '@/components/ui/spinner';
 import { PageHeader } from '@/components/layout/page-header';
 import { useAuthStore } from '@/store/auth.store';
+import { usePromoStatus } from '@/hooks/use-customers';
 import api, { unwrap } from '@/lib/api';
 import { formatPhone } from '@/lib/utils';
 
 export default function ConfigPage() {
   const { user } = useAuthStore();
+  const { data: promoStatus } = usePromoStatus();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -210,6 +213,36 @@ export default function ConfigPage() {
             </div>
           </CardBody>
         </Card>
+
+        {/* Promo Discount Card */}
+        {promoStatus?.enabled && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Percent className="h-4 w-4 text-white/30" />
+                <span className="text-sm font-semibold text-white">Descuento Promo</span>
+              </div>
+            </CardHeader>
+            <CardBody>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-white/50">Disponibles este mes</p>
+                  <p className="text-sm font-semibold text-white mt-0.5">
+                    {promoStatus.remaining > 0 ? (
+                      <span className="text-accent-purple">{promoStatus.remaining} de {promoStatus.globalLimit}</span>
+                    ) : (
+                      <span className="text-white/30">0 de {promoStatus.globalLimit} (agotados)</span>
+                    )}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-white/50">Descuento</p>
+                  <p className="text-base font-bold text-accent-purple">{promoStatus.globalPercent}%</p>
+                </div>
+              </div>
+            </CardBody>
+          </Card>
+        )}
 
         {/* Bank Data Section */}
         <Card>

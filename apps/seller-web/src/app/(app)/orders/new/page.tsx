@@ -130,17 +130,23 @@ export default function NewOrderPage() {
         paymentMethod,
         applyPromoDiscount: applyPromoDiscount || undefined,
       });
-      resetFlow();
       if (!paymentMethod || paymentMethod === 'ONLINE') {
-        // Show payment link modal immediately
-        setCreatedOrder({
-          id: order.id,
-          orderNumber: order.orderNumber,
-          total: Number(order.total),
-          paymentLink: order.paymentLink ?? null,
-          customerName: order.customer?.name,
-        });
+        if (order.paymentLink?.url) {
+          // Show payment link modal — resetFlow happens on modal close
+          setCreatedOrder({
+            id: order.id,
+            orderNumber: order.orderNumber,
+            total: Number(order.total),
+            paymentLink: order.paymentLink ?? null,
+            customerName: order.customer?.name,
+          });
+        } else {
+          // No payment link generated — just navigate
+          resetFlow();
+          router.replace(`/orders/${order.id}`);
+        }
       } else {
+        resetFlow();
         router.replace(`/orders/${order.id}`);
       }
     } catch {
@@ -253,8 +259,10 @@ export default function NewOrderPage() {
       <PaymentLinkModal
         isOpen={!!createdOrder}
         onClose={() => {
-          router.replace(`/orders/${createdOrder!.id}`);
+          const orderId = createdOrder!.id;
           setCreatedOrder(null);
+          resetFlow();
+          router.replace(`/orders/${orderId}`);
         }}
         paymentUrl={createdOrder.paymentLink.url}
         orderNumber={createdOrder.orderNumber}

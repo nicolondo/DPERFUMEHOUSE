@@ -10,7 +10,6 @@ import {
   Plus,
   Pencil,
   ShoppingBag,
-  Percent,
   MessageCircle,
   Send,
   CheckCircle2,
@@ -26,7 +25,7 @@ import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { AddressAutocomplete, type ParsedAddress } from '@/components/ui/address-autocomplete';
 import { PageHeader } from '@/components/layout/page-header';
-import { useCustomer, useAddAddress, useUpdateAddress, usePromoStatus } from '@/hooks/use-customers';
+import { useCustomer, useAddAddress, useUpdateAddress } from '@/hooks/use-customers';
 import { useOrders } from '@/hooks/use-orders';
 import { useCreateLeadForCustomer, useSendQuestionnaireEmail } from '@/hooks/use-leads';
 import { formatCurrency, formatDate, getInitials, getWhatsAppPhone } from '@/lib/utils';
@@ -41,36 +40,34 @@ export default function CustomerDetailPage() {
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [editingAddress, setEditingAddress] = useState<any>(null);
   const updateAddress = useUpdateAddress();
-  const { data: promoStatus } = usePromoStatus();
   const createLead = useCreateLeadForCustomer();
   const sendEmail = useSendQuestionnaireEmail();
-  const [leadResult, setLeadResult] = useState<{ whatsappMessage: string; lead: { id: string; questionnaireUrl: string } } | null>(null);
-  const [leadSent, setLeadSent] = useState(false);
+  const [showChannelSelector, setShowChannelSelector] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
 
-  const handleSendQuestionnaire = async () => {
+  const handleSendWithChannel = async (withWhatsApp: boolean) => {
     if (!id) return;
-    try {
-      const result = await createLead.mutateAsync({ customerId: id });
-      setLeadResult(result as any);
-      setLeadSent(true);
-      setEmailSent(false);
-    } catch {
-      // handled by react-query
-    }
-  };
-
-  const handleSendEmail = async (leadId: string, withWhatsApp = false) => {
-    // Open WhatsApp BEFORE the async call to avoid browser popup blocking
-    if (withWhatsApp && leadResult && customer?.phone) {
-      const phone = getWhatsAppPhone(customer.phone);
-      const text = encodeURIComponent(leadResult.whatsappMessage);
-      window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+    // Open empty window synchronously before any await to avoid popup blocking
+    let winRef: Window | null = null;
+    if (withWhatsApp && customer?.phone) {
+      winRef = window.open('', '_blank');
     }
     try {
-      await sendEmail.mutateAsync(leadId);
+      const result = await createLead.mutateAsync({ customerId: id }) as any;
+      if (withWhatsApp && customer?.phone) {
+        const phone = getWhatsAppPhone(customer.phone);
+        const text = encodeURIComponent(result.whatsappMessage);
+        const waUrl = `https://wa.me/${phone}?text=${text}`;
+        if (winRef) {
+          winRef.location.href = waUrl;
+        } else {
+          window.open(waUrl, '_blank');
+        }
+      }
+      await sendEmail.mutateAsync(result.lead.id);
       setEmailSent(true);
     } catch {
+      if (winRef) winRef.close();
       // handled by react-query
     }
   };
@@ -204,75 +201,42 @@ export default function CustomerDetailPage() {
 
         {/* Questionnaire Button */}
         {customer.phone && (
-          !leadSent ? (
+          !showChannelSelector && !emailSent ? (
             <button
-              onClick={handleSendQuestionnaire}
-              disabled={createLead.isPending}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl border border-glass-border bg-glass-50 backdrop-blur-sm px-4 py-3.5 text-sm font-medium text-white/80 hover:bg-glass-100 hover:text-white transition-colors disabled:opacity-50"
+              onClick={() => setShowChannelSelector(true)}
+              className="w-full flex items-center justify-center gap-2 rounded-2xl border border-glass-border bg-glass-50 backdrop-blur-sm px-4 py-3.5 text-sm font-medium text-white/80 hover:bg-glass-100 hover:text-white transition-colors"
             >
-              {createLead.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4 text-accent-purple" />}
+              <MessageCircle className="h-4 w-4 text-accent-purple" />
               Enviar Cuestionario
             </button>
           ) : emailSent ? (
             <div className="flex items-center gap-2 rounded-2xl bg-green-500/10 border border-green-500/20 px-4 py-3.5">
               <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />
               <p className="text-sm text-green-400">¡Cuestionario enviado con éxito!</p>
-              <button onClick={() => { setLeadSent(false); setLeadResult(null); setEmailSent(false); }} className="ml-auto text-xs text-white/30 hover:text-white/60">Nuevo</button>
+              <button onClick={() => { setShowChannelSelector(false); setEmailSent(false); }} className="ml-auto text-xs text-white/30 hover:text-white/60">Nuevo</button>
             </div>
           ) : (
             <div className="space-y-2">
               <p className="text-xs text-white/40 px-1 mb-1">¿Cómo querés enviar el cuestionario?</p>
-              {leadResult && (
-                <>
-                  <button
-                    onClick={() => handleSendEmail(leadResult.lead.id, true)}
-                    disabled={sendEmail.isPending}
-                    className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-4 py-3.5 text-sm font-medium text-white disabled:opacity-50"
-                  >
-                    {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-                    WhatsApp + Correo electrónico
-                  </button>
-                  <button
-                    onClick={() => handleSendEmail(leadResult.lead.id, false)}
-                    disabled={sendEmail.isPending}
-                    className="w-full flex items-center justify-center gap-2 rounded-2xl border border-glass-border bg-glass-50 backdrop-blur-sm px-4 py-3.5 text-sm font-medium text-white/70 disabled:opacity-50"
-                  >
-                    {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                    Solo Correo electrónico
-                  </button>
-                  <button onClick={() => { setLeadSent(false); setLeadResult(null); }} className="w-full text-xs text-white/30 hover:text-white/60 py-1">Cancelar</button>
-                </>
-              )}
+              <button
+                onClick={() => handleSendWithChannel(true)}
+                disabled={createLead.isPending || sendEmail.isPending}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#25D366] px-4 py-3.5 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {(createLead.isPending || sendEmail.isPending) ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                WhatsApp + Correo electrónico
+              </button>
+              <button
+                onClick={() => handleSendWithChannel(false)}
+                disabled={createLead.isPending || sendEmail.isPending}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl border border-glass-border bg-glass-50 backdrop-blur-sm px-4 py-3.5 text-sm font-medium text-white/70 disabled:opacity-50"
+              >
+                {(createLead.isPending || sendEmail.isPending) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                Solo Correo electrónico
+              </button>
+              <button onClick={() => setShowChannelSelector(false)} className="w-full text-xs text-white/30 hover:text-white/60 py-1">Cancelar</button>
             </div>
           )
-        )}
-
-        {/* Promo Discount Card */}
-        {promoStatus?.enabled && (
-          <Card>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-purple-muted">
-                <Percent className="h-4 w-4 text-accent-purple" />
-              </div>
-              <h3 className="text-sm font-semibold text-white">Descuento Promo</h3>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-white/50">Descuentos disponibles este mes</p>
-                <p className="text-sm font-semibold text-white mt-0.5">
-                  {promoStatus.remaining > 0 ? (
-                    <span className="text-accent-purple">{promoStatus.remaining} de {promoStatus.globalLimit}</span>
-                  ) : (
-                    <span className="text-white/30">0 de {promoStatus.globalLimit} (agotados)</span>
-                  )}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-white/50">Descuento</p>
-                <p className="text-base font-bold text-accent-purple">{promoStatus.globalPercent}%</p>
-              </div>
-            </div>
-          </Card>
         )}
 
         {/* Addresses Section */}
