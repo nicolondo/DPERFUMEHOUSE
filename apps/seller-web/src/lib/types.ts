@@ -157,6 +157,11 @@ export interface DashboardStats {
     revenue: number;
     orders: number;
   }>;
+  commissionsByDay?: Array<{
+    date: string;
+    commission: number;
+    count: number;
+  }>;
   recentPayments: Array<{
     id: string;
     orderNumber: string;
