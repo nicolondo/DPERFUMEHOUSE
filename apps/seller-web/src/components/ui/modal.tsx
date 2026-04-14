@@ -86,7 +86,7 @@ export function Modal({
         )}
 
         {/* Content */}
-        <div className={cn('overflow-y-auto overflow-x-visible px-4 pb-6', fullHeight ? 'flex-1' : 'max-h-[70vh]')}>
+        <div className={cn('overflow-y-auto overflow-x-visible px-4 pb-24', fullHeight ? 'flex-1' : 'max-h-[70vh]')}>
           {children}
         </div>
       </div>
