@@ -149,6 +149,7 @@ export interface DashboardStats {
   startDate: string;
   endDate: string;
   totalRevenue: number;
+  periodRevenue?: number;
   totalOrders: number;
   totalCustomers: number;
   pendingBalance: number;
