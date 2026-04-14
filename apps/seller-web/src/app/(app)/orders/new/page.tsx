@@ -1229,12 +1229,6 @@ function Step4Summary({
               </span>
             </div>
           )}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-white/50">Envio</span>
-            <span className="text-white">
-              {shippingAmount === 0 ? 'Gratis' : formatCurrency(shippingAmount)}
-            </span>
-          </div>
           {applyPromoDiscount && promoStatus?.globalPercent && (
             <div className="flex items-center justify-between text-sm">
               <span className="text-accent-purple">Descuento ({promoStatus.globalPercent}%)</span>
@@ -1243,6 +1237,12 @@ function Step4Summary({
               </span>
             </div>
           )}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-white/50">Envio</span>
+            <span className="text-white">
+              {shippingAmount === 0 ? 'Gratis' : formatCurrency(shippingAmount)}
+            </span>
+          </div>
           <div className="border-t border-glass-border pt-2 flex items-center justify-between">
             <span className="text-base font-bold text-white">Total</span>
             <span className="text-lg font-bold text-accent-purple">
