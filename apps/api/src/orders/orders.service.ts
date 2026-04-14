@@ -1224,9 +1224,9 @@ export class OrdersService {
       throw new NotFoundException(`Order ${orderId} not found`);
     }
 
-    if (!['PENDING', 'PENDING_PAYMENT'].includes(order.status)) {
+    if (!['DRAFT', 'PENDING', 'PENDING_PAYMENT'].includes(order.status)) {
       throw new BadRequestException(
-        `Only PENDING or PENDING_PAYMENT orders can be deleted. Current status: ${order.status}`,
+        `Only DRAFT, PENDING or PENDING_PAYMENT orders can be deleted. Current status: ${order.status}`,
       );
     }
 
@@ -1252,7 +1252,7 @@ export class OrdersService {
       await tx.order.delete({ where: { id: orderId } });
     });
 
-    this.logger.log(`Admin deleted PENDING order ${order.orderNumber}`);
+    this.logger.log(`Admin deleted ${order.status} order ${order.orderNumber}`);
     return { success: true, orderNumber: order.orderNumber };
   }
 }
