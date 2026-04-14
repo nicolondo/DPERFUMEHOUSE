@@ -111,3 +111,12 @@ export function useGenerateLeadLink() {
     },
   });
 }
+
+export function useSendQuestionnaireEmail() {
+  return useMutation({
+    mutationFn: async (leadId: string) => {
+      const { data } = await api.post(`/leads/${leadId}/send-email`);
+      return unwrap(data) as { success: boolean; email: string };
+    },
+  });
+}

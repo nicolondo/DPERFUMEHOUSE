@@ -14,6 +14,7 @@ import {
   MessageCircle,
   Send,
   CheckCircle2,
+  Loader2,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge, OrderStatusBadge } from '@/components/ui/badge';
@@ -27,7 +28,7 @@ import { AddressAutocomplete, type ParsedAddress } from '@/components/ui/address
 import { PageHeader } from '@/components/layout/page-header';
 import { useCustomer, useAddAddress, useUpdateAddress, usePromoStatus, useCustomerPromoConfig, useUpdateCustomerPromoConfig } from '@/hooks/use-customers';
 import { useOrders } from '@/hooks/use-orders';
-import { useCreateLeadForCustomer } from '@/hooks/use-leads';
+import { useCreateLeadForCustomer, useSendQuestionnaireEmail } from '@/hooks/use-leads';
 import { formatCurrency, formatDate, getInitials, getWhatsAppPhone } from '@/lib/utils';
 
 export default function CustomerDetailPage() {
@@ -45,8 +46,10 @@ export default function CustomerDetailPage() {
   const { data: customerPromoConfig } = useCustomerPromoConfig(id);
   const updatePromoConfig = useUpdateCustomerPromoConfig();
   const createLead = useCreateLeadForCustomer();
-  const [leadResult, setLeadResult] = useState<{ whatsappMessage: string; lead: { questionnaireUrl: string } } | null>(null);
+  const sendEmail = useSendQuestionnaireEmail();
+  const [leadResult, setLeadResult] = useState<{ whatsappMessage: string; lead: { id: string; questionnaireUrl: string } } | null>(null);
   const [leadSent, setLeadSent] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const handleSendQuestionnaire = async () => {
     if (!id) return;
@@ -54,6 +57,21 @@ export default function CustomerDetailPage() {
       const result = await createLead.mutateAsync({ customerId: id });
       setLeadResult(result as any);
       setLeadSent(true);
+      setEmailSent(false);
+    } catch {
+      // handled by react-query
+    }
+  };
+
+  const handleSendEmail = async (leadId: string, withWhatsApp = false) => {
+    try {
+      await sendEmail.mutateAsync(leadId);
+      setEmailSent(true);
+      if (withWhatsApp && leadResult && customer?.phone) {
+        const phone = getWhatsAppPhone(customer.phone);
+        const text = encodeURIComponent(leadResult.whatsappMessage);
+        window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+      }
     } catch {
       // handled by react-query
     }
@@ -221,24 +239,33 @@ export default function CustomerDetailPage() {
               >
                 Enviar Cuestionario
               </Button>
+            ) : emailSent ? (
+              <div className="flex items-center gap-2 rounded-xl bg-green-500/10 border border-green-500/20 p-3">
+                <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />
+                <p className="text-sm text-green-400">¡Cuestionario enviado con éxito!</p>
+              </div>
             ) : (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 rounded-xl bg-green-500/10 border border-green-500/20 p-3">
-                  <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />
-                  <p className="text-sm text-green-400">¡Cuestionario listo! Envialo por WhatsApp</p>
-                </div>
+              <div className="space-y-2">
+                <p className="text-xs text-white/40 mb-3">¿Cómo querés enviar el cuestionario?</p>
                 {leadResult && (
-                  <button
-                    onClick={() => {
-                      const phone = getWhatsAppPhone(customer.phone!);
-                      const text = encodeURIComponent(leadResult.whatsappMessage);
-                      window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
-                    }}
-                    className="w-full py-3 rounded-full bg-[#25D366] text-white font-medium text-sm flex items-center justify-center gap-2"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    Enviar por WhatsApp
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleSendEmail(leadResult.lead.id, true)}
+                      disabled={sendEmail.isPending}
+                      className="w-full py-3 rounded-full bg-[#25D366] text-white font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                      WhatsApp + Correo electrónico
+                    </button>
+                    <button
+                      onClick={() => handleSendEmail(leadResult.lead.id, false)}
+                      disabled={sendEmail.isPending}
+                      className="w-full py-3 rounded-full border border-glass-border text-white/70 font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                      Solo Correo electrónico
+                    </button>
+                  </>
                 )}
               </div>
             )}
