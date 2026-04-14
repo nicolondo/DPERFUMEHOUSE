@@ -26,7 +26,7 @@ import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { AddressAutocomplete, type ParsedAddress } from '@/components/ui/address-autocomplete';
 import { PageHeader } from '@/components/layout/page-header';
-import { useCustomer, useAddAddress, useUpdateAddress, usePromoStatus, useCustomerPromoConfig, useUpdateCustomerPromoConfig } from '@/hooks/use-customers';
+import { useCustomer, useAddAddress, useUpdateAddress, usePromoStatus } from '@/hooks/use-customers';
 import { useOrders } from '@/hooks/use-orders';
 import { useCreateLeadForCustomer, useSendQuestionnaireEmail } from '@/hooks/use-leads';
 import { formatCurrency, formatDate, getInitials, getWhatsAppPhone } from '@/lib/utils';
@@ -41,10 +41,7 @@ export default function CustomerDetailPage() {
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [editingAddress, setEditingAddress] = useState<any>(null);
   const updateAddress = useUpdateAddress();
-  const [showPromoModal, setShowPromoModal] = useState(false);
   const { data: promoStatus } = usePromoStatus();
-  const { data: customerPromoConfig } = useCustomerPromoConfig(id);
-  const updatePromoConfig = useUpdateCustomerPromoConfig();
   const createLead = useCreateLeadForCustomer();
   const sendEmail = useSendQuestionnaireEmail();
   const [leadResult, setLeadResult] = useState<{ whatsappMessage: string; lead: { id: string; questionnaireUrl: string } } | null>(null);
@@ -78,11 +75,6 @@ export default function CustomerDetailPage() {
     }
   };
 
-  const [promoForm, setPromoForm] = useState({
-    useGlobal: true,
-    discountPercent: '',
-    discountLimit: '',
-  });
   const [addressForm, setAddressForm] = useState({
     label: '',
     street: '',
@@ -258,30 +250,11 @@ export default function CustomerDetailPage() {
         {/* Promo Discount Card */}
         {promoStatus?.enabled && (
           <Card>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-purple-muted">
-                  <Percent className="h-4 w-4 text-accent-purple" />
-                </div>
-                <h3 className="text-sm font-semibold text-white">Descuento Promo</h3>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-purple-muted">
+                <Percent className="h-4 w-4 text-accent-purple" />
               </div>
-              <button
-                onClick={() => {
-                  setPromoForm({
-                    useGlobal: customerPromoConfig?.promoDiscountUseGlobal ?? true,
-                    discountPercent: customerPromoConfig?.promoDiscountPercent != null
-                      ? String(customerPromoConfig.promoDiscountPercent)
-                      : '',
-                    discountLimit: customerPromoConfig?.promoDiscountLimit != null
-                      ? String(customerPromoConfig.promoDiscountLimit)
-                      : '',
-                  });
-                  setShowPromoModal(true);
-                }}
-                className="p-1.5 text-white/30 hover:text-accent-purple"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
+              <h3 className="text-sm font-semibold text-white">Descuento Promo</h3>
             </div>
             <div className="flex items-center justify-between">
               <div>
@@ -296,11 +269,7 @@ export default function CustomerDetailPage() {
               </div>
               <div className="text-right">
                 <p className="text-xs text-white/50">Descuento</p>
-                <p className="text-base font-bold text-accent-purple">
-                  {customerPromoConfig?.promoDiscountUseGlobal === false && customerPromoConfig?.promoDiscountPercent != null
-                    ? `${customerPromoConfig.promoDiscountPercent}%`
-                    : `${promoStatus.globalPercent}%`}
-                </p>
+                <p className="text-base font-bold text-accent-purple">{promoStatus.globalPercent}%</p>
               </div>
             </div>
           </Card>
@@ -421,63 +390,6 @@ export default function CustomerDetailPage() {
           )}
         </div>
       </div>
-
-      {/* Promo Config Modal */}
-      <Modal
-        isOpen={showPromoModal}
-        onClose={() => setShowPromoModal(false)}
-        title="Configuracion de Descuento"
-      >
-        <div className="space-y-4">
-          <label className="flex items-center gap-2 text-sm text-white/70">
-            <input
-              type="checkbox"
-              checked={promoForm.useGlobal}
-              onChange={(e) => setPromoForm((prev) => ({ ...prev, useGlobal: e.target.checked }))}
-              className="h-4 w-4 rounded border-glass-border bg-glass-50 text-accent-purple focus:ring-accent-purple/50"
-            />
-            Usar configuracion global
-          </label>
-
-          {!promoForm.useGlobal && (
-            <>
-              <Input
-                label="Porcentaje de descuento (%)"
-                type="number"
-                min="1"
-                max="100"
-                placeholder={`Global: ${promoStatus?.globalPercent ?? '-'}%`}
-                value={promoForm.discountPercent}
-                onChange={(e) => setPromoForm((prev) => ({ ...prev, discountPercent: e.target.value }))}
-              />
-              <Input
-                label="Usos por mes"
-                type="number"
-                min="1"
-                placeholder={`Global: ${promoStatus?.globalLimit ?? '-'} veces`}
-                value={promoForm.discountLimit}
-                onChange={(e) => setPromoForm((prev) => ({ ...prev, discountLimit: e.target.value }))}
-              />
-            </>
-          )}
-
-          <Button
-            fullWidth
-            loading={updatePromoConfig.isPending}
-            onClick={async () => {
-              await updatePromoConfig.mutateAsync({
-                customerId: id!,
-                useGlobal: promoForm.useGlobal,
-                discountPercent: promoForm.discountPercent ? Number(promoForm.discountPercent) : undefined,
-                discountLimit: promoForm.discountLimit ? Number(promoForm.discountLimit) : undefined,
-              });
-              setShowPromoModal(false);
-            }}
-          >
-            Guardar
-          </Button>
-        </div>
-      </Modal>
 
       {/* Add Address Modal */}
       <Modal

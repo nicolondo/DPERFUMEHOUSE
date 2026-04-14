@@ -378,28 +378,16 @@ export class OrdersService {
     const tax = 0;
     const shipping = 0;
 
-    // Promo discount logic
+    // Promo discount logic — limit is per-seller globally
     let promoDiscount = 0;
     let promoPercent = 0;
     if (data.applyPromoDiscount) {
-      // Get customer's config or fall back to global
-      const customerRecord = await this.prisma.customer.findUnique({
-        where: { id: data.customerId },
-        select: { promoDiscountUseGlobal: true, promoDiscountPercent: true, promoDiscountLimit: true },
-      });
-      let effectivePercent: number;
-      let effectiveLimit: number;
-      if (customerRecord && !customerRecord.promoDiscountUseGlobal && customerRecord.promoDiscountPercent !== null && customerRecord.promoDiscountLimit !== null) {
-        effectivePercent = Number(customerRecord.promoDiscountPercent);
-        effectiveLimit = customerRecord.promoDiscountLimit!;
-      } else {
-        const [settingPercent, settingLimit] = await Promise.all([
-          this.settingsService.get('seller_promo_discount_percent'),
-          this.settingsService.get('seller_promo_discount_limit'),
-        ]);
-        effectivePercent = parseFloat(settingPercent || '0');
-        effectiveLimit = parseInt(settingLimit || '0');
-      }
+      const [settingPercent, settingLimit] = await Promise.all([
+        this.settingsService.get('seller_promo_discount_percent'),
+        this.settingsService.get('seller_promo_discount_limit'),
+      ]);
+      const effectivePercent = parseFloat(settingPercent || '0');
+      const effectiveLimit = parseInt(settingLimit || '0');
 
       if (effectivePercent > 0 && effectiveLimit > 0) {
         const yearMonth = new Date().toISOString().slice(0, 7);
