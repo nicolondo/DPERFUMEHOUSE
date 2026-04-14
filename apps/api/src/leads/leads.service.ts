@@ -452,6 +452,8 @@ export class LeadsService {
   }
 
   async createForCustomer(sellerId: string, dto: CreateLeadForCustomerDto, baseUrl: string) {
+    // Fallback to configured seller app URL if baseUrl is empty or invalid
+    const resolvedBaseUrl = (baseUrl && baseUrl.startsWith('http')) ? baseUrl : this.sellerAppUrl;
     const customer = await this.prisma.customer.findUnique({
       where: { id: dto.customerId },
       select: { id: true, name: true, email: true, phone: true, sellerId: true },
@@ -479,7 +481,7 @@ export class LeadsService {
       },
     });
 
-    const questionnaireUrl = `${baseUrl}/q/${seller.sellerCode}/${lead.id}`;
+    const questionnaireUrl = `${resolvedBaseUrl}/q/${seller.sellerCode}/${lead.id}`;
 
     await this.prisma.lead.update({
       where: { id: lead.id },
