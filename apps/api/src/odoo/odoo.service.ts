@@ -1130,7 +1130,7 @@ export class OdooService {
         USDT_TRC20: 'odoo_account_usdt',
       };
 
-      const methodKey = methodAccountKeyMap[params.paymentMethod?.toUpperCase()] || 'odoo_account_cash';
+      const methodKey = methodAccountKeyMap[params.paymentMethod?.toUpperCase().replace(/\s+/g, '_')] || 'odoo_account_cash';
 
       const [debitAccountCode, creditAccountCode, companyIdStr, journalIdStr] = await Promise.all([
         this.settingsService.get(methodKey),
