@@ -672,7 +672,7 @@ export class UsersService {
         commissionScaleUseGlobal: true,
         resetToken: hashedToken,
         resetTokenExpiry: tokenExpiry,
-        sellerCode: `${dto.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '').slice(0, 20)}-${crypto.randomBytes(2).toString('hex')}`,`
+        sellerCode: `${dto.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '').slice(0, 20)}-${crypto.randomBytes(2).toString('hex')}`,
         allowedCategories: defaultCategory
           ? {
               create: [{ categoryName: defaultCategory }],
