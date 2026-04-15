@@ -540,7 +540,7 @@ export class OdooService {
 
   async createSaleOrder(data: {
     partnerId: number;
-    lines: { productId: number; quantity: number; price: number }[];
+    lines: { productId: number; quantity: number; price: number; discountPercent?: number }[];
     companyId?: number;
   }): Promise<{ id: number; name: string }> {
     try {
@@ -562,6 +562,7 @@ export class OdooService {
             product_id: line.productId,
             product_uom_qty: line.quantity,
             price_unit: line.price,
+            discount: line.discountPercent ?? 0,
           },
         ]),
       };

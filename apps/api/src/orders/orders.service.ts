@@ -541,6 +541,7 @@ export class OrdersService {
             productId: item.variant.odooProductId,
             quantity: item.quantity,
             price: Number(item.unitPrice),
+            discountPercent: item.discountPercent ? Number(item.discountPercent) : 0,
           })),
           companyId: fullOrder.seller?.odooCompanyId || undefined,
         });
@@ -780,6 +781,7 @@ export class OrdersService {
             productId: item.variant.odooProductId,
             quantity: item.quantity,
             price: Number(item.unitPrice),
+            discountPercent: item.discountPercent ? Number(item.discountPercent) : 0,
           })),
           companyId: order.seller?.odooCompanyId || undefined,
         });
@@ -906,6 +908,7 @@ export class OrdersService {
           productId: item.variant.odooProductId,
           quantity: item.quantity,
           price: Number(item.unitPrice),
+          discountPercent: item.discountPercent ? Number(item.discountPercent) : 0,
         })),
         companyId: order.seller?.odooCompanyId || undefined,
       });

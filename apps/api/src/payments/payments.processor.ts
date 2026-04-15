@@ -93,6 +93,7 @@ export class PaymentsProcessor extends WorkerHost {
             productId: item.variant.odooProductId,
             quantity: item.quantity,
             price: Number(item.unitPrice),
+            discountPercent: item.discountPercent ? Number(item.discountPercent) : 0,
           })),
           companyId: order.seller.odooCompanyId || undefined,
         });
