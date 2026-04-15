@@ -1,0 +1,36 @@
+{
+  "fill" : {
+    "automatic-gradient" : "display-p3:0.14785,0.14022,0.14136,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "freepik__make-a-monogram-of-this-logo-with-the-letters-dp__86378.svg",
+          "name" : "freepik__make-a-monogram-of-this-logo-with-the-letters-dp__86378",
+          "position" : {
+            "scale" : 0.28,
+            "translation-in-points" : [
+              25.70859679477053,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

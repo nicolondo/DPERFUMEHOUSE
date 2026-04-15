@@ -682,7 +682,7 @@ export class UsersService {
 
     // Send welcome email with set-password link
     const frontendUrl = this.configService.get<string>('SELLER_APP_URL', 'http://localhost:3000');
-    const setPasswordUrl = `${frontendUrl}/reset-password?token=${token}`;
+    const setPasswordUrl = `${frontendUrl}/reset-password?token=${token}&type=create`;
 
     await this.emailService.sendWelcomeEmail(
       dto.email,

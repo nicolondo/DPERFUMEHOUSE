@@ -24,6 +24,8 @@ type FormData = z.infer<typeof schema>;
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
+  const type = searchParams.get('type');
+  const isCreate = type === 'create';
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -74,9 +76,9 @@ function ResetPasswordForm() {
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20">
           <CheckCircle className="h-8 w-8 text-emerald-400" />
         </div>
-        <h2 className="mb-2 text-lg font-semibold text-white">Contraseña Actualizada</h2>
+        <h2 className="mb-2 text-lg font-semibold text-white">Contraseña {isCreate ? 'Creada' : 'Actualizada'}</h2>
         <p className="text-sm text-white/60 mb-6">
-          Tu contraseña ha sido restablecida exitosamente.
+          Tu contraseña ha sido {isCreate ? 'creada' : 'restablecida'} exitosamente.
         </p>
         <Link
           href="/login"
@@ -91,10 +93,10 @@ function ResetPasswordForm() {
   return (
     <>
       <h2 className="mb-2 text-center text-lg font-semibold text-white">
-        Nueva Contraseña
+        {isCreate ? 'Crear tu Contraseña' : 'Nueva Contraseña'}
       </h2>
       <p className="mb-6 text-center text-sm text-white/50">
-        Ingresa tu nueva contraseña.
+        {isCreate ? 'Elige una contraseña para tu cuenta.' : 'Ingresa tu nueva contraseña.'}
       </p>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -135,7 +137,7 @@ function ResetPasswordForm() {
         />
 
         <Button type="submit" fullWidth loading={loading} size="lg">
-          Restablecer Contraseña
+          {isCreate ? 'Crear Contraseña' : 'Restablecer Contraseña'}
         </Button>
       </form>
     </>
