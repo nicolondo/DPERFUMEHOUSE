@@ -602,7 +602,7 @@ export default function UserDetailPage() {
       <Card padding={false}>
         <div className="border-b border-glass-border px-6 py-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Contact className="h-5 w-5" /> Clientes ({customersData?.items?.length ?? customersData?.length ?? 0})
+            <Contact className="h-5 w-5" /> Clientes ({customersData?.data?.length ?? 0})
           </h3>
         </div>
         <div className="p-4">
@@ -634,7 +634,7 @@ export default function UserDetailPage() {
                 render: (c: any) => <span className="text-white/50">{formatDate(c.createdAt)}</span>,
               },
             ]}
-            data={customersData?.items ?? customersData ?? []}
+            data={customersData?.data ?? []}
             emptyMessage="Este vendedor no tiene clientes registrados"
             keyExtractor={(c) => c.id}
             onRowClick={(c) => router.push(`/customers/${c.id}`)}
