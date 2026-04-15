@@ -697,8 +697,7 @@ export class UsersService {
   async delete(userId: string) {
     const user = await this.findOne(userId);
 
-    // Cannot delete yourself (implicit — admin can't delete admin easily)
-    // Check for orders
+    // Block if seller has orders (financial records — cannot be deleted)
     const orderCount = await this.prisma.order.count({ where: { sellerId: userId } });
     if (orderCount > 0) {
       throw new ConflictException(
@@ -706,15 +705,7 @@ export class UsersService {
       );
     }
 
-    // Check for customers
-    const customerCount = await this.prisma.customer.count({ where: { sellerId: userId } });
-    if (customerCount > 0) {
-      throw new ConflictException(
-        `No se puede eliminar el usuario porque tiene ${customerCount} cliente(s) asociado(s)`,
-      );
-    }
-
-    // Check for child sellers
+    // Block if child sellers exist
     const childCount = await this.prisma.user.count({ where: { parentId: userId } });
     if (childCount > 0) {
       throw new ConflictException(
@@ -722,8 +713,48 @@ export class UsersService {
       );
     }
 
-    // Clean up related data
+    // Cascade-delete all seller data in the right order
     await this.prisma.$transaction(async (tx) => {
+      // Get customer IDs for this seller before deleting them
+      const customers = await tx.customer.findMany({
+        where: { sellerId: userId },
+        select: { id: true },
+      });
+      const customerIds = customers.map((c) => c.id);
+
+      // Nullify lead.customerId references (leads by sellerId are deleted below)
+      if (customerIds.length > 0) {
+        await tx.lead.updateMany({
+          where: { customerId: { in: customerIds } },
+          data: { customerId: null },
+        });
+        // Delete proposal items → proposals for this seller's customers
+        const proposals = await tx.proposal.findMany({
+          where: { customerId: { in: customerIds } },
+          select: { id: true },
+        });
+        if (proposals.length > 0) {
+          await tx.proposalItem.deleteMany({
+            where: { proposalId: { in: proposals.map((p) => p.id) } },
+          });
+          await tx.proposal.deleteMany({ where: { id: { in: proposals.map((p) => p.id) } } });
+        }
+        // CustomerAddress cascades automatically on Customer delete
+        await tx.customer.deleteMany({ where: { sellerId: userId } });
+      }
+
+      // Delete seller's own proposals and their items
+      const sellerProposals = await tx.proposal.findMany({
+        where: { sellerId: userId },
+        select: { id: true },
+      });
+      if (sellerProposals.length > 0) {
+        await tx.proposalItem.deleteMany({
+          where: { proposalId: { in: sellerProposals.map((p) => p.id) } },
+        });
+        await tx.proposal.deleteMany({ where: { sellerId: userId } });
+      }
+
       await tx.userAllowedCategory.deleteMany({ where: { userId } });
       await tx.commission.deleteMany({ where: { userId } });
       await tx.lead.deleteMany({ where: { sellerId: userId } });
