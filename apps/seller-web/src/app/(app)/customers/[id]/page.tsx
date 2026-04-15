@@ -440,7 +440,7 @@ export default function CustomerDetailPage() {
             fullWidth
             onClick={handleAddAddress}
             loading={addAddress.isPending}
-            disabled={!addressForm.label || !addressForm.street || !addressForm.city}
+            disabled={!addressForm.label || !addressForm.street}
           >
             Guardar Direccion
           </Button>

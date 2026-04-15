@@ -710,7 +710,7 @@ function Step2SelectAddress({
               onClick={handleAddAddress}
               loading={addAddress.isPending}
               disabled={
-                !addressForm.label || !addressForm.street || !addressForm.city
+                !addressForm.label || !addressForm.street
               }
             >
               Guardar Direccion
