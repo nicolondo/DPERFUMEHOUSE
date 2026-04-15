@@ -298,7 +298,12 @@ export default function OrderDetailPage() {
             </p>
             {order.paymentMethod && (
               <p className="mt-0.5 text-xs text-white/40">
-                Método de pago: {order.paymentMethod === 'CASH' ? 'Efectivo' : 'En línea'}
+                Método de pago:{' '}
+                {order.paymentMethod === 'CASH'
+                  ? 'Efectivo'
+                  : order.paymentLink?.paymentMethodType
+                  ? order.paymentLink.paymentMethodType
+                  : 'En línea'}
               </p>
             )}
           </div>

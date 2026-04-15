@@ -395,9 +395,25 @@ export class PaymentsService {
     const wompiStatus = transaction.status?.toUpperCase();
 
     if (wompiStatus === 'APPROVED') {
+      // Extract payment method info from Wompi transaction
+      const wompiPaymentType = transaction.payment_method_type as string | undefined;
+      const wompiPaymentMethod = transaction.payment_method as any;
+      let paymentMethodLabel: string | null = null;
+
+      if (wompiPaymentType === 'CARD') {
+        const brand = wompiPaymentMethod?.extra?.brand || wompiPaymentMethod?.type;
+        const last4 = wompiPaymentMethod?.extra?.last_four;
+        paymentMethodLabel = [brand, last4 ? `···${last4}` : null].filter(Boolean).join(' ') || 'CARD';
+      } else if (wompiPaymentType) {
+        paymentMethodLabel = wompiPaymentType;
+      }
+
       await this.prisma.paymentLink.update({
         where: { id: paymentLink.id },
-        data: { status: 'COMPLETED' },
+        data: {
+          status: 'COMPLETED',
+          ...(paymentMethodLabel ? { paymentMethodType: paymentMethodLabel } : {}),
+        },
       });
 
       await this.prisma.order.update({
