@@ -465,7 +465,6 @@ export default function BuyPage() {
                 {fp.familiaOlfativa && <span className="px-2.5 py-1 rounded-full bg-[#d3a86f]/10 text-[#d3a86f] text-xs font-medium border border-[#d3a86f]/20">{fp.familiaOlfativa}</span>}
                 {fp.intensidad && <span className="px-2.5 py-1 rounded-full bg-white/5 text-white/60 text-xs font-medium border border-white/10">Intensidad: {fp.intensidad}</span>}
                 {fp.duracionEstimada && <span className="px-2.5 py-1 rounded-full bg-white/5 text-white/60 text-xs font-medium border border-white/10">{fp.duracionEstimada}</span>}
-                {fp.genero && fp.genero !== 'unisex' && <span className="px-2.5 py-1 rounded-full bg-white/5 text-white/60 text-xs font-medium border border-white/10">{fp.genero === 'masculino' ? 'Masculino' : 'Femenino'}</span>}
               </div>
               {fp.descripcionDetallada && <p className="text-sm text-white/50 leading-relaxed">{fp.descripcionDetallada}</p>}
               {fp.frasePositionamiento && <p className="text-sm text-[#d3a86f]/70 italic">&ldquo;{fp.frasePositionamiento}&rdquo;</p>}
