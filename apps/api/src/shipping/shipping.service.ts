@@ -370,13 +370,15 @@ export class ShippingService {
         where: { orderId },
         data: { status: newStatus },
       });
-      if (newStatus === ShipmentStatus.DELIVERED) {
-        await this.prisma.order.update({
-          where: { id: orderId },
-          data: { status: 'DELIVERED' },
-        });
-        this.logger.log(`Order ${order.orderNumber} auto-marked as DELIVERED via tracking poll`);
-      }
+    }
+    // Sync order status to DELIVERED whenever shipment is DELIVERED (handles backfill)
+    const resolvedStatus = newStatus ?? order.shipment.status;
+    if (resolvedStatus === ShipmentStatus.DELIVERED && order.status !== 'DELIVERED') {
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: { status: 'DELIVERED' },
+      });
+      this.logger.log(`Order ${order.orderNumber} auto-marked as DELIVERED via tracking poll`);
     }
 
     const shipment = await this.prisma.shipment.findUnique({
