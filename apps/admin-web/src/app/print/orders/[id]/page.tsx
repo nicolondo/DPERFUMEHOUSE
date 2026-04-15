@@ -177,8 +177,7 @@ export default function PrintOrderPage() {
           color: #111;
           line-height: 1.1;
           margin-bottom: 12px;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.3px;
         }
 
         .addr-line {
