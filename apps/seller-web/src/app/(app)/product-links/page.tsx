@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Search, Link2, Copy, Check, ExternalLink, Eye, ShoppingCart, Trash2,
 } from 'lucide-react';
@@ -54,7 +54,9 @@ function useDeactivateLink() {
 
 export default function ProductLinksPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<'links' | 'generate'>('links');
+  const searchParams = useSearchParams();
+  const tab = (searchParams.get('tab') as 'links' | 'generate') || 'links';
+  const setTab = (t: 'links' | 'generate') => router.replace(`/product-links?tab=${t}`);
   const [productSearch, setProductSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [copiedId, setCopiedId] = useState<string | null>(null);
