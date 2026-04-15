@@ -11,6 +11,7 @@ interface Recommendation {
   compatibility: number;
   mainArgument: string;
   presentationOrder: number;
+  notasDestacadas?: string | null;
   product?: {
     id: string;
     name: string;
@@ -34,6 +35,16 @@ export default function ResultsPage() {
   const [results, setResults] = useState<Results | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
+
+  const toggleNotes = (id: string) => {
+    setExpandedNotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   useEffect(() => {
     fetch(`${API_URL}/leads/results/${params.id}`)
@@ -164,6 +175,24 @@ export default function ResultsPage() {
                 </div>
 
                 <p className="text-white/50 text-sm mt-4 leading-relaxed">{rec.mainArgument}</p>
+
+                {rec.notasDestacadas && (
+                  <div className="mt-3">
+                    <button
+                      onClick={() => toggleNotes(rec.productVariantId || String(idx))}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/10 border border-amber-500/20 text-amber-400/80 hover:bg-amber-500/20 transition-all active:scale-95"
+                    >
+                      <span>🌿</span>
+                      <span>NOTAS</span>
+                    </button>
+                    {expandedNotes.has(rec.productVariantId || String(idx)) && (
+                      <div className="mt-2 p-4 rounded-xl bg-white/[0.04] border border-white/[0.08]">
+                        <p className="text-xs font-medium text-amber-400/60 uppercase tracking-wider mb-2">Notas olfativas</p>
+                        <p className="text-sm text-white/60 leading-relaxed">{rec.notasDestacadas}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           );

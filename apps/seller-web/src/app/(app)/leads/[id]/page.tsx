@@ -29,12 +29,22 @@ export default function LeadDetailPage() {
   const updateAppointment = useUpdateAppointment();
   const convertLead = useConvertLead();
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
+  const [expandedNotes, setExpandedNotes] = useState<Set<number>>(new Set());
   const [appointmentData, setAppointmentData] = useState({
     appointmentDate: '',
     appointmentTime: '',
     appointmentLocation: '',
     appointmentNotes: '',
   });
+
+  const toggleNotes = (idx: number) => {
+    setExpandedNotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
 
   if (isLoading || !lead) return <PageSpinner />;
 
@@ -235,6 +245,24 @@ export default function LeadDetailPage() {
                     <div className="flex items-start gap-2">
                       <AlertTriangle className="h-3 w-3 text-red-400/50 mt-0.5 shrink-0" />
                       <p className="text-xs text-white/40 leading-relaxed">{rec.objectionHandling}</p>
+                    </div>
+                  )}
+
+                  {rec.notasDestacadas && (
+                    <div className="mt-2">
+                      <button
+                        onClick={() => toggleNotes(i)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/10 border border-amber-500/20 text-amber-400/80 hover:bg-amber-500/20 transition-all active:scale-95"
+                      >
+                        <span>🌿</span>
+                        <span>NOTAS</span>
+                      </button>
+                      {expandedNotes.has(i) && (
+                        <div className="mt-2 p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+                          <p className="text-[10px] font-medium text-amber-400/60 uppercase tracking-wider mb-1.5">Notas olfativas</p>
+                          <p className="text-xs text-white/60 leading-relaxed">{rec.notasDestacadas}</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

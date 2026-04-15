@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Search, Link2, Copy, Check, ExternalLink, Eye, ShoppingCart, Trash2,
 } from 'lucide-react';
@@ -52,6 +53,7 @@ function useDeactivateLink() {
 }
 
 export default function ProductLinksPage() {
+  const router = useRouter();
   const [tab, setTab] = useState<'links' | 'generate'>('links');
   const [productSearch, setProductSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
@@ -105,7 +107,23 @@ export default function ProductLinksPage() {
 
   const handleGenerate = async (variantId: string) => {
     try {
-      await generateLink.mutateAsync(variantId);
+      const result = await generateLink.mutateAsync(variantId);
+      // Auto-copy the generated link to clipboard
+      const url = result?.url || result?.data?.url;
+      if (url) {
+        try {
+          await navigator.clipboard.writeText(url);
+        } catch {
+          const input = document.createElement('input');
+          input.value = url;
+          document.body.appendChild(input);
+          input.select();
+          document.execCommand('copy');
+          document.body.removeChild(input);
+        }
+        setCopiedGenerateId(variantId);
+        setTimeout(() => setCopiedGenerateId(null), 3000);
+      }
     } catch {
       // handled by react-query
     }
@@ -176,7 +194,10 @@ export default function ProductLinksPage() {
               const img = getProductImage(link.variant);
               return (
                 <Card key={link.id} className="p-3">
-                  <div className="flex gap-3">
+                  <div
+                    className="flex gap-3 cursor-pointer"
+                    onClick={() => router.push(`/products/${link.variantId}`)}
+                  >
                     {/* Product image */}
                     <div className="w-16 h-16 rounded-lg overflow-hidden bg-glass-100 flex-shrink-0">
                       {img ? (
@@ -310,8 +331,11 @@ export default function ProductLinksPage() {
                     key={product.id}
                     className={`overflow-hidden ${hasLink ? 'ring-1 ring-accent-gold/50' : ''}`}
                   >
-                    {/* Image */}
-                    <div className="relative aspect-square bg-glass-100">
+                    {/* Image — click navigates to product detail */}
+                    <div
+                      className="relative aspect-square bg-glass-100 cursor-pointer"
+                      onClick={() => router.push(`/products/${product.id}`)}
+                    >
                       {img ? (
                         <img src={img} alt={product.name} className="w-full h-full object-cover" />
                       ) : (

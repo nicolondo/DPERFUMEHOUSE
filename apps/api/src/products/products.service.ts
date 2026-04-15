@@ -155,6 +155,7 @@ export class ProductsService {
         images: {
           orderBy: { sortOrder: 'asc' },
         },
+        fragranceProfile: true,
       },
     });
 
