@@ -68,8 +68,8 @@ export default function PrintOrderPage() {
           }
           .page {
             background: white;
-            width: 8.5in;
-            min-height: 11in;
+            width: 11in;
+            min-height: 8.5in;
             position: relative;
             box-shadow: 0 8px 32px rgba(0,0,0,0.5);
           }
@@ -79,8 +79,8 @@ export default function PrintOrderPage() {
           html, body { background: white; margin: 0; padding: 0; }
           .no-print { display: none !important; }
           .page-wrap { padding: 0; background: white; }
-          @page { size: letter portrait; margin: 0; }
-          .page { width: 8.5in; min-height: 11in; background: white; box-shadow: none; }
+          @page { size: letter landscape; margin: 0; }
+          .page { width: 11in; min-height: 8.5in; background: white; box-shadow: none; }
         }
 
         /* Screen controls */
@@ -105,33 +105,23 @@ export default function PrintOrderPage() {
         .btn-close { background: #374151; color: white; }
         .btn-close:hover { background: #1f2937; }
 
-        /* Label — centered in upper half of the page */
-        .label-area {
-          padding: 0.75in 1.25in;
+        /* Content area — upper-left of the landscape page */
+        .content-area {
+          padding: 0.65in 0.75in;
+          width: 5.5in;
         }
 
-        .label {
-          width: 100%;
-          max-width: 6in;
-          border: 2px solid #222;
-          border-radius: 8px;
-          overflow: hidden;
-          font-family: 'Helvetica Neue', Arial, sans-serif;
-          background: white;
-        }
-
+        /* Header: brand left, order info right */
         .label-header {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          padding: 12px 18px;
-          border-bottom: 1.5px solid #bbb;
-          background: #f5f0e8;
+          margin-bottom: 6px;
         }
         .brand-name {
-          font-size: 18px;
+          font-size: 17px;
           font-weight: 900;
-          letter-spacing: 1px;
+          letter-spacing: 1.5px;
           color: #111;
           line-height: 1.1;
           text-transform: uppercase;
@@ -140,7 +130,7 @@ export default function PrintOrderPage() {
           font-size: 9px;
           color: #888;
           font-weight: 400;
-          margin-top: 2px;
+          margin-top: 3px;
           text-transform: uppercase;
           letter-spacing: 0.8px;
         }
@@ -158,8 +148,18 @@ export default function PrintOrderPage() {
           margin-top: 3px;
         }
 
-        .label-body {
-          padding: 16px 18px;
+        /* Horizontal rule separator */
+        .header-divider {
+          border: none;
+          border-top: 1.5px solid #ccc;
+          margin: 10px 0 16px;
+        }
+
+        /* Recipient box */
+        .recipient-box {
+          border: 1.5px solid #333;
+          border-radius: 10px;
+          padding: 18px 20px;
         }
 
         .to-label {
@@ -168,28 +168,27 @@ export default function PrintOrderPage() {
           text-transform: uppercase;
           letter-spacing: 2px;
           color: #aaa;
-          margin-bottom: 6px;
+          margin-bottom: 8px;
         }
 
         .recipient-name {
-          font-size: 24px;
+          font-size: 22px;
           font-weight: 900;
           color: #111;
-          line-height: 1.1;
-          margin-bottom: 12px;
-          letter-spacing: 0.3px;
+          line-height: 1.15;
+          margin-bottom: 10px;
         }
 
         .addr-line {
           font-size: 13px;
           color: #333;
-          line-height: 1.6;
+          line-height: 1.65;
         }
         .addr-city {
           font-size: 14px;
           font-weight: 700;
           color: #111;
-          margin-top: 6px;
+          margin-top: 4px;
           margin-bottom: 10px;
         }
         .divider {
@@ -197,21 +196,16 @@ export default function PrintOrderPage() {
           border-top: 1px solid #ddd;
           margin: 10px 0;
         }
-
         .contact-line {
           font-size: 11px;
           color: #555;
-          line-height: 1.7;
+          line-height: 1.8;
         }
         .notes-text {
           font-size: 11px;
           color: #777;
           font-style: italic;
           margin-top: 6px;
-          padding: 8px 12px;
-          background: #f9f9f9;
-          border-radius: 4px;
-          border-left: 3px solid #ddd;
         }
       `}</style>
 
@@ -224,49 +218,47 @@ export default function PrintOrderPage() {
       {/* Page */}
       <div className="page-wrap">
         <div className="page">
-          <div className="label-area">
-            <div className="label">
-              {/* Header */}
-              <div className="label-header">
-                <div>
-                  <div className="brand-name">D Perfume House</div>
-                  <div className="brand-sub">Etiqueta de Envío</div>
-                </div>
-                <div className="order-info">
-                  <div className="order-num">Pedido #{order.orderNumber || orderId.slice(0, 8).toUpperCase()}</div>
-                  <div className="order-date">{orderDate}</div>
-                </div>
+          <div className="content-area">
+            {/* Header */}
+            <div className="label-header">
+              <div>
+                <div className="brand-name">D Perfume House</div>
+                <div className="brand-sub">Etiqueta de Envío</div>
+              </div>
+              <div className="order-info">
+                <div className="order-num">Pedido #{order.orderNumber || orderId.slice(0, 8).toUpperCase()}</div>
+                <div className="order-date">{orderDate}</div>
+              </div>
+            </div>
+
+            <hr className="header-divider" />
+
+            {/* Recipient box */}
+            <div className="recipient-box">
+              <div className="to-label">Destinatario</div>
+              <div className="recipient-name">
+                {order.customerName || customer?.name || '—'}
               </div>
 
-              {/* Body */}
-              <div className="label-body">
-                <div className="to-label">Destinatario</div>
-                <div className="recipient-name">
-                  {order.customerName || customer?.name || '—'}
-                </div>
-
-                {addr ? (
-                  <>
-                    <div className="addr-line">{addr.street}</div>
-                    {addr.detail && <div className="addr-line">{addr.detail}</div>}
-                    <div className="addr-city">
-                      {addr.city}{addr.state ? `, ${addr.state}` : ''}{addr.country && addr.country !== 'CO' && addr.country !== 'Colombia' ? `, ${addr.country}` : ''}
-                    </div>
-                    <hr className="divider" />
-                    <div className="contact-line">
-                      Tel: {addr.phoneCode || '+57'} {addr.phone || customer?.phone || '—'}
-                    </div>
-                    {(customer?.email || order.customerEmail) && (
-                      <div className="contact-line">{customer?.email || order.customerEmail}</div>
-                    )}
-                    {addr.notes && (
-                      <div className="notes-text">📌 {addr.notes}</div>
-                    )}
-                  </>
-                ) : (
-                  <div className="addr-line" style={{ color: '#bbb' }}>Sin dirección registrada</div>
-                )}
-              </div>
+              {addr ? (
+                <>
+                  <div className="addr-line">{addr.street}</div>
+                  {addr.detail && <div className="addr-line">{addr.detail}</div>}
+                  {addr.notes && <div className="addr-line">{addr.notes}</div>}
+                  <div className="addr-city">
+                    {addr.city}{addr.state ? `, ${addr.state}` : ''}
+                  </div>
+                  <hr className="divider" />
+                  <div className="contact-line">
+                    <strong>Tel:</strong> {addr.phoneCode || '+57'} {addr.phone || customer?.phone || '—'}
+                  </div>
+                  {(customer?.email || order.customerEmail) && (
+                    <div className="contact-line">{customer?.email || order.customerEmail}</div>
+                  )}
+                </>
+              ) : (
+                <div className="addr-line" style={{ color: '#bbb' }}>Sin dirección registrada</div>
+              )}
             </div>
           </div>
         </div>
