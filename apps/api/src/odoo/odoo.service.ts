@@ -561,8 +561,10 @@ export class OdooService {
           {
             product_id: line.productId,
             product_uom_qty: line.quantity,
-            price_unit: Math.round(line.price / 1000) * 1000,
-            discount: line.discountPercent ?? 0,
+            // Round the net price (after discount) to the nearest 1000, send with discount=0
+            // This avoids fractional % producing ugly numbers like 299.985 in Odoo
+            price_unit: Math.round(line.price * (1 - (line.discountPercent ?? 0) / 100) / 1000) * 1000,
+            discount: 0,
           },
         ]),
       };
