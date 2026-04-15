@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { fetchUser, updateUser, toggleUserStatus, fetchUsers, fetchProductCategories, fetchSettings, fetchCustomers, fetchOrders } from '@/lib/api';
+import { fetchUser, updateUser, toggleUserStatus, deleteUser, fetchUsers, fetchProductCategories, fetchSettings, fetchCustomers, fetchOrders } from '@/lib/api';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -114,6 +114,7 @@ export default function UserDetailPage() {
   const queryClient = useQueryClient();
   const userId = params.id as string;
   const [showEdit, setShowEdit] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
 
   const { data: customersData } = useQuery({
     queryKey: ['customers', 'by-seller', userId],
@@ -144,6 +145,14 @@ export default function UserDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user', userId] });
       queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteUser(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      router.push('/users');
     },
   });
 
@@ -332,6 +341,13 @@ export default function UserDetailPage() {
               loading={toggleMutation.isPending}
             >
               {user.isActive ? 'Desactivar' : user.pendingApproval ? 'Aprobar' : 'Activar'}
+            </Button>
+            <Button
+              variant="danger"
+              icon={<Trash2 className="h-4 w-4" />}
+              onClick={() => setShowDelete(true)}
+            >
+              Eliminar
             </Button>
           </div>
         </div>
@@ -638,6 +654,40 @@ export default function UserDetailPage() {
           }}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        open={showDelete}
+        onClose={() => setShowDelete(false)}
+        title="Eliminar Vendedor"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-white/60">
+            ¿Estás seguro de que deseas eliminar a{' '}
+            <span className="font-semibold text-white">{user.name}</span>? Esta acción es{' '}
+            <span className="font-semibold text-status-danger">irreversible</span> y eliminará todos sus datos asociados.
+          </p>
+          {deleteMutation.isError && (
+            <p className="text-xs text-status-danger">
+              {(deleteMutation.error as any)?.response?.data?.message || 'No se pudo eliminar el vendedor'}
+            </p>
+          )}
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={() => setShowDelete(false)} disabled={deleteMutation.isPending}>
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              icon={<Trash2 className="h-4 w-4" />}
+              onClick={() => deleteMutation.mutate()}
+              loading={deleteMutation.isPending}
+            >
+              Eliminar
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

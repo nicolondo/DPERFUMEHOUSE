@@ -131,6 +131,10 @@ export async function toggleUserStatus(id: string) {
   return unwrap(data);
 }
 
+export async function deleteUser(id: string) {
+  await api.delete(`/users/${id}`);
+}
+
 export async function fetchProducts(params?: {
   page?: number;
   pageSize?: number;
