@@ -561,7 +561,7 @@ export class OdooService {
           {
             product_id: line.productId,
             product_uom_qty: line.quantity,
-            price_unit: line.price,
+            price_unit: Math.round(line.price / 1000) * 1000,
             discount: line.discountPercent ?? 0,
           },
         ]),
