@@ -176,7 +176,7 @@ export class UsersService {
     const defaults = await this.getDefaultCommissionRates();
     const commissionRate = dto.commissionRate ?? defaults.l1;
     const commissionRateL2 = dto.commissionRateL2 ?? defaults.l2;
-    const commissionScaleEnabled = dto.commissionScaleEnabled ?? false;
+    const commissionScaleEnabled = dto.commissionScaleEnabled ?? true;
     const commissionScaleUseGlobal = dto.commissionScaleUseGlobal ?? true;
     const overrideScaleInput = this.normalizeCommissionScale(dto.commissionScaleOverride);
     const globalScale = await this.getGlobalCommissionScale();
@@ -668,9 +668,11 @@ export class UsersService {
         role: 'SELLER_L2',
         parentId,
         isActive: true,
+        commissionScaleEnabled: true,
+        commissionScaleUseGlobal: true,
         resetToken: hashedToken,
         resetTokenExpiry: tokenExpiry,
-        sellerCode: `${dto.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '').slice(0, 20)}-${crypto.randomBytes(2).toString('hex')}`,
+        sellerCode: `${dto.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '').slice(0, 20)}-${crypto.randomBytes(2).toString('hex')}`,`
         allowedCategories: defaultCategory
           ? {
               create: [{ categoryName: defaultCategory }],

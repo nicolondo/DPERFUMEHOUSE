@@ -168,6 +168,8 @@ export class AuthService {
         role: 'SELLER_L1',
         isActive: false,
         pendingApproval: true,
+        commissionScaleEnabled: true,
+        commissionScaleUseGlobal: true,
       },
       select: {
         id: true,
@@ -402,6 +404,8 @@ export class AuthService {
         role: 'SELLER_L1',
         isActive: false,
         pendingApproval: true,
+        commissionScaleEnabled: true,
+        commissionScaleUseGlobal: true,
       },
       select: {
         id: true,
@@ -517,6 +521,8 @@ export class AuthService {
         role: 'SELLER_L1',
         isActive: false,
         pendingApproval: true,
+        commissionScaleEnabled: true,
+        commissionScaleUseGlobal: true,
       },
       select: {
         id: true,
