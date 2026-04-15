@@ -371,7 +371,7 @@ export default function LeadDetailPage() {
 
       {/* Appointment Form Modal */}
       {showAppointmentForm && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowAppointmentForm(false)}>
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowAppointmentForm(false)}>
           <div
             className="w-full max-w-lg rounded-t-3xl bg-surface-raised border-t border-glass-border p-6 pb-10 max-h-[85dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
