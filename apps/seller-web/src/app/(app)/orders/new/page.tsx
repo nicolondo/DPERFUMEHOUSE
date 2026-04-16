@@ -193,7 +193,7 @@ export default function NewOrderPage() {
         </div>
       </div>
 
-      <div className="px-4">
+      <div className="px-4 pb-24">
         {step === 1 && (
           <Step1SelectCustomer
             selectedCustomer={selectedCustomer}
