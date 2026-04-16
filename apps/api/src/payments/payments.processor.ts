@@ -57,11 +57,8 @@ export class PaymentsProcessor extends WorkerHost {
     }
 
     // --- Commissions first (independent of Odoo) ---
-    // Step 1: Calculate commissions
-    await this.calculateCommissions(order);
-
-    // Step 2: Auto-approve commissions (payment confirmed by provider)
-    await this.commissionsService.approveCommissionsForOrder(orderId);
+    // Create and auto-approve commissions (payment confirmed by provider)
+    await this.commissionsService.calculateForOrder(orderId, CommissionStatus.APPROVED);
 
     this.logger.log(
       `Commissions created and approved for order ${order.orderNumber}`,
@@ -180,56 +177,4 @@ export class PaymentsProcessor extends WorkerHost {
     );
   }
 
-  private async calculateCommissions(order: any): Promise<void> {
-    const seller = await this.prisma.user.findUnique({
-      where: { id: order.sellerId },
-      include: { parent: true },
-    });
-
-    if (!seller) return;
-
-    const baseAmount = Number(order.subtotal);
-
-    // Level 1 commission: direct seller
-    const l1Rate = Number(seller.commissionRate);
-    const l1Amount = baseAmount * l1Rate;
-
-    await this.prisma.commission.create({
-      data: {
-        orderId: order.id,
-        userId: seller.id,
-        level: 1,
-        rate: l1Rate,
-        baseAmount,
-        amount: l1Amount,
-        status: 'PENDING',
-      },
-    });
-
-    this.logger.log(
-      `L1 commission of ${l1Amount} created for seller ${seller.name} on order ${order.orderNumber}`,
-    );
-
-    // Level 2 commission: parent seller (if exists)
-    if (seller.parent) {
-      const l2Rate = Number(seller.parent.commissionRate);
-      const l2Amount = baseAmount * l2Rate;
-
-      await this.prisma.commission.create({
-        data: {
-          orderId: order.id,
-          userId: seller.parent.id,
-          level: 2,
-          rate: l2Rate,
-          baseAmount,
-          amount: l2Amount,
-          status: 'PENDING',
-        },
-      });
-
-      this.logger.log(
-        `L2 commission of ${l2Amount} created for parent seller ${seller.parent.name} on order ${order.orderNumber}`,
-      );
-    }
-  }
 }
