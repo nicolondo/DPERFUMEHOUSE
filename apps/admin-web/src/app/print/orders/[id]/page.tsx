@@ -59,14 +59,19 @@ export default function PrintOrderPage() {
 
         @media screen {
           body { background: #888; display: flex; justify-content: center; align-items: flex-start; padding: 32px; min-height: 100vh; }
-          .page { background: white; width: 4.5in; min-height: auto; box-shadow: 0 4px 24px rgba(0,0,0,0.4); padding: 0.35in 0.4in 0.3in; }
+          .page { background: white; width: 11in; min-height: 8.5in; box-shadow: 0 4px 24px rgba(0,0,0,0.4); }
         }
 
         @media print {
-          body { background: white; margin: 0; padding: 0; display: flex; justify-content: center; }
+          body { background: white; margin: 0; padding: 0; }
           .no-print { display: none !important; }
-          @page { size: 4.5in 7in; margin: 0; }
-          .page { width: 4.5in; padding: 0.35in 0.4in 0.3in; }
+          @page { size: letter landscape; margin: 0; }
+          .page { width: 11in; min-height: 8.5in; }
+        }
+
+        .page-content {
+          width: 5in;
+          padding: 0.6in 0.7in;
         }
 
         .no-print {
@@ -185,6 +190,7 @@ export default function PrintOrderPage() {
       </div>
 
       <div className="page">
+        <div className="page-content">
         {/* Header */}
         <div className="lbl-header">
           <div>
@@ -247,6 +253,7 @@ export default function PrintOrderPage() {
 
         {/* Footer */}
         <div className="lbl-footer">D Perfume House · dperfumehouse.com</div>
+        </div>
       </div>
     </>
   );
