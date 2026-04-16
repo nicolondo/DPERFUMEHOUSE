@@ -69,27 +69,37 @@ export default function PrintOrderPage() {
           .page { width: 11in; height: 8.5in; }
         }
 
-        /* Two halves: top = address, bottom = products */
+        /* Two rows, each row has left quadrant (content) + right quadrant (empty) */
         .page {
-          display: flex;
-          flex-direction: column;
+          display: grid;
+          grid-template-columns: 5.5in 5.5in;
+          grid-template-rows: 4.25in 4.25in;
         }
-        .half {
-          height: 4.25in;
+        .quadrant {
           display: flex;
           justify-content: center;
           align-items: center;
         }
-        .half-content {
-          width: 5in;
+        .quadrant-content {
+          width: 4.2in;
         }
-        .fold-line {
+        .fold-h {
+          grid-column: 1 / -1;
           border: none;
           border-top: 1px dashed #ccc;
           margin: 0;
+          align-self: start;
+        }
+        .fold-v {
+          position: absolute;
+          top: 0;
+          left: 5.5in;
+          width: 0;
+          height: 8.5in;
+          border-left: 1px dashed #ccc;
         }
         @media print {
-          .fold-line { border-top-color: transparent; }
+          .fold-h, .fold-v { border-color: transparent; }
         }
 
         .no-print {
@@ -206,10 +216,12 @@ export default function PrintOrderPage() {
         <button className="btn btn-close" onClick={() => window.close()}>Cerrar</button>
       </div>
 
-      <div className="page">
-        {/* ── TOP HALF: Address ── */}
-        <div className="half">
-          <div className="half-content">
+      <div className="page" style={{ position: 'relative' }}>
+        <div className="fold-v" />
+
+        {/* ── TOP-LEFT: Address ── */}
+        <div className="quadrant">
+          <div className="quadrant-content">
             <div className="lbl-header">
               <div>
                 <div className="lbl-brand">D PERFUME HOUSE</div>
@@ -247,11 +259,12 @@ export default function PrintOrderPage() {
           </div>
         </div>
 
-        <hr className="fold-line" />
+        {/* TOP-RIGHT: empty */}
+        <div className="quadrant" />
 
-        {/* ── BOTTOM HALF: Products ── */}
-        <div className="half">
-          <div className="half-content">
+        {/* ── BOTTOM-LEFT: Products ── */}
+        <div className="quadrant">
+          <div className="quadrant-content">
             {items.length > 0 && (
               <>
                 <div className="lbl-products-title">Contenido del Paquete</div>
@@ -276,6 +289,9 @@ export default function PrintOrderPage() {
             <div className="lbl-footer">D Perfume House · dperfumehouse.com</div>
           </div>
         </div>
+
+        {/* BOTTOM-RIGHT: empty */}
+        <div className="quadrant" />
       </div>
     </>
   );
