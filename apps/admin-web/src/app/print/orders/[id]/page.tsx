@@ -59,19 +59,37 @@ export default function PrintOrderPage() {
 
         @media screen {
           body { background: #888; display: flex; justify-content: center; align-items: flex-start; padding: 32px; min-height: 100vh; }
-          .page { background: white; width: 11in; min-height: 8.5in; box-shadow: 0 4px 24px rgba(0,0,0,0.4); }
+          .page { background: white; width: 11in; height: 8.5in; box-shadow: 0 4px 24px rgba(0,0,0,0.4); }
         }
 
         @media print {
           body { background: white; margin: 0; padding: 0; }
           .no-print { display: none !important; }
           @page { size: letter landscape; margin: 0; }
-          .page { width: 11in; min-height: 8.5in; }
+          .page { width: 11in; height: 8.5in; }
         }
 
-        .page-content {
+        /* Two halves: top = address, bottom = products */
+        .page {
+          display: flex;
+          flex-direction: column;
+        }
+        .half {
+          height: 4.25in;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+        .half-content {
           width: 5in;
-          padding: 0.6in 0.7in;
+        }
+        .fold-line {
+          border: none;
+          border-top: 1px dashed #ccc;
+          margin: 0;
+        }
+        @media print {
+          .fold-line { border-top-color: transparent; }
         }
 
         .no-print {
@@ -126,7 +144,6 @@ export default function PrintOrderPage() {
           border: 1.5px solid #333;
           border-radius: 6px;
           padding: 12px 14px;
-          margin-bottom: 20px;
         }
         .lbl-section-title {
           font-size: 7.5px;
@@ -175,7 +192,7 @@ export default function PrintOrderPage() {
 
         /* Footer */
         .lbl-footer {
-          margin-top: 20px;
+          margin-top: 14px;
           text-align: center;
           font-size: 8px;
           color: #bbb;
@@ -190,69 +207,74 @@ export default function PrintOrderPage() {
       </div>
 
       <div className="page">
-        <div className="page-content">
-        {/* Header */}
-        <div className="lbl-header">
-          <div>
-            <div className="lbl-brand">D PERFUME HOUSE</div>
-            <div className="lbl-brand-sub">Etiqueta de Envío</div>
-          </div>
-          <div className="lbl-order-info">
-            <div className="lbl-order-num">Pedido #{order.orderNumber || orderId.slice(0, 8)}</div>
-            <div className="lbl-order-date">{orderDate}</div>
-          </div>
-        </div>
-
-        {/* Recipient box */}
-        <div className="lbl-recipient-box">
-          <div className="lbl-section-title">Destinatario</div>
-          <div className="lbl-name">{order.customerName || customer?.name || '-'}</div>
-
-          {addr ? (
-            <>
-              <div className="lbl-addr-line">{addr.street}</div>
-              {addrLine2 && <div className="lbl-addr-line">{addrLine2}</div>}
-              <div className="lbl-addr-city">
-                {addr.city}{addr.state ? `, ${addr.state}` : ''}
+        {/* ── TOP HALF: Address ── */}
+        <div className="half">
+          <div className="half-content">
+            <div className="lbl-header">
+              <div>
+                <div className="lbl-brand">D PERFUME HOUSE</div>
+                <div className="lbl-brand-sub">Etiqueta de Envío</div>
               </div>
-              <hr className="lbl-divider" />
-              <div className="lbl-contact-line">
-                Tel: {addr.phoneCode || '+57'} {addr.phone || customer?.phone || '-'}
+              <div className="lbl-order-info">
+                <div className="lbl-order-num">Pedido #{order.orderNumber || orderId.slice(0, 8)}</div>
+                <div className="lbl-order-date">{orderDate}</div>
               </div>
-              {(customer?.email || order.customerEmail) && (
-                <div className="lbl-contact-line">{customer?.email || order.customerEmail}</div>
+            </div>
+
+            <div className="lbl-recipient-box">
+              <div className="lbl-section-title">Destinatario</div>
+              <div className="lbl-name">{order.customerName || customer?.name || '-'}</div>
+
+              {addr ? (
+                <>
+                  <div className="lbl-addr-line">{addr.street}</div>
+                  {addrLine2 && <div className="lbl-addr-line">{addrLine2}</div>}
+                  <div className="lbl-addr-city">
+                    {addr.city}{addr.state ? `, ${addr.state}` : ''}
+                  </div>
+                  <hr className="lbl-divider" />
+                  <div className="lbl-contact-line">
+                    Tel: {addr.phoneCode || '+57'} {addr.phone || customer?.phone || '-'}
+                  </div>
+                  {(customer?.email || order.customerEmail) && (
+                    <div className="lbl-contact-line">{customer?.email || order.customerEmail}</div>
+                  )}
+                </>
+              ) : (
+                <div className="lbl-addr-line" style={{ color: '#999' }}>Sin dirección registrada</div>
               )}
-            </>
-          ) : (
-            <div className="lbl-addr-line" style={{ color: '#999' }}>Sin dirección registrada</div>
-          )}
+            </div>
+          </div>
         </div>
 
-        {/* Products */}
-        {items.length > 0 && (
-          <>
-            <div className="lbl-products-title">Contenido del Paquete</div>
-            <table className="lbl-table">
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th style={{ textAlign: 'right' }}>Cant.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item: any, i: number) => (
-                  <tr key={i}>
-                    <td>{item.variant?.name || item.productName || '-'}</td>
-                    <td>{item.quantity}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
+        <hr className="fold-line" />
 
-        {/* Footer */}
-        <div className="lbl-footer">D Perfume House · dperfumehouse.com</div>
+        {/* ── BOTTOM HALF: Products ── */}
+        <div className="half">
+          <div className="half-content">
+            {items.length > 0 && (
+              <>
+                <div className="lbl-products-title">Contenido del Paquete</div>
+                <table className="lbl-table">
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th style={{ textAlign: 'right' }}>Cant.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item: any, i: number) => (
+                      <tr key={i}>
+                        <td>{item.variant?.name || item.productName || '-'}</td>
+                        <td>{item.quantity}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+            <div className="lbl-footer">D Perfume House · dperfumehouse.com</div>
+          </div>
         </div>
       </div>
     </>
