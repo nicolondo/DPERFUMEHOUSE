@@ -525,7 +525,7 @@ export default function CommissionsPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <StatCard
               label="Total Pendiente"
-              value={formatCurrency(summary?.pending ?? 0)}
+              value={formatCurrency(summary?.availableForPayout ?? 0)}
               icon={<Clock className="h-5 w-5" />}
             />
             <StatCard
