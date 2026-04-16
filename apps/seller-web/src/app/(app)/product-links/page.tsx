@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Search, Link2, Copy, Check, ExternalLink, Eye, ShoppingCart, Trash2,
+  Search, Link2, Copy, Check, ExternalLink, Eye, ShoppingCart, Trash2, X, QrCode, Download,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -14,6 +14,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { useProducts, useCategories } from '@/hooks/use-products';
 import { formatCurrency } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { QRCodeCanvas } from 'qrcode.react';
 import api, { unwrap } from '@/lib/api';
 
 function useSellerProductLinks() {
@@ -61,6 +62,8 @@ export default function ProductLinksPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedGenerateId, setCopiedGenerateId] = useState<string | null>(null);
+  const [qrLink, setQrLink] = useState<{ url: string; name: string } | null>(null);
+  const qrRef = useRef<HTMLCanvasElement>(null);
 
   const { data: linksData, isLoading: linksLoading } = useSellerProductLinks();
   const { data: productsData, isLoading: productsLoading } = useProducts({
@@ -242,6 +245,12 @@ export default function ProductLinksPage() {
                       )}
                     </button>
                     <button
+                      onClick={() => setQrLink({ url: link.url, name: link.variant.name })}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-glass-100 text-xs text-white/70 hover:text-white hover:bg-glass-200 transition-colors justify-center"
+                    >
+                      <QrCode className="h-3.5 w-3.5" />
+                    </button>
+                    <button
                       onClick={() => shareWhatsApp(link.url, link.variant.name)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600/20 text-xs text-green-400 hover:bg-green-600/30 transition-colors flex-1 justify-center"
                     >
@@ -416,6 +425,61 @@ export default function ProductLinksPage() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* QR Code Modal */}
+      {qrLink && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setQrLink(null)}
+        >
+          <div
+            className="bg-glass-200 border border-glass-border rounded-2xl p-6 mx-4 max-w-sm w-full text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-white truncate pr-2">{qrLink.name}</h3>
+              <button
+                onClick={() => setQrLink(null)}
+                className="p-1 rounded-lg text-white/50 hover:text-white hover:bg-glass-100 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="bg-white rounded-xl p-4 inline-block">
+              <QRCodeCanvas
+                ref={qrRef}
+                value={qrLink.url}
+                size={220}
+                level="H"
+                includeMargin={false}
+              />
+            </div>
+            <p className="text-xs text-white/40 mt-3 break-all">{qrLink.url}</p>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => {
+                  const canvas = qrRef.current;
+                  if (!canvas) return;
+                  const url = canvas.toDataURL('image/png');
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `qr-${qrLink.name.replace(/\s+/g, '-').toLowerCase()}.png`;
+                  a.click();
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent-gold text-black text-sm font-medium flex-1 justify-center"
+              >
+                <Download className="h-4 w-4" /> Descargar
+              </button>
+              <button
+                onClick={() => setQrLink(null)}
+                className="px-4 py-2 rounded-lg bg-glass-100 text-white/70 text-sm flex-1"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
