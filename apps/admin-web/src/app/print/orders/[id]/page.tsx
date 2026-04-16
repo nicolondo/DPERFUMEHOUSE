@@ -43,51 +43,36 @@ export default function PrintOrderPage() {
 
   const addr = order.address;
   const customer = order.customer;
+  const items: any[] = order.items ?? [];
   const orderDate = new Date(order.createdAt).toLocaleDateString('es-CO', {
     year: 'numeric', month: 'long', day: 'numeric',
   });
+
+  // Combine detail and notes on a single line
+  const addrLine2 = [addr?.detail, addr?.notes].filter(Boolean).join(' , ');
 
   return (
     <>
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        html, body {
-          background: #777;
-          font-family: 'Helvetica Neue', Arial, sans-serif;
-        }
+        body { background: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; }
 
         @media screen {
-          .page-wrap {
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding: 40px 20px;
-            min-height: 100vh;
-            background: #777;
-          }
-          .page {
-            background: white;
-            width: 11in;
-            min-height: 8.5in;
-            position: relative;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-          }
+          body { background: #888; display: flex; justify-content: center; align-items: flex-start; padding: 32px; min-height: 100vh; }
+          .page { background: white; width: 4.5in; min-height: auto; box-shadow: 0 4px 24px rgba(0,0,0,0.4); padding: 0.35in 0.4in 0.3in; }
         }
 
         @media print {
-          html, body { background: white; margin: 0; padding: 0; }
+          body { background: white; margin: 0; padding: 0; display: flex; justify-content: center; }
           .no-print { display: none !important; }
-          .page-wrap { padding: 0; background: white; }
-          @page { size: letter landscape; margin: 0; }
-          .page { width: 11in; min-height: 8.5in; background: white; box-shadow: none; }
+          @page { size: 4.5in 7in; margin: 0; }
+          .page { width: 4.5in; padding: 0.35in 0.4in 0.3in; }
         }
 
-        /* Screen controls */
         .no-print {
           position: fixed;
-          top: 12px;
-          right: 12px;
+          top: 16px;
+          right: 16px;
           z-index: 100;
           display: flex;
           gap: 8px;
@@ -100,168 +85,168 @@ export default function PrintOrderPage() {
           cursor: pointer;
           border: none;
         }
-        .btn-print { background: #7c5c1b; color: white; }
-        .btn-print:hover { background: #5c3f10; }
+        .btn-print { background: #92400e; color: white; }
+        .btn-print:hover { background: #78350f; }
         .btn-close { background: #374151; color: white; }
         .btn-close:hover { background: #1f2937; }
 
-        /* Content area — upper-left of the landscape page */
-        .content-area {
-          padding: 0.65in 0.75in;
-          width: 5.5in;
-        }
-
-        /* Header: brand left, order info right */
-        .label-header {
+        /* Header */
+        .lbl-header {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          margin-bottom: 6px;
+          padding-bottom: 8px;
+          border-bottom: 1.5px solid #222;
+          margin-bottom: 14px;
         }
-        .brand-name {
-          font-size: 17px;
-          font-weight: 900;
-          letter-spacing: 1.5px;
+        .lbl-brand {
+          font-size: 13px;
+          font-weight: 800;
+          letter-spacing: 0.4px;
           color: #111;
-          line-height: 1.1;
-          text-transform: uppercase;
+          line-height: 1.2;
         }
-        .brand-sub {
-          font-size: 9px;
-          color: #888;
+        .lbl-brand-sub {
+          font-size: 8.5px;
+          color: #666;
           font-weight: 400;
-          margin-top: 3px;
-          text-transform: uppercase;
-          letter-spacing: 0.8px;
+          margin-top: 2px;
         }
-        .order-info {
-          text-align: right;
-        }
-        .order-num {
-          font-size: 11px;
-          font-weight: 700;
-          color: #222;
-        }
-        .order-date {
-          font-size: 10px;
-          color: #777;
-          margin-top: 3px;
-        }
-
-        /* Horizontal rule separator */
-        .header-divider {
-          border: none;
-          border-top: 1.5px solid #ccc;
-          margin: 10px 0 16px;
-        }
+        .lbl-order-info { text-align: right; }
+        .lbl-order-num { font-size: 10px; font-weight: 700; color: #222; }
+        .lbl-order-date { font-size: 9px; color: #666; margin-top: 2px; }
 
         /* Recipient box */
-        .recipient-box {
+        .lbl-recipient-box {
           border: 1.5px solid #333;
-          border-radius: 10px;
-          padding: 18px 20px;
+          border-radius: 6px;
+          padding: 12px 14px;
+          margin-bottom: 20px;
         }
-
-        .to-label {
-          font-size: 9px;
-          font-weight: 800;
+        .lbl-section-title {
+          font-size: 7.5px;
+          font-weight: 700;
           text-transform: uppercase;
-          letter-spacing: 2px;
-          color: #aaa;
+          letter-spacing: 1.4px;
+          color: #999;
+          margin-bottom: 6px;
+        }
+        .lbl-name {
+          font-size: 17px;
+          font-weight: 800;
+          color: #111;
+          line-height: 1.2;
           margin-bottom: 8px;
         }
+        .lbl-addr-line { font-size: 11px; color: #222; line-height: 1.6; }
+        .lbl-addr-city { font-size: 12px; font-weight: 700; color: #111; margin-top: 5px; margin-bottom: 5px; }
+        .lbl-divider { border: none; border-top: 1px solid #ddd; margin: 8px 0; }
+        .lbl-contact-line { font-size: 10px; color: #444; line-height: 1.6; }
 
-        .recipient-name {
-          font-size: 22px;
-          font-weight: 900;
-          color: #111;
-          line-height: 1.15;
-          margin-bottom: 10px;
-        }
-
-        .addr-line {
-          font-size: 13px;
-          color: #333;
-          line-height: 1.65;
-        }
-        .addr-city {
-          font-size: 14px;
+        /* Products table */
+        .lbl-products-title {
+          font-size: 7.5px;
           font-weight: 700;
-          color: #111;
-          margin-top: 4px;
-          margin-bottom: 10px;
+          text-transform: uppercase;
+          letter-spacing: 1.4px;
+          color: #999;
+          margin-bottom: 8px;
         }
-        .divider {
-          border: none;
-          border-top: 1px solid #ddd;
-          margin: 10px 0;
+        .lbl-table { width: 100%; border-collapse: collapse; }
+        .lbl-table th {
+          font-size: 9px; font-weight: 700; color: #333;
+          text-align: left; border-bottom: 1px solid #ccc;
+          padding-bottom: 4px; padding-right: 8px;
         }
-        .contact-line {
-          font-size: 11px;
-          color: #555;
-          line-height: 1.8;
+        .lbl-table th:last-child { text-align: right; padding-right: 0; }
+        .lbl-table td {
+          font-size: 10px; color: #222;
+          padding: 4px 8px 4px 0;
+          border-bottom: 1px solid #eee;
+          vertical-align: middle;
         }
-        .notes-text {
-          font-size: 11px;
-          color: #777;
-          font-style: italic;
-          margin-top: 6px;
+        .lbl-table td:last-child { text-align: right; padding-right: 0; }
+        .lbl-table tr:last-child td { border-bottom: none; }
+
+        /* Footer */
+        .lbl-footer {
+          margin-top: 20px;
+          text-align: center;
+          font-size: 8px;
+          color: #bbb;
+          border-top: 1px solid #eee;
+          padding-top: 8px;
         }
       `}</style>
 
-      {/* Controls */}
       <div className="no-print">
         <button className="btn btn-print" onClick={() => window.print()}>Imprimir</button>
         <button className="btn btn-close" onClick={() => window.close()}>Cerrar</button>
       </div>
 
-      {/* Page */}
-      <div className="page-wrap">
-        <div className="page">
-          <div className="content-area">
-            {/* Header */}
-            <div className="label-header">
-              <div>
-                <div className="brand-name">D Perfume House</div>
-                <div className="brand-sub">Etiqueta de Envío</div>
-              </div>
-              <div className="order-info">
-                <div className="order-num">Pedido #{order.orderNumber || orderId.slice(0, 8).toUpperCase()}</div>
-                <div className="order-date">{orderDate}</div>
-              </div>
-            </div>
-
-            <hr className="header-divider" />
-
-            {/* Recipient box */}
-            <div className="recipient-box">
-              <div className="to-label">Destinatario</div>
-              <div className="recipient-name">
-                {order.customerName || customer?.name || '—'}
-              </div>
-
-              {addr ? (
-                <>
-                  <div className="addr-line">{addr.street}</div>
-                  {addr.detail && <div className="addr-line">{addr.detail}</div>}
-                  {addr.notes && <div className="addr-line">{addr.notes}</div>}
-                  <div className="addr-city">
-                    {addr.city}{addr.state ? `, ${addr.state}` : ''}
-                  </div>
-                  <hr className="divider" />
-                  <div className="contact-line">
-                    <strong>Tel:</strong> {addr.phoneCode || '+57'} {addr.phone || customer?.phone || '—'}
-                  </div>
-                  {(customer?.email || order.customerEmail) && (
-                    <div className="contact-line">{customer?.email || order.customerEmail}</div>
-                  )}
-                </>
-              ) : (
-                <div className="addr-line" style={{ color: '#bbb' }}>Sin dirección registrada</div>
-              )}
-            </div>
+      <div className="page">
+        {/* Header */}
+        <div className="lbl-header">
+          <div>
+            <div className="lbl-brand">D PERFUME HOUSE</div>
+            <div className="lbl-brand-sub">Etiqueta de Envío</div>
+          </div>
+          <div className="lbl-order-info">
+            <div className="lbl-order-num">Pedido #{order.orderNumber || orderId.slice(0, 8)}</div>
+            <div className="lbl-order-date">{orderDate}</div>
           </div>
         </div>
+
+        {/* Recipient box */}
+        <div className="lbl-recipient-box">
+          <div className="lbl-section-title">Destinatario</div>
+          <div className="lbl-name">{order.customerName || customer?.name || '-'}</div>
+
+          {addr ? (
+            <>
+              <div className="lbl-addr-line">{addr.street}</div>
+              {addrLine2 && <div className="lbl-addr-line">{addrLine2}</div>}
+              <div className="lbl-addr-city">
+                {addr.city}{addr.state ? `, ${addr.state}` : ''}
+              </div>
+              <hr className="lbl-divider" />
+              <div className="lbl-contact-line">
+                Tel: {addr.phoneCode || '+57'} {addr.phone || customer?.phone || '-'}
+              </div>
+              {(customer?.email || order.customerEmail) && (
+                <div className="lbl-contact-line">{customer?.email || order.customerEmail}</div>
+              )}
+            </>
+          ) : (
+            <div className="lbl-addr-line" style={{ color: '#999' }}>Sin dirección registrada</div>
+          )}
+        </div>
+
+        {/* Products */}
+        {items.length > 0 && (
+          <>
+            <div className="lbl-products-title">Contenido del Paquete</div>
+            <table className="lbl-table">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th style={{ textAlign: 'right' }}>Cant.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item: any, i: number) => (
+                  <tr key={i}>
+                    <td>{item.variant?.name || item.productName || '-'}</td>
+                    <td>{item.quantity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {/* Footer */}
+        <div className="lbl-footer">D Perfume House · dperfumehouse.com</div>
       </div>
     </>
   );
