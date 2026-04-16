@@ -31,9 +31,13 @@ export default function PrintAddressPage() {
 
   const addr = order.address;
   const customer = order.customer;
+  const items: any[] = order.items ?? [];
   const orderDate = new Date(order.createdAt).toLocaleDateString('es-CO', {
     year: 'numeric', month: 'long', day: 'numeric',
   });
+
+  // Combine detail and notes on a single line (e.g. "1703 preguntar por Victor, dejar en recepción")
+  const addrLine2 = [addr?.detail, addr?.notes].filter(Boolean).join(' ');
 
   return (
     <>
@@ -43,14 +47,14 @@ export default function PrintAddressPage() {
 
         @media screen {
           body { background: #888; display: flex; justify-content: center; align-items: flex-start; padding: 32px; min-height: 100vh; }
-          .page { background: white; width: 8.5in; min-height: 11in; position: relative; box-shadow: 0 4px 24px rgba(0,0,0,0.4); }
+          .page { background: white; width: 4.5in; min-height: auto; box-shadow: 0 4px 24px rgba(0,0,0,0.4); padding: 0.35in 0.4in 0.3in; }
         }
 
         @media print {
-          body { background: white; margin: 0; padding: 0; }
+          body { background: white; margin: 0; padding: 0; display: flex; justify-content: center; }
           .no-print { display: none !important; }
-          @page { size: letter portrait; margin: 0; }
-          .page { width: 8.5in; height: 11in; position: relative; overflow: hidden; }
+          @page { size: 4.5in 7in; margin: 0; }
+          .page { width: 4.5in; padding: 0.35in 0.4in 0.3in; }
         }
 
         .no-print {
@@ -74,107 +78,128 @@ export default function PrintAddressPage() {
         .btn-close { background: #374151; color: white; }
         .btn-close:hover { background: #1f2937; }
 
-        /* The label: rotated 90deg, positioned top-right of the page */
-        .label-wrapper {
-          position: absolute;
-          top: 1in;
-          right: 0.75in;
-          /* Label dimensions when rotated: width becomes height and vice versa */
-          /* Original (before rotate): width=3.8in height=5in */
-          transform: rotate(90deg);
-          transform-origin: top right;
-          /* After 90deg rotation, the element's top-right corner stays anchored */
-        }
-
-        .label {
-          width: 3.8in;
-          border: 1.5px solid #333;
-          border-radius: 6px;
-          overflow: hidden;
-          font-family: 'Helvetica Neue', Arial, sans-serif;
-          background: white;
-        }
-
-        .label-header {
+        /* ── Header ── */
+        .lbl-header {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          padding: 8px 12px;
-          border-bottom: 1px solid #bbb;
-          background: #f9f9f9;
+          padding-bottom: 8px;
+          border-bottom: 1.5px solid #222;
+          margin-bottom: 14px;
         }
-        .label-header-brand {
+        .lbl-brand {
           font-size: 13px;
           font-weight: 800;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.4px;
           color: #111;
           line-height: 1.2;
         }
-        .label-header-sub {
-          font-size: 9px;
+        .lbl-brand-sub {
+          font-size: 8.5px;
           color: #666;
           font-weight: 400;
-          margin-top: 1px;
+          margin-top: 2px;
         }
-        .label-header-order {
+        .lbl-order-info {
           text-align: right;
         }
-        .label-header-num {
+        .lbl-order-num {
           font-size: 10px;
           font-weight: 700;
           color: #222;
         }
-        .label-header-date {
+        .lbl-order-date {
           font-size: 9px;
           color: #666;
           margin-top: 2px;
         }
 
-        .label-body {
-          padding: 10px 12px;
+        /* ── Recipient box ── */
+        .lbl-recipient-box {
+          border: 1.5px solid #333;
+          border-radius: 6px;
+          padding: 12px 14px;
+          margin-bottom: 20px;
         }
-        .label-section-title {
-          font-size: 8px;
+        .lbl-section-title {
+          font-size: 7.5px;
           font-weight: 700;
           text-transform: uppercase;
-          letter-spacing: 1.2px;
-          color: #888;
+          letter-spacing: 1.4px;
+          color: #999;
           margin-bottom: 6px;
         }
-        .label-name {
-          font-size: 18px;
+        .lbl-name {
+          font-size: 17px;
           font-weight: 800;
           color: #111;
-          line-height: 1.15;
+          line-height: 1.2;
           margin-bottom: 8px;
         }
-        .label-addr-line {
+        .lbl-addr-line {
           font-size: 11px;
           color: #222;
-          line-height: 1.55;
+          line-height: 1.6;
         }
-        .label-addr-city {
+        .lbl-addr-city {
           font-size: 12px;
           font-weight: 700;
           color: #111;
           margin-top: 5px;
           margin-bottom: 5px;
         }
-        .label-divider {
+        .lbl-divider {
           border: none;
           border-top: 1px solid #ddd;
           margin: 8px 0;
         }
-        .label-contact-line {
+        .lbl-contact-line {
           font-size: 10px;
           color: #444;
-          line-height: 1.55;
+          line-height: 1.6;
         }
-        .label-notes {
+
+        /* ── Products table ── */
+        .lbl-products-title {
+          font-size: 7.5px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 1.4px;
+          color: #999;
+          margin-bottom: 8px;
+        }
+        .lbl-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .lbl-table th {
+          font-size: 9px;
+          font-weight: 700;
+          color: #333;
+          text-align: left;
+          border-bottom: 1px solid #ccc;
+          padding-bottom: 4px;
+          padding-right: 8px;
+        }
+        .lbl-table th:last-child { text-align: right; padding-right: 0; }
+        .lbl-table td {
           font-size: 10px;
-          color: #555;
-          font-style: italic;
-          margin-top: 4px;
+          color: #222;
+          padding: 4px 8px 4px 0;
+          border-bottom: 1px solid #eee;
+          vertical-align: middle;
+        }
+        .lbl-table td:last-child { text-align: right; padding-right: 0; }
+        .lbl-table tr:last-child td { border-bottom: none; }
+
+        /* ── Footer ── */
+        .lbl-footer {
+          margin-top: 20px;
+          text-align: center;
+          font-size: 8px;
+          color: #bbb;
+          border-top: 1px solid #eee;
+          padding-top: 8px;
         }
       `}</style>
 
@@ -184,57 +209,69 @@ export default function PrintAddressPage() {
         <button className="btn btn-close" onClick={() => window.close()}>Cerrar</button>
       </div>
 
-      {/* Letter page */}
       <div className="page">
-        <div className="label-wrapper">
-          <div className="label">
-            {/* Header */}
-            <div className="label-header">
-              <div>
-                <div className="label-header-brand">D PERFUME HOUSE</div>
-                <div className="label-header-sub">Etiqueta de Envío</div>
-              </div>
-              <div className="label-header-order">
-                <div className="label-header-num">Pedido #{order.orderNumber || orderId.slice(0, 8)}</div>
-                <div className="label-header-date">{orderDate}</div>
-              </div>
-            </div>
-
-            {/* Body */}
-            <div className="label-body">
-              <div className="label-section-title">Destinatario</div>
-              <div className="label-name">
-                {order.customerName || customer?.name || '-'}
-              </div>
-
-              {addr ? (
-                <>
-                  <div className="label-addr-line">{addr.street}</div>
-                  {addr.detail && (
-                    <div className="label-addr-line">{addr.detail}</div>
-                  )}
-                  {addr.notes && (
-                    <div className="label-notes">{addr.notes}</div>
-                  )}
-                  <div className="label-addr-city">
-                    {addr.city}{addr.state ? `, ${addr.state}` : ''}
-                  </div>
-                  <hr className="label-divider" />
-                  <div className="label-contact-line">
-                    Tel: {addr.phoneCode || '+57'} {addr.phone || customer?.phone || '-'}
-                  </div>
-                  {(customer?.email || order.customerEmail) && (
-                    <div className="label-contact-line">
-                      {customer?.email || order.customerEmail}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="label-addr-line" style={{ color: '#999' }}>Sin dirección registrada</div>
-              )}
-            </div>
+        {/* Header */}
+        <div className="lbl-header">
+          <div>
+            <div className="lbl-brand">D PERFUME HOUSE</div>
+            <div className="lbl-brand-sub">Etiqueta de Envío</div>
+          </div>
+          <div className="lbl-order-info">
+            <div className="lbl-order-num">Pedido #{order.orderNumber || orderId.slice(0, 8)}</div>
+            <div className="lbl-order-date">{orderDate}</div>
           </div>
         </div>
+
+        {/* Recipient box */}
+        <div className="lbl-recipient-box">
+          <div className="lbl-section-title">Destinatario</div>
+          <div className="lbl-name">{order.customerName || customer?.name || '-'}</div>
+
+          {addr ? (
+            <>
+              <div className="lbl-addr-line">{addr.street}</div>
+              {addrLine2 && <div className="lbl-addr-line">{addrLine2}</div>}
+              <div className="lbl-addr-city">
+                {addr.city}{addr.state ? `, ${addr.state}` : ''}
+              </div>
+              <hr className="lbl-divider" />
+              <div className="lbl-contact-line">
+                Tel: {addr.phoneCode || '+57'} {addr.phone || customer?.phone || '-'}
+              </div>
+              {(customer?.email || order.customerEmail) && (
+                <div className="lbl-contact-line">{customer?.email || order.customerEmail}</div>
+              )}
+            </>
+          ) : (
+            <div className="lbl-addr-line" style={{ color: '#999' }}>Sin dirección registrada</div>
+          )}
+        </div>
+
+        {/* Products */}
+        {items.length > 0 && (
+          <>
+            <div className="lbl-products-title">Contenido del Paquete</div>
+            <table className="lbl-table">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th style={{ textAlign: 'right' }}>Cant.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item: any, i: number) => (
+                  <tr key={i}>
+                    <td>{item.variant?.name || item.productName || '-'}</td>
+                    <td>{item.quantity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {/* Footer */}
+        <div className="lbl-footer">D Perfume House · dperfumehouse.com</div>
       </div>
     </>
   );
