@@ -170,7 +170,20 @@ export class UsersService {
       }
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    // If no password provided, generate a temp one and issue an invite/set-password link
+    const sendInvite = !dto.password;
+    const rawPassword = dto.password ?? crypto.randomBytes(16).toString('hex');
+    const passwordHash = await bcrypt.hash(rawPassword, 12);
+
+    // Generate invite token when no password was provided
+    let inviteToken: string | undefined;
+    let hashedInviteToken: string | undefined;
+    let inviteTokenExpiry: Date | undefined;
+    if (sendInvite) {
+      inviteToken = crypto.randomBytes(32).toString('hex');
+      hashedInviteToken = crypto.createHash('sha256').update(inviteToken).digest('hex');
+      inviteTokenExpiry = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
+    }
 
     // Use provided rates or fall back to settings defaults
     const defaults = await this.getDefaultCommissionRates();
@@ -205,6 +218,7 @@ export class UsersService {
         ...(commissionScaleOverride ? { commissionScaleOverride } : {}),
         canManageSellers: dto.canManageSellers,
         odooCompanyId: dto.odooCompanyId,
+        ...(sendInvite ? { resetToken: hashedInviteToken, resetTokenExpiry: inviteTokenExpiry } : {}),
         sellerCode: (dto.role === 'SELLER_L1' || dto.role === 'SELLER_L2')
           ? `${dto.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '').slice(0, 20)}-${crypto.randomBytes(2).toString('hex')}`
           : undefined,
@@ -216,6 +230,13 @@ export class UsersService {
       },
       select: USER_SELECT,
     });
+
+    // Send invite/welcome email with set-password link when no password was provided
+    if (sendInvite) {
+      const frontendUrl = this.configService.get<string>('SELLER_APP_URL', 'http://localhost:3000');
+      const setPasswordUrl = `${frontendUrl}/reset-password?token=${inviteToken}&type=create`;
+      await this.emailService.sendWelcomeEmail(dto.email, dto.name, 'D Perfume House', setPasswordUrl);
+    }
 
     return user;
   }

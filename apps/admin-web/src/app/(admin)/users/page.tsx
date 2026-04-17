@@ -65,7 +65,6 @@ function parseCommissionScaleSettings(settings: any[] | undefined): CommissionSc
 const createUserSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
   email: z.string().email('Email invalido'),
-  password: z.string().min(8, 'La contrasena debe tener minimo 8 caracteres'),
   role: z.enum(['SELLER_L1', 'SELLER_L2']),
   parentId: z.string().optional(),
   commissionRate: z.preprocess(
@@ -182,7 +181,7 @@ export default function UsersPage() {
     defaultValues: {
       role: 'SELLER_L1',
       allowedCategories: [],
-      commissionScaleEnabled: false,
+      commissionScaleEnabled: true,
       commissionScaleUseGlobal: true,
       commissionScaleOverride: [],
     },
@@ -483,10 +482,6 @@ export default function UsersPage() {
 
           <FormField label="Email" error={createForm.formState.errors.email?.message} required>
             <Input {...createForm.register('email')} type="email" placeholder="email@ejemplo.com" error={!!createForm.formState.errors.email} />
-          </FormField>
-
-          <FormField label="Contrasena" error={createForm.formState.errors.password?.message} required>
-            <Input {...createForm.register('password')} type="password" placeholder="Minimo 8 caracteres" error={!!createForm.formState.errors.password} />
           </FormField>
 
           <FormField label="Rol" error={createForm.formState.errors.role?.message} required>
