@@ -125,8 +125,8 @@ export default function FragrancesPage() {
       header: 'Producto',
       render: (item) => (
         <div>
-          <p className="font-medium text-white">{item.productVariant?.product?.name || 'N/A'}</p>
-          <p className="text-xs text-white/40">{item.productVariant?.name} — {item.productVariant?.size}</p>
+          <p className="font-medium text-white">{item.productVariant?.name || 'N/A'}</p>
+          <p className="text-xs text-white/40">{item.productVariant?.sku || item.productVariant?.categoryName || '—'}</p>
         </div>
       ),
     },
