@@ -92,7 +92,10 @@ export function DirectPaymentModal({
     // Fetch PSE banks
     fetch(`${API_URL}/payments/pse/banks`)
       .then((r) => r.json())
-      .then((data) => setPseBanks(Array.isArray(data) ? data : []))
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+        setPseBanks(list);
+      })
       .catch(() => {});
   }, [isOpen, orderId]);
 
