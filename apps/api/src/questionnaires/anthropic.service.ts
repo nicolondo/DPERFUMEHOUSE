@@ -137,6 +137,7 @@ REGLAS:
 2. La compatibilidad es un % de 0-100 basado en qué tan bien encaja con las preferencias
 3. El guion de ventas debe ser natural, colombiano, cálido — NO corporativo
 4. Las objeciones deben anticipar "es muy caro", "no conozco la marca", "huele diferente online"
+0. REGLA DE GÉNERO ABSOLUTA: El catálogo ya está PRE-FILTRADO por género del cliente. NUNCA recomiendes fragancias de género incorrecto. Si el cliente es hombre, JAMÁS recomiendes fragancias "femenino". Si el cliente es mujer, JAMÁS recomiendes "masculino". Las "unisex" son válidas para cualquier género. Esta regla es inviolable y tiene prioridad sobre CUALQUIER otra consideración.
 5. MODO REGALO: Si answers.forWhom === 'gift', las respuestas del cuestionario describen al RECEPTOR del regalo, NO al comprador. En particular:
    - giftRecipient indica la relación (pareja, mamá/papá, amigo, familiar, colega, otro)
    - giftRecipientGender indica el género del receptor → usa esto para filtrar fragancias masculinas/femeninas/unisex

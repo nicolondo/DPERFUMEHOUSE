@@ -32,6 +32,28 @@ const QUESTIONS = [
     showIf: (answers: any) => answers.forWhom === 'gift',
   },
   {
+    id: 'clientGender',
+    question: '¿El perfume es para...?',
+    type: 'choice',
+    options: [
+      { value: 'masculino', label: 'Hombre', emoji: '🧔' },
+      { value: 'femenino', label: 'Mujer', emoji: '👩' },
+      { value: 'unisex', label: 'Sin preferencia', emoji: '✨' },
+    ],
+    showIf: (answers: any) => answers.forWhom === 'self',
+  },
+  {
+    id: 'giftRecipientGender',
+    question: '¿El regalo es para...?',
+    type: 'choice',
+    options: [
+      { value: 'masculino', label: 'Hombre', emoji: '🧔' },
+      { value: 'femenino', label: 'Mujer', emoji: '👩' },
+      { value: 'unisex', label: 'Sin preferencia / No sé', emoji: '✨' },
+    ],
+    showIf: (answers: any) => answers.forWhom === 'gift',
+  },
+  {
     id: 'city',
     question: '¿En qué ciudad vives?',
     type: 'city',

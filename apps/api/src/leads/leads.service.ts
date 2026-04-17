@@ -115,18 +115,28 @@ export class LeadsService {
       ? allFragranceProfiles.filter((fp: any) => fp.productVariant?.categoryName && categoriesToFilter!.includes(fp.productVariant.categoryName))
       : allFragranceProfiles;
 
+    // Pre-filter by gender — must happen before AI to avoid cross-gender recommendations
+    const clientGender = dto.answers?.forWhom === 'gift'
+      ? dto.answers?.giftRecipientGender
+      : dto.answers?.clientGender;
+    const genderFiltered = clientGender && clientGender !== 'unisex'
+      ? fragranceProfiles.filter((fp: any) => {
+          const g = (fp.genero || 'unisex').toLowerCase();
+          return g === clientGender || g === 'unisex';
+        })
+      : fragranceProfiles;
+
     if (clientPerfumeProfile) {
       this.logger.log(`Fragella profile found: ${clientPerfumeProfile.name} (${clientPerfumeProfile.brand})`);
     }
 
     // AI analysis (only if fragrance profiles exist)
     let analysis: any = { clientProfile: null, recommendations: [], sellerScript: null };
-    if (fragranceProfiles.length > 0) {
+    if (genderFiltered.length > 0) {
       try {
-        // Call Anthropic for analysis (gender inferred from name inside the main prompt)
         analysis = await this.anthropicService.analyzeQuestionnaire({
           answers: dto.answers,
-          fragranceProfiles,
+          fragranceProfiles: genderFiltered,
           clientName: dto.clientName,
           sellerName: seller.name,
           sellerGender: seller.gender || undefined,
@@ -257,9 +267,21 @@ export class LeadsService {
       throw new BadRequestException('No fragrance profiles available');
     }
 
+    // Pre-filter by gender before re-analysis
+    const leadAnswers = lead.answers as Record<string, any>;
+    const reanalyzeGender = leadAnswers?.forWhom === 'gift'
+      ? leadAnswers?.giftRecipientGender
+      : leadAnswers?.clientGender;
+    const genderFiltered = reanalyzeGender && reanalyzeGender !== 'unisex'
+      ? fragranceProfiles.filter((fp: any) => {
+          const g = (fp.genero || 'unisex').toLowerCase();
+          return g === reanalyzeGender || g === 'unisex';
+        })
+      : fragranceProfiles;
+
     const analysis = await this.anthropicService.analyzeQuestionnaire({
       answers: lead.answers as Record<string, any>,
-      fragranceProfiles,
+      fragranceProfiles: genderFiltered,
       clientName: lead.clientName || undefined,
       sellerName: lead.seller.name,
       sellerGender: lead.seller.gender || undefined,
