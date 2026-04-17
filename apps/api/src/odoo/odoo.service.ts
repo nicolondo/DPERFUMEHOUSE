@@ -1094,6 +1094,24 @@ export class OdooService {
     }
   }
 
+  async getStockLocations(): Promise<{ id: number; name: string }[]> {
+    try {
+      const locations = await this.execute(
+        'stock.location',
+        'search_read',
+        [[['usage', '=', 'internal'], ['active', '=', true]]],
+        {
+          fields: ['id', 'complete_name'],
+          order: 'complete_name asc',
+        },
+      );
+      return locations.map((l: any) => ({ id: l.id, name: l.complete_name || l.name }));
+    } catch (error) {
+      this.logger.error('Failed to fetch stock locations from Odoo', error);
+      throw error;
+    }
+  }
+
   async getCompanies(): Promise<{ id: number; name: string }[]> {
     try {
       const companies = await this.execute(

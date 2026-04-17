@@ -13,6 +13,7 @@ import {
   fetchOdooCompanies,
   fetchOdooPricelists,
   fetchOdooCategories,
+  fetchOdooLocations,
   fetchProductCategories,
   fetchDiscounts,
   createDiscount,
@@ -652,6 +653,9 @@ function OdooSettings() {
   const [accountUsdt, setAccountUsdt] = useState('');
   const [accountCommissions, setAccountCommissions] = useState('');
   const [commissionsJournalId, setCommissionsJournalId] = useState('');
+  const [warehouseLocationId, setWarehouseLocationId] = useState('');
+  const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState(false);
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings', 'odoo'],
@@ -673,6 +677,7 @@ function OdooSettings() {
       setAccountUsdt((map.get('odoo_account_usdt') as string) || '');
       setAccountCommissions((map.get('odoo_account_commissions') as string) || '');
       setCommissionsJournalId((map.get('odoo_commissions_journal_id') as string) || '');
+      setWarehouseLocationId((map.get('odoo_warehouse_location_id') as string) || '');
       try {
         const categs = map.get('odoo_sync_categories') as string;
         if (categs) setSelectedCategories(JSON.parse(categs));
@@ -716,6 +721,18 @@ function OdooSettings() {
     }
   };
 
+  const loadLocations = async () => {
+    setLoadingLocations(true);
+    try {
+      const result = await fetchOdooLocations();
+      setLocations(Array.isArray(result) ? result : []);
+    } catch {
+      setLocations([]);
+    } finally {
+      setLoadingLocations(false);
+    }
+  };
+
   const toggleCategory = (id: number) => {
     setSelectedCategories(prev =>
       prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
@@ -730,6 +747,7 @@ function OdooSettings() {
         loadCompanies();
         loadPricelists();
         loadCategories();
+        loadLocations();
       }
     }
   }, [settings]);
@@ -750,6 +768,7 @@ function OdooSettings() {
         { key: 'odoo_account_usdt', value: accountUsdt },
         { key: 'odoo_account_commissions', value: accountCommissions },
         { key: 'odoo_commissions_journal_id', value: commissionsJournalId },
+        { key: 'odoo_warehouse_location_id', value: warehouseLocationId },
       ]),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings', 'odoo'] });
@@ -960,6 +979,41 @@ function OdooSettings() {
               />
             </FormField>
           </div>
+        </div>
+
+        <div className="border-t border-glass-border pt-4 mt-2">
+          <h4 className="text-sm font-semibold text-white mb-3">Bodega de Stock</h4>
+          <p className="text-xs text-white/50 mb-4">Selecciona la ubicación interna de Odoo desde la cual se sincroniza el stock. Si no se selecciona ninguna, se usa el stock total disponible (todas las ubicaciones).</p>
+          <FormField label="Ubicación de Bodega" hint="Ubicación interna en Odoo para el conteo de stock (ej: NIC/Existencias)">
+            <div className="flex gap-2">
+              <Select
+                value={warehouseLocationId}
+                onChange={(e) => setWarehouseLocationId(e.target.value)}
+                className="flex-1"
+              >
+                <option value="">Todas las ubicaciones (por defecto)</option>
+                {locations.map((l) => (
+                  <option key={l.id} value={String(l.id)}>
+                    {l.name}
+                  </option>
+                ))}
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadLocations}
+                loading={loadingLocations}
+                className="whitespace-nowrap"
+              >
+                Cargar
+              </Button>
+            </div>
+            {warehouseLocationId && locations.length > 0 && (
+              <p className="text-xs text-white/50 mt-1">
+                ID: {warehouseLocationId} — {locations.find(l => String(l.id) === warehouseLocationId)?.name ?? 'Desconocido'}
+              </p>
+            )}
+          </FormField>
         </div>
 
         {saveMutation.isSuccess && (

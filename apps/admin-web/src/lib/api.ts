@@ -280,6 +280,12 @@ export async function fetchOdooCategories() {
   return result?.data ?? result ?? [];
 }
 
+export async function fetchOdooLocations() {
+  const { data } = await api.get('/settings/odoo-locations');
+  const result = unwrap(data);
+  return result?.data ?? result ?? [];
+}
+
 export async function testPaymentConnection() {
   const { data } = await api.post('/settings/test-payment');
   return unwrap(data);

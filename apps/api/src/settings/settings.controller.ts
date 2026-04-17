@@ -141,6 +141,17 @@ export class SettingsController {
     }
   }
 
+  @Get('odoo-locations')
+  @ApiOperation({ summary: 'Fetch internal stock locations from Odoo' })
+  async getOdooLocations() {
+    try {
+      const locations = await this.odooService.getStockLocations();
+      return { success: true, data: locations };
+    } catch (error: any) {
+      return { success: false, data: [], message: error.message };
+    }
+  }
+
   @Get(':key')
   @ApiOperation({ summary: 'Get a setting by key (admin only)' })
   @ApiResponse({ status: 200, description: 'Setting value' })
