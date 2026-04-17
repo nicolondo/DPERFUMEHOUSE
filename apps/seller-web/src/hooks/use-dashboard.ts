@@ -20,6 +20,6 @@ export function useDashboard({ period, offset = 0 }: UseDashboardParams) {
       const { data } = await api.get(`/dashboard/seller?${params}`);
       return unwrap(data) as DashboardStats;
     },
-    staleTime: 60 * 1000,
+    staleTime: 0,
   });
 }

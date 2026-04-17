@@ -4,7 +4,9 @@ import {
   Query,
   UseGuards,
   Logger,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -43,7 +45,10 @@ export class DashboardController {
     @CurrentUser() user: CurrentUserPayload,
     @Query('period') period?: 'week' | 'month',
     @Query('offset') offset?: number,
+    @Res({ passthrough: true }) res?: Response,
   ) {
+    res?.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res?.setHeader('Pragma', 'no-cache');
     const safeOffset = Number(offset) || 0;
     const data = await this.dashboardService.getSellerDashboard(
       user.sub,
