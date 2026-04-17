@@ -459,6 +459,11 @@ export async function fetchAdminLeadAnalytics() {
   return unwrap(data);
 }
 
+export async function fetchAdminLeadById(id: string) {
+  const { data } = await api.get(`/leads/admin/${id}`);
+  return unwrap(data);
+}
+
 // ── Questionnaire Questions ──
 
 export async function fetchQuestionnaireQuestions() {

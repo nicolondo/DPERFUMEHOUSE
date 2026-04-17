@@ -190,4 +190,11 @@ export class LeadsController {
   async getAnalytics() {
     return this.leadsService.getAnalytics();
   }
+
+  @Get('admin/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async findOneAdmin(@Param('id') id: string) {
+    return this.leadsService.findOneAdmin(id);
+  }
 }

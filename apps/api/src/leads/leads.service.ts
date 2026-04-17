@@ -679,6 +679,48 @@ export class LeadsService {
     };
   }
 
+  async findOneAdmin(id: string) {
+    const lead = await this.prisma.lead.findUnique({
+      where: { id },
+      include: {
+        customer: { select: { id: true, name: true, email: true, phone: true } },
+        seller: { select: { id: true, name: true, phone: true } },
+        convertedOrder: { select: { id: true, orderNumber: true, total: true } },
+      },
+    });
+    if (!lead) throw new NotFoundException('Lead not found');
+
+    const recommendations = (lead.recommendations as any[]) || [];
+    const variantIds = recommendations.map((r) => r.productVariantId).filter(Boolean);
+    const [variants, fragranceProfiles] = variantIds.length > 0
+      ? await Promise.all([
+          this.prisma.productVariant.findMany({
+            where: { id: { in: variantIds } },
+            select: {
+              id: true,
+              name: true,
+              price: true,
+              images: { where: { isPrimary: true }, take: 1 },
+            },
+          }),
+          this.prisma.fragranceProfile.findMany({
+            where: { productVariantId: { in: variantIds } },
+            select: { productVariantId: true, notasDestacadas: true },
+          }),
+        ])
+      : [[], []];
+
+    const variantMap = new Map(variants.map((v) => [v.id, v]));
+    const profileMap = new Map((fragranceProfiles as any[]).map((p) => [p.productVariantId, p.notasDestacadas]));
+    const enrichedRecommendations = recommendations.map((rec) => ({
+      ...rec,
+      product: variantMap.get(rec.productVariantId) || null,
+      notasDestacadas: profileMap.get(rec.productVariantId) || null,
+    }));
+
+    return { ...lead, recommendations: enrichedRecommendations };
+  }
+
   async getAnalytics() {
     const leads = await this.prisma.lead.findMany({
       where: { status: { not: 'SENT' } },
