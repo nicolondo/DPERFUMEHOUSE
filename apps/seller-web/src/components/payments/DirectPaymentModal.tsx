@@ -109,7 +109,7 @@ export function DirectPaymentModal({
       const res = await fetch(`${API_URL}/payments/direct-transaction/${orderId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentMethodType: selectedMethod, acceptanceToken, ...methodData }),
+        body: JSON.stringify({ paymentMethod: selectedMethod, acceptanceToken, ...methodData }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => null);
