@@ -183,9 +183,6 @@ export class OrdersController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    if (user.role !== 'ADMIN') {
-      throw new ForbiddenException('Only admins can delete orders');
-    }
-    return this.ordersService.deleteOrder(id);
+    return this.ordersService.deleteOrder(id, user.role === 'ADMIN' ? undefined : user.sub);
   }
 }

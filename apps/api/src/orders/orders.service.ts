@@ -1217,7 +1217,7 @@ export class OrdersService {
     return `${prefix}-${sequence.toString().padStart(4, '0')}`;
   }
 
-  async deleteOrder(orderId: string) {
+  async deleteOrder(orderId: string, sellerId?: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: { items: true, paymentLink: true, commissions: true, shipment: true },
@@ -1227,10 +1227,23 @@ export class OrdersService {
       throw new NotFoundException(`Order ${orderId} not found`);
     }
 
-    if (!['DRAFT', 'PENDING', 'PENDING_PAYMENT'].includes(order.status)) {
-      throw new BadRequestException(
-        `Only DRAFT, PENDING or PENDING_PAYMENT orders can be deleted. Current status: ${order.status}`,
-      );
+    // Sellers can only delete their own orders in PENDING_PAYMENT status
+    if (sellerId) {
+      if (order.sellerId !== sellerId) {
+        throw new NotFoundException(`Order ${orderId} not found`);
+      }
+      if (order.status !== 'PENDING_PAYMENT') {
+        throw new BadRequestException(
+          'Solo puedes eliminar pedidos que están pendientes de pago.',
+        );
+      }
+    } else {
+      // Admin: allow DRAFT, PENDING, PENDING_PAYMENT
+      if (!['DRAFT', 'PENDING', 'PENDING_PAYMENT'].includes(order.status)) {
+        throw new BadRequestException(
+          `Only DRAFT, PENDING or PENDING_PAYMENT orders can be deleted. Current status: ${order.status}`,
+        );
+      }
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -1255,7 +1268,7 @@ export class OrdersService {
       await tx.order.delete({ where: { id: orderId } });
     });
 
-    this.logger.log(`Admin deleted ${order.status} order ${order.orderNumber}`);
+    this.logger.log(`${sellerId ? `Seller ${sellerId}` : 'Admin'} deleted ${order.status} order ${order.orderNumber}`);
     return { success: true, orderNumber: order.orderNumber };
   }
 }

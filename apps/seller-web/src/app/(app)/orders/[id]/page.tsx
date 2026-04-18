@@ -14,6 +14,7 @@ import {
   XCircle,
   Truck,
   Pencil,
+  Trash2,
 } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '@/components/ui/card';
 import { Badge, OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/badge';
@@ -25,6 +26,8 @@ import { PageSpinner } from '@/components/ui/spinner';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { useOrder, useProcessOrder, useUpdateOrderAddress } from '@/hooks/use-orders';
+import { useMutation } from '@tanstack/react-query';
+import { deleteOrder } from '@/lib/api';
 import { useCustomer } from '@/hooks/use-customers';
 import { formatCurrency, formatDate, formatDateTime, getInitials, formatPhone } from '@/lib/utils';
 import type { OrderStatus } from '@/lib/types';
@@ -73,6 +76,12 @@ export default function OrderDetailPage() {
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const [isPaymentLinkModalOpen, setIsPaymentLinkModalOpen] = useState(false);
   const [isDirectPayModalOpen, setIsDirectPayModalOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteOrder(id),
+    onSuccess: () => router.replace('/orders'),
+  });
   const { data: order, isLoading } = useOrder(id);
   const processOrder = useProcessOrder();
   const updateOrderAddress = useUpdateOrderAddress();
@@ -137,6 +146,7 @@ export default function OrderDetailPage() {
   const isPaid = order.paymentStatus === 'COMPLETED' || ['PAID', 'SHIPPED', 'DELIVERED'].includes(order.status.toUpperCase());
   const statusUpper = String(order.status || '').toUpperCase();
   const canEditAddress = !['SHIPPED', 'DELIVERED', 'CANCELLED'].includes(statusUpper);
+  const canDelete = order.status === 'PENDING_PAYMENT' && !isPaid;
   const customerAddresses = customer?.addresses || [];
   const statusTimeline = isCash ? STATUS_TIMELINE_CASH : STATUS_TIMELINE_ONLINE;
   const statusOrder = isCash ? STATUS_ORDER_CASH : STATUS_ORDER_ONLINE;
@@ -523,6 +533,17 @@ export default function OrderDetailPage() {
             </CardBody>
           </Card>
         )}
+
+        {/* Delete order */}
+        {canDelete && (
+          <button
+            onClick={() => setIsDeleteConfirmOpen(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-status-danger/20 bg-status-danger-muted py-3 text-sm font-medium text-status-danger transition-colors hover:bg-status-danger/10"
+          >
+            <Trash2 className="h-4 w-4" />
+            Eliminar pedido
+          </button>
+        )}
       </div>
 
       <Modal
@@ -583,6 +604,38 @@ export default function OrderDetailPage() {
           customerName={order.customer?.name}
         />
       )}
+
+      {/* Delete Confirm Modal */}
+      <Modal
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        title="Eliminar pedido"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-white/70">
+            ¿Estás seguro de que quieres eliminar el pedido{' '}
+            <span className="font-semibold text-white">#{order?.orderNumber}</span>? Esta acción no se puede deshacer.
+          </p>
+          {deleteMutation.error && (
+            <p className="text-sm text-status-danger">
+              {(deleteMutation.error as any)?.response?.data?.message || 'Error al eliminar el pedido'}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button variant="secondary" fullWidth onClick={() => setIsDeleteConfirmOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              fullWidth
+              variant="danger"
+              loading={deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate()}
+            >
+              Eliminar
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Direct Payment Modal */}
       {!isCash && !isPaid && !isCancelled && (

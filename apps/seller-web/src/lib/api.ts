@@ -135,4 +135,9 @@ export function unwrap(axiosData: any): any {
   return axiosData;
 }
 
+export async function deleteOrder(orderId: string): Promise<{ success: boolean; orderNumber: string }> {
+  const { data } = await api.delete(`/orders/${orderId}`);
+  return data;
+}
+
 export default api;
