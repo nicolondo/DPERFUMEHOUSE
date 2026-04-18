@@ -354,19 +354,36 @@ export class PaymentsService {
     }
 
     if (!paymentLink) {
-      // Try finding by reference which may contain the orderId
+      // For direct transactions (PSE, Nequi, etc.), externalId = Wompi transaction ID
+      // Reference format is "PH-YYYYMMDD-NNNN-timestamp" — NOT a UUID, never use as orderId
       const reference = transaction.reference || '';
-      // Reference can be the orderId (UUID) or the payment link ID
       paymentLink = await this.prisma.paymentLink.findFirst({
         where: {
           provider: 'wompi',
           OR: [
             { externalId: reference },
-            { orderId: reference },
+            ...(transaction.id ? [{ externalId: transaction.id }] : []),
           ],
         },
         include: { order: true },
       });
+    }
+
+    // Last resort: extract order number from reference (format: PH-YYYYMMDD-NNNN-timestamp)
+    if (!paymentLink && transaction.reference) {
+      const parts = transaction.reference.split('-');
+      if (parts.length >= 3) {
+        const orderNumber = parts.slice(0, 3).join('-');
+        const matchedOrder = await this.prisma.order.findFirst({
+          where: { orderNumber },
+        });
+        if (matchedOrder) {
+          paymentLink = await this.prisma.paymentLink.findFirst({
+            where: { orderId: matchedOrder.id, provider: 'wompi' },
+            include: { order: true },
+          });
+        }
+      }
     }
 
     if (!paymentLink) {
