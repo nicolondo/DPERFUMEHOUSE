@@ -84,14 +84,24 @@ export class PaymentsProcessor extends WorkerHost {
       // Step 4: Create sale order in Odoo if not already created
       let odooSaleOrderId = order.odooSaleOrderId;
       if (!odooSaleOrderId) {
-        const odooSO = await this.odooService.createSaleOrder({
-          partnerId: odooPartnerId,
-          lines: order.items.map((item) => ({
+        // Distribute promo discount proportionally across line items
+        const promoDiscount = Number(order.promoDiscount) || 0;
+        const totalItemsNet = order.items.reduce((sum, item) => sum + Number(item.total), 0);
+        const odooLines = order.items.map((item) => {
+          const itemTotal = Number(item.total);
+          const promoShare = promoDiscount > 0 && totalItemsNet > 0
+            ? promoDiscount * itemTotal / totalItemsNet
+            : 0;
+          return {
             productId: item.variant.odooProductId,
             quantity: item.quantity,
-            price: Number(item.unitPrice),
-            discountPercent: item.discountPercent ? Number(item.discountPercent) : 0,
-          })),
+            price: (itemTotal - promoShare) / item.quantity,
+          };
+        });
+
+        const odooSO = await this.odooService.createSaleOrder({
+          partnerId: odooPartnerId,
+          lines: odooLines,
           companyId: order.seller.odooCompanyId || undefined,
         });
         odooSaleOrderId = odooSO.id;

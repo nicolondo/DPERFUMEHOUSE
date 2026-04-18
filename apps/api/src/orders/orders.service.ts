@@ -46,6 +46,29 @@ export class OrdersService {
     this.sellerAppUrl = this.configService.get<string>('SELLER_APP_URL', 'http://localhost:3000');
   }
 
+  /**
+   * Build Odoo order lines distributing promoDiscount proportionally across items.
+   * Returns net unit prices (quantity discount + promo discount applied), rounded to nearest 1000.
+   */
+  private buildOdooLines(
+    items: { variant: { odooProductId: number }; quantity: number; total: any }[],
+    promoDiscount: number,
+  ) {
+    const totalItemsNet = items.reduce((sum, item) => sum + Number(item.total), 0);
+    return items.map((item) => {
+      const itemTotal = Number(item.total);
+      const promoShare = promoDiscount > 0 && totalItemsNet > 0
+        ? promoDiscount * itemTotal / totalItemsNet
+        : 0;
+      const netUnitPrice = (itemTotal - promoShare) / item.quantity;
+      return {
+        productId: item.variant.odooProductId,
+        quantity: item.quantity,
+        price: netUnitPrice,
+      };
+    });
+  }
+
   async isChildSeller(parentId: string, childId: string): Promise<boolean> {
     const child = await this.prisma.user.findFirst({
       where: { id: childId, parentId },
@@ -537,12 +560,7 @@ export class OrdersService {
       if (!odooSaleOrderId) {
         const odooSO = await this.odooService.createSaleOrder({
           partnerId: odooPartnerId,
-          lines: fullOrder.items.map((item) => ({
-            productId: item.variant.odooProductId,
-            quantity: item.quantity,
-            price: Number(item.unitPrice),
-            discountPercent: item.discountPercent ? Number(item.discountPercent) : 0,
-          })),
+          lines: this.buildOdooLines(fullOrder.items, Number(fullOrder.promoDiscount) || 0),
           companyId: fullOrder.seller?.odooCompanyId || undefined,
         });
         odooSaleOrderId = odooSO.id;
@@ -777,12 +795,7 @@ export class OrdersService {
       if (!odooSaleOrderId) {
         const odooSO = await this.odooService.createSaleOrder({
           partnerId: odooPartnerId,
-          lines: order.items.map((item) => ({
-            productId: item.variant.odooProductId,
-            quantity: item.quantity,
-            price: Number(item.unitPrice),
-            discountPercent: item.discountPercent ? Number(item.discountPercent) : 0,
-          })),
+          lines: this.buildOdooLines(order.items, Number(order.promoDiscount) || 0),
           companyId: order.seller?.odooCompanyId || undefined,
         });
         odooSaleOrderId = odooSO.id;
@@ -904,12 +917,7 @@ export class OrdersService {
     if (!odooSaleOrderId) {
       const odooSO = await this.odooService.createSaleOrder({
         partnerId: odooPartnerId,
-        lines: order.items.map((item) => ({
-          productId: item.variant.odooProductId,
-          quantity: item.quantity,
-          price: Number(item.unitPrice),
-          discountPercent: item.discountPercent ? Number(item.discountPercent) : 0,
-        })),
+        lines: this.buildOdooLines(order.items, Number(order.promoDiscount) || 0),
         companyId: order.seller?.odooCompanyId || undefined,
       });
       odooSaleOrderId = odooSO.id;
