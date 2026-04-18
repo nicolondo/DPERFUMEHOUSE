@@ -1254,6 +1254,8 @@ export class OrdersService {
           data: { stock: { increment: item.quantity } },
         });
       }
+      // Restore promo discount usage so the seller gets their slot back
+      await tx.sellerPromoUsage.deleteMany({ where: { orderId } });
       // Delete related records without cascade
       if (order.commissions.length > 0) {
         await tx.commission.deleteMany({ where: { orderId } });

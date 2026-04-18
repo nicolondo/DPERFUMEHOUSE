@@ -189,12 +189,30 @@ export default function OrderDetailPage() {
       render: (item) => <span>{formatCurrency(item.unitPrice || item.price || 0)}</span>,
     },
     {
-      key: 'subtotal',
-      header: 'Subtotal',
+      key: 'discount',
+      header: 'Descuento',
       render: (item) => (
-        <span className="font-medium">
-          {formatCurrency((item.unitPrice || item.price || 0) * (item.quantity || 0))}
-        </span>
+        Number(item.discountPercent) > 0 ? (
+          <span className="text-green-400 text-xs font-medium">
+            -{formatPercent(item.discountPercent)} ({formatCurrency(item.discountAmount || 0)})
+          </span>
+        ) : (
+          <span className="text-white/30">—</span>
+        )
+      ),
+    },
+    {
+      key: 'subtotal',
+      header: 'Total Línea',
+      render: (item) => (
+        <div className="text-right">
+          {Number(item.discountPercent) > 0 && (
+            <p className="text-xs text-white/40 line-through">{formatCurrency((item.unitPrice || item.price || 0) * (item.quantity || 0))}</p>
+          )}
+          <span className="font-medium">
+            {formatCurrency(item.total ?? ((item.unitPrice || item.price || 0) * (item.quantity || 0) - (item.discountAmount || 0)))}
+          </span>
+        </div>
       ),
     },
   ];
@@ -482,8 +500,20 @@ export default function OrderDetailPage() {
               </div>
               {Number(order.discount) > 0 && (
                 <div className="flex w-60 items-center justify-between text-sm">
-                  <span className="text-green-400">Descuento</span>
+                  <span className="text-green-400">Dto. por cantidad</span>
                   <span className="text-green-400">- {formatCurrency(order.discount)}</span>
+                </div>
+              )}
+              {Number(order.promoDiscount) > 0 && (
+                <div className="flex w-60 items-center justify-between text-sm">
+                  <span className="text-green-400">Dto. promocional</span>
+                  <span className="text-green-400">- {formatCurrency(order.promoDiscount)}</span>
+                </div>
+              )}
+              {(Number(order.discount) > 0 || Number(order.promoDiscount) > 0) && (
+                <div className="flex w-60 items-center justify-between text-sm">
+                  <span className="text-white/50">Total descuentos</span>
+                  <span className="text-green-400 font-medium">- {formatCurrency((Number(order.discount) || 0) + (Number(order.promoDiscount) || 0))}</span>
                 </div>
               )}
               {order.shippingCost != null && (
