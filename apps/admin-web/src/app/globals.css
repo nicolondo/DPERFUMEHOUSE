@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent iOS Safari auto-zoom on input focus */
+input, textarea, select {
+  font-size: max(16px, 1em);
+}
+
 @layer base {
   :root {
     --background: 40 20% 97%;
