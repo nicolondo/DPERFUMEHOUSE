@@ -83,6 +83,7 @@ export class UsersController {
       pendingApproval: pendingApproval === undefined ? undefined : pendingApproval === 'true',
       page: page ? parseInt(page, 10) : 1,
       limit: pageSize ? parseInt(pageSize, 10) : 20,
+      search,
     });
   }
 
