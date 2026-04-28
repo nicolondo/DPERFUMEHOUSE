@@ -23,6 +23,19 @@ const orderStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'da
   DELIVERED: 'success',
   CANCELLED: 'danger',
   REFUNDED: 'danger',
+  ADDRESS_ERROR: 'danger',
+};
+
+const orderStatusLabel: Record<string, string> = {
+  DRAFT: 'Borrador',
+  PENDING_PAYMENT: 'Pago Pendiente',
+  PAID: 'Pagado',
+  CONFIRMED_ODOO: 'Confirmado',
+  SHIPPED: 'Enviado',
+  DELIVERED: 'Entregado',
+  CANCELLED: 'Cancelado',
+  REFUNDED: 'Reembolsado',
+  ADDRESS_ERROR: 'Error Dirección',
 };
 
 const paymentStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
@@ -62,6 +75,10 @@ export default function OrderDetailPage() {
   const [shippingRates, setShippingRates] = useState<any[]>([]);
   const [selectedRate, setSelectedRate] = useState<{ carrier: string; service: string } | null>(null);
   const [trackingData, setTrackingData] = useState<any>(null);
+  const [pickupModalOpen, setPickupModalOpen] = useState(false);
+  const [pickupDate, setPickupDate] = useState('');
+  const [pickupTimeFrom, setPickupTimeFrom] = useState(9);
+  const [pickupTimeTo, setPickupTimeTo] = useState(17);
 
   const quoteRatesMutation = useMutation({
     mutationFn: async () => {
@@ -92,6 +109,32 @@ export default function OrderDetailPage() {
       return data;
     },
     onSuccess: (data) => setTrackingData(data.tracking ?? null),
+  });
+
+  const pickupMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/shipping/pickup/${orderId}`, {
+        date: pickupDate,
+        timeFrom: pickupTimeFrom,
+        timeTo: pickupTimeTo,
+      });
+      return data;
+    },
+    onSuccess: () => {
+      setPickupModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+    },
+  });
+
+  const cancelShipmentMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/shipping/cancel/${orderId}`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
   });
 
   const markPaidMutation = useMutation({
@@ -305,7 +348,7 @@ export default function OrderDetailPage() {
                 Pedido #{order.orderNumber || order.id?.slice(0, 8)}
               </h1>
               <Badge variant={orderStatusVariant[order.status] || 'default'}>
-                {order.status}
+                {orderStatusLabel[order.status] || order.status}
               </Badge>
               <Badge variant={paymentStatusVariant[order.paymentStatus] || 'default'}>
                 {order.paymentStatus || 'N/A'}
@@ -314,6 +357,11 @@ export default function OrderDetailPage() {
             <p className="mt-1 text-sm text-white/50">
               Creado el {formatDateTime(order.createdAt)}
             </p>
+            {order.paymentStatus === 'COMPLETED' && order.paymentLink?.updatedAt && (
+              <p className="mt-0.5 text-xs text-status-success">
+                Pago recibido el {formatDateTime(order.paymentLink.updatedAt)}
+              </p>
+            )}
             {order.paymentMethod && (
               <p className="mt-0.5 text-xs text-white/40">
                 Método de pago:{' '}
@@ -532,14 +580,14 @@ export default function OrderDetailPage() {
       </Card>
 
       {/* Shipping / Envia.com section */}
-      {(order.status === 'PAID' || order.status === 'SHIPPED' || order.status === 'DELIVERED') && (
+      {(order.status === 'PAID' || order.status === 'SHIPPED' || order.status === 'DELIVERED' || order.status === 'ADDRESS_ERROR') && (
         <Card padding={false}>
           <div className="border-b border-glass-border px-6 py-4 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-white flex items-center gap-2">
               <Truck className="h-5 w-5 text-white/40" />
               Envío
             </h3>
-            {order.status === 'PAID' && !order.shipment && (
+            {order.status === 'PAID' && (!order.shipment || order.shipment.status === 'CANCELLED') && (
               <Button
                 variant="secondary"
                 size="sm"
@@ -550,16 +598,48 @@ export default function OrderDetailPage() {
                 {quoteRatesMutation.isPending ? 'Cotizando...' : 'Cotizar Envío'}
               </Button>
             )}
-            {(order.status === 'SHIPPED' || order.shipment?.trackingNumber) && (
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={trackMutation.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                onClick={() => trackMutation.mutate()}
-                disabled={trackMutation.isPending}
-              >
-                {trackMutation.isPending ? 'Rastreando...' : 'Rastrear Envío'}
-              </Button>
+            {(order.status === 'SHIPPED' || order.shipment?.trackingNumber) && order.shipment?.status !== 'CANCELLED' && (
+              <div className="flex items-center gap-2">
+                {order.shipment?.trackingNumber && order.shipment?.status !== 'PICKUP_SCHEDULED' && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<Package className="h-4 w-4" />}
+                    onClick={() => {
+                      const today = new Date();
+                      const tomorrow = new Date(today);
+                      tomorrow.setDate(today.getDate() + 1);
+                      setPickupDate(tomorrow.toISOString().split('T')[0]);
+                      setPickupModalOpen(true);
+                    }}
+                  >
+                    Solicitar Recogida
+                  </Button>
+                )}
+                {order.shipment?.trackingNumber && (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm('¿Cancelar la guía? Esto permitirá generar una nueva con otra transportadora.')) {
+                        cancelShipmentMutation.mutate();
+                      }
+                    }}
+                    loading={cancelShipmentMutation.isPending}
+                  >
+                    Cancelar Guía
+                  </Button>
+                )}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={trackMutation.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  onClick={() => trackMutation.mutate()}
+                  disabled={trackMutation.isPending}
+                >
+                  {trackMutation.isPending ? 'Rastreando...' : 'Rastrear Envío'}
+                </Button>
+              </div>
             )}
           </div>
           <div className="p-6 space-y-4">
@@ -606,6 +686,13 @@ export default function OrderDetailPage() {
                     </a>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Cancel error */}
+            {cancelShipmentMutation.isError && (
+              <div className="rounded-lg bg-status-danger-muted border border-status-danger/30 px-4 py-3 text-sm text-status-danger">
+                {(cancelShipmentMutation.error as any)?.response?.data?.message || 'Error al cancelar la guía'}
               </div>
             )}
 
@@ -685,12 +772,12 @@ export default function OrderDetailPage() {
                   )}
                 </div>
                 {(trackingData.events || trackingData.eventHistory || []).length > 0 && (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                     {(trackingData.events || trackingData.eventHistory || []).map((ev: any, i: number) => (
-                      <div key={i} className="flex gap-3 text-xs">
-                        <span className="text-white/30 whitespace-nowrap">{formatDateTime(ev.timestamp || ev.date)}</span>
-                        <span className="text-white/60">{ev.location || ''}</span>
-                        <span className="text-white/80">{ev.description || ev.status}</span>
+                      <div key={i} className="flex gap-3 text-xs border-b border-glass-border/30 pb-1">
+                        <span className="text-white/30 whitespace-nowrap w-40 shrink-0">{formatDateTime(ev.timestamp || ev.date)}</span>
+                        <span className="text-white/50 w-24 shrink-0">{ev.location || ''}</span>
+                        <span className="text-white/80">{ev.event || ev.description || ev.status || '-'}</span>
                       </div>
                     ))}
                   </div>
@@ -701,6 +788,18 @@ export default function OrderDetailPage() {
                     Ver rastreo oficial <ExternalLink className="h-3 w-3" />
                   </a>
                 )}
+              </div>
+            )}
+            {/* Persisted shipment events from DB (always visible) */}
+            {!trackingData && order.shipment?.events && order.shipment.events.length > 0 && (
+              <div className="mt-4 space-y-2 max-h-64 overflow-y-auto pr-1">
+                {order.shipment.events.map((ev: any, i: number) => (
+                  <div key={ev.id || i} className="flex gap-3 text-xs border-b border-glass-border/30 pb-1">
+                    <span className="text-white/30 whitespace-nowrap w-40 shrink-0">{formatDateTime(ev.timestamp)}</span>
+                    <span className="text-white/50 w-24 shrink-0">{ev.location || ''}</span>
+                    <span className="text-white/80">{ev.description || ev.status || '-'}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -765,6 +864,69 @@ export default function OrderDetailPage() {
           />
         </div>
       </Card>
+
+      {/* Pickup Modal */}
+      <Modal
+        open={pickupModalOpen}
+        onClose={() => setPickupModalOpen(false)}
+        title="Solicitar Recogida"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-white/70">Fecha de recogida</label>
+            <input
+              type="date"
+              value={pickupDate}
+              onChange={(e) => setPickupDate(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              className="w-full rounded-xl border border-glass-border bg-glass-50 py-2.5 px-4 text-sm text-white focus:border-accent-purple focus:outline-none"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-white/70">Desde (hora)</label>
+              <select
+                value={pickupTimeFrom}
+                onChange={(e) => setPickupTimeFrom(Number(e.target.value))}
+                className="w-full rounded-xl border border-glass-border bg-glass-50 py-2.5 px-4 text-sm text-white focus:border-accent-purple focus:outline-none"
+              >
+                {Array.from({ length: 24 }, (_, i) => (
+                  <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-white/70">Hasta (hora)</label>
+              <select
+                value={pickupTimeTo}
+                onChange={(e) => setPickupTimeTo(Number(e.target.value))}
+                className="w-full rounded-xl border border-glass-border bg-glass-50 py-2.5 px-4 text-sm text-white focus:border-accent-purple focus:outline-none"
+              >
+                {Array.from({ length: 24 }, (_, i) => (
+                  <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {pickupMutation.isError && (
+            <p className="text-sm text-status-danger">
+              {(pickupMutation.error as any)?.response?.data?.message || 'Error al solicitar recogida'}
+            </p>
+          )}
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => setPickupModalOpen(false)}>Cancelar</Button>
+            <Button
+              variant="primary"
+              onClick={() => pickupMutation.mutate()}
+              loading={pickupMutation.isPending}
+              disabled={!pickupDate || pickupTimeFrom >= pickupTimeTo}
+            >
+              Confirmar Recogida
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Deliver Modal */}
       <Modal

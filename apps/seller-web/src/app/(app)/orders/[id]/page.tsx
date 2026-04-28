@@ -312,7 +312,9 @@ export default function OrderDetailPage() {
               <p className="text-sm font-medium text-white">
                 {order.address.label}
               </p>
-              <p className="text-sm text-white/70">{order.address.street}</p>
+              <p className="text-sm text-white/70">
+                {order.address.street}{(order.address as any).detail ? `, ${(order.address as any).detail}` : ''}
+              </p>
               <p className="text-xs text-white/30">
                 {order.address.city}, {order.address.state}
               </p>
@@ -570,8 +572,9 @@ export default function OrderDetailPage() {
                 />
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-white">{address.label || 'Direccion'}</p>
-                  <p className="text-sm text-white/70">{address.street}</p>
+                  <p className="text-sm text-white/70">{address.street}{address.detail ? `, ${address.detail}` : ''}</p>
                   <p className="text-xs text-white/40">{address.city}{address.state ? `, ${address.state}` : ''}</p>
+                  {address.phone && <p className="text-xs text-white/30">Tel: {address.phone}</p>}
                 </div>
               </label>
             ))

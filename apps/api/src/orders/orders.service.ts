@@ -375,11 +375,13 @@ export class OrdersService {
       const aggregatedQty = variant.categoryName
         ? categoryTotals.get(variant.categoryName) || item.quantity
         : globalTotal;
-      const discount = await this.discountsService.findBestDiscount(
-        item.variantId,
-        variant.categoryName,
-        aggregatedQty,
-      );
+      const discount = data.applyQuantityDiscount !== false
+        ? await this.discountsService.findBestDiscount(
+            item.variantId,
+            variant.categoryName,
+            aggregatedQty,
+          )
+        : null;
 
       const discountPercent = discount ? Number(discount.discountPercent) : 0;
       const discountAmount = Math.round(lineGross * discountPercent / 100);
@@ -865,7 +867,79 @@ export class OrdersService {
       );
     }
 
+    // Auto-update related leads on purchase
+    try {
+      await this.autoUpdateLeadsOnPurchase(updated);
+    } catch (leadErr) {
+      this.logger.error(`Failed to auto-update leads for order ${orderId}: ${leadErr.message}`);
+    }
+
     return updated;
+  }
+
+  private async autoUpdateLeadsOnPurchase(order: {
+    id: string;
+    customerId: string;
+    items: Array<{ variant?: { id: string; name: string } | null } & { variantId: string }>;
+  }): Promise<void> {
+    if (!order.customerId) return;
+
+    const leads = await this.prisma.lead.findMany({
+      where: {
+        customerId: order.customerId,
+        status: { in: ['SENT', 'RESPONDED', 'APPOINTMENT', 'VISITED'] },
+        purchasedOrderId: null,
+      },
+    });
+
+    if (leads.length === 0) return;
+
+    // Fetch variants for items that may not have them populated
+    const variantIds = order.items.map((i) => i.variantId);
+    const variants = await this.prisma.productVariant.findMany({
+      where: { id: { in: variantIds } },
+      select: { id: true, name: true },
+    });
+    const variantMap = new Map(variants.map((v) => [v.id, v.name]));
+    const purchasedVariantIds = new Set(variantIds);
+    const purchasedItems = variantIds.map((id) => ({ variantId: id, name: variantMap.get(id) || id }));
+
+    for (const lead of leads) {
+      const recs = (lead.recommendations as any[]) || [];
+      const recommended = recs.map((r: any) => ({
+        variantId: r.productVariantId,
+        name: r.name,
+        compatibility: r.compatibility,
+      }));
+
+      const matchedRecs = recommended.filter((r) => purchasedVariantIds.has(r.variantId));
+      const unmatchedRecs = recommended.filter((r) => !purchasedVariantIds.has(r.variantId));
+      const extraPurchases = purchasedItems.filter((p) => !recommended.find((r) => r.variantId === p.variantId));
+      const matchRate = recommended.length > 0
+        ? Math.round((matchedRecs.length / recommended.length) * 100)
+        : 0;
+
+      const purchaseMatch = {
+        recommended,
+        purchased: purchasedItems,
+        matched: matchedRecs,
+        unmatched: unmatchedRecs,
+        extra: extraPurchases,
+        matchRate,
+        boughtRecommended: matchedRecs.length > 0,
+      };
+
+      await this.prisma.lead.update({
+        where: { id: lead.id },
+        data: {
+          status: 'PURCHASED',
+          purchasedOrderId: order.id,
+          purchasedAt: new Date(),
+          purchaseMatch,
+        },
+      });
+      this.logger.log(`Lead ${lead.id} marked PURCHASED — matchRate: ${matchRate}%`);
+    }
   }
 
   /**

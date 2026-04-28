@@ -349,4 +349,151 @@ export class SellerProductLinksService {
       paymentUrl: paymentLink?.url || null,
     };
   }
+  async getCatalog(sellerCode: string) {
+    const seller = await this.prisma.user.findUnique({
+      where: { sellerCode },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        phoneCode: true,
+        sellerCode: true,
+        allowedCategories: { select: { categoryName: true } },
+      },
+    });
+
+    if (!seller) {
+      throw new NotFoundException('Tienda no encontrada');
+    }
+
+    const allowedCategoryNames = seller.allowedCategories.map((c) => c.categoryName);
+
+    const variants = await this.prisma.productVariant.findMany({
+      where: {
+        isActive: true,
+        isBlocked: false,
+        stock: { gt: 0 },
+        // Only show products from categories the seller is allowed to sell.
+        // If seller has no allowed categories configured, show nothing.
+        categoryName: { in: allowedCategoryNames.length > 0 ? allowedCategoryNames : ['__none__'] },
+      },
+      include: {
+        images: { orderBy: { sortOrder: 'asc' } },
+        fragranceProfile: true,
+        quantityDiscounts: { where: { isActive: true }, orderBy: { minQuantity: 'asc' } },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    // Strip allowedCategories from response
+    const { allowedCategories: _ac, ...sellerPublic } = seller;
+    return { seller: sellerPublic, products: variants };
+  }
+
+  async catalogPurchase(sellerCode: string, dto: any) {
+    const seller = await this.prisma.user.findUnique({
+      where: { sellerCode },
+      select: { id: true, name: true },
+    });
+
+    if (!seller) throw new NotFoundException('Tienda no encontrada');
+
+    const sellerId = seller.id;
+    const items: Array<{ variantId: string; quantity: number }> = dto.items || 
+      [{ variantId: dto.variantId, quantity: dto.quantity || 1 }];
+
+    // Load seller allowed categories to enforce on purchase
+    const sellerCategories = await this.prisma.userAllowedCategory.findMany({
+      where: { userId: sellerId },
+      select: { categoryName: true },
+    });
+    const allowedNames = new Set(sellerCategories.map((c) => c.categoryName));
+
+    // Validate stock + category access for all items
+    for (const item of items) {
+      const variant = await this.prisma.productVariant.findFirst({
+        where: { id: item.variantId, isActive: true, isBlocked: false },
+      });
+      if (!variant) throw new NotFoundException(`Producto no disponible`);
+      if (variant.categoryName && !allowedNames.has(variant.categoryName)) {
+        throw new BadRequestException(`Producto fuera del catálogo del vendedor`);
+      }
+      if (variant.stock < item.quantity) {
+        throw new BadRequestException(`Stock insuficiente para ${variant.name}`);
+      }
+    }
+
+    // Find or create customer
+    let customer = await this.prisma.customer.findFirst({
+      where: {
+        sellerId,
+        OR: [
+          ...(dto.phone ? [{ phone: dto.phone, sellerId }] : []),
+          ...(dto.email ? [{ email: dto.email, sellerId }] : []),
+        ],
+      },
+    });
+
+    if (!customer) {
+      customer = await this.prisma.customer.create({
+        data: {
+          name: dto.name,
+          phone: dto.phone,
+          email: dto.email || null,
+          sellerId,
+          ...(dto.legalIdType ? { documentType: dto.legalIdType } : {}),
+          ...(dto.legalId ? { documentNumber: dto.legalId } : {}),
+        },
+      });
+    }
+
+    const addressPhone = dto.addressPhone || dto.phone || null;
+    const existingAddress = await this.prisma.customerAddress.findFirst({
+      where: { customerId: customer.id, street: dto.street, city: dto.city },
+    });
+
+    const address = existingAddress ?? await this.prisma.customerAddress.create({
+      data: {
+        customerId: customer.id,
+        street: dto.street,
+        city: dto.city,
+        state: dto.state || null,
+        detail: dto.detail || null,
+        phone: addressPhone,
+        label: 'Dirección de envío',
+      },
+    });
+
+    const order = await this.ordersService.createOrder(
+      {
+        customerId: customer.id,
+        addressId: address.id,
+        items: items.map(i => ({ variantId: i.variantId, quantity: i.quantity })),
+        paymentMethod: 'ONLINE',
+      },
+      sellerId,
+    );
+
+    if (!order) throw new BadRequestException('No se pudo crear el pedido');
+
+    // Increment conversions for all linked products
+    for (const item of items) {
+      await this.prisma.sellerProductLink.updateMany({
+        where: { sellerId, variantId: item.variantId, isActive: true },
+        data: { conversions: { increment: 1 } },
+      });
+    }
+
+    const paymentLink = await this.prisma.paymentLink.findUnique({
+      where: { orderId: order.id },
+      select: { url: true },
+    });
+
+    return {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      paymentUrl: paymentLink?.url || null,
+    };
+  }
+
 }

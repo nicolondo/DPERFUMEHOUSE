@@ -21,7 +21,7 @@ import {
   Percent,
 } from 'lucide-react';
 import { Input, Textarea } from '@/components/ui/input';
-import { AddressAutocomplete, type ParsedAddress } from '@/components/ui/address-autocomplete';
+import { AddressAutocomplete, CityAutocomplete, type ParsedAddress } from '@/components/ui/address-autocomplete';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -80,6 +80,7 @@ export default function NewOrderPage() {
   const cashPaymentEnabled = useCartStore((s) => s.orderConfig.cashPaymentEnabled !== false);
   const createOrder = useCreateOrder();
   const [applyPromoDiscount, setApplyPromoDiscount] = useState(false);
+  const [applyQuantityDiscount, setApplyQuantityDiscount] = useState(true);
   const { data: promoStatus } = usePromoStatus();
 
   // Fetch order config (tax, shipping) from backend
@@ -129,6 +130,7 @@ export default function NewOrderPage() {
         notes: notes || undefined,
         paymentMethod,
         applyPromoDiscount: applyPromoDiscount || undefined,
+        applyQuantityDiscount: applyQuantityDiscount ? undefined : false,
       });
       if (!paymentMethod || paymentMethod === 'ONLINE') {
         if (order.paymentLink?.url) {
@@ -247,6 +249,8 @@ export default function NewOrderPage() {
             updateQuantity={updateQuantity}
             applyPromoDiscount={applyPromoDiscount}
             onTogglePromoDiscount={setApplyPromoDiscount}
+            applyQuantityDiscount={applyQuantityDiscount}
+            onToggleQuantityDiscount={setApplyQuantityDiscount}
             promoStatus={promoStatus}
             cashPaymentEnabled={cashPaymentEnabled}
           />
@@ -684,18 +688,23 @@ function Step2SelectAddress({
                 setAddressForm((prev) => ({ ...prev, phone: val }))
               }
             />
-            {(addressForm.city || addressForm.state) && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-white/70">Ciudad</label>
-                  <p className="rounded-xl border border-glass-border bg-glass-50 py-3 px-4 text-base text-white/70">{addressForm.city || '-'}</p>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-white/70">Departamento</label>
-                  <p className="rounded-xl border border-glass-border bg-glass-50 py-3 px-4 text-base text-white/70">{addressForm.state || '-'}</p>
-                </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-white/70">Ciudad</label>
+                {addressForm.city ? (
+                  <p className="rounded-xl border border-glass-border bg-glass-50 py-3 px-4 text-base text-white/70">{addressForm.city}</p>
+                ) : (
+                  <CityAutocomplete
+                    placeholder="Busca tu ciudad..."
+                    onSelect={(city, state) => setAddressForm((prev) => ({ ...prev, city, state }))}
+                  />
+                )}
               </div>
-            )}
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-white/70">Departamento</label>
+                <p className="rounded-xl border border-glass-border bg-glass-50 py-3 px-4 text-base text-white/70">{addressForm.state || '-'}</p>
+              </div>
+            </div>
             <Input
               placeholder="Timbre, porteria, horario..."
               label="Instrucciones adicionales"
@@ -710,7 +719,7 @@ function Step2SelectAddress({
               onClick={handleAddAddress}
               loading={addAddress.isPending}
               disabled={
-                !addressForm.label || !addressForm.street
+                !addressForm.label || !addressForm.street || !addressForm.city
               }
             >
               Guardar Direccion
@@ -766,18 +775,23 @@ function Step2SelectAddress({
                 setEditForm((prev) => ({ ...prev, phone: val }))
               }
             />
-            {(editForm.city || editForm.state) && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-white/70">Ciudad</label>
-                  <p className="rounded-xl border border-glass-border bg-glass-50 py-3 px-4 text-base text-white/70">{editForm.city || '-'}</p>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-white/70">Departamento</label>
-                  <p className="rounded-xl border border-glass-border bg-glass-50 py-3 px-4 text-base text-white/70">{editForm.state || '-'}</p>
-                </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-white/70">Ciudad</label>
+                {editForm.city ? (
+                  <p className="rounded-xl border border-glass-border bg-glass-50 py-3 px-4 text-base text-white/70">{editForm.city}</p>
+                ) : (
+                  <CityAutocomplete
+                    placeholder="Busca tu ciudad..."
+                    onSelect={(city, state) => setEditForm((prev) => ({ ...prev, city, state }))}
+                  />
+                )}
               </div>
-            )}
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-white/70">Departamento</label>
+                <p className="rounded-xl border border-glass-border bg-glass-50 py-3 px-4 text-base text-white/70">{editForm.state || '-'}</p>
+              </div>
+            </div>
             <Input
               placeholder="Timbre, porteria, horario..."
               label="Instrucciones adicionales"
@@ -1122,6 +1136,8 @@ function Step4Summary({
   updateQuantity,
   applyPromoDiscount,
   onTogglePromoDiscount,
+  applyQuantityDiscount,
+  onToggleQuantityDiscount,
   promoStatus,
   cashPaymentEnabled = true,
 }: {
@@ -1142,6 +1158,8 @@ function Step4Summary({
   updateQuantity: (variantId: string, quantity: number) => void;
   applyPromoDiscount: boolean;
   onTogglePromoDiscount: (value: boolean) => void;
+  applyQuantityDiscount: boolean;
+  onToggleQuantityDiscount: (value: boolean) => void;
   promoStatus?: any;
   cashPaymentEnabled?: boolean;
 }) {
@@ -1150,8 +1168,9 @@ function Step4Summary({
   const cartItems = items.map((item) => ({ variantId: item.variant.id, quantity: item.quantity }));
   const { data: previewData } = usePreviewDiscounts(cartItems);
 
-  // quantityDiscountedSubtotal: subtotal after quantity discounts, before promo
-  const quantityDiscountedSubtotal = previewData?.total ?? subtotalAmount;
+  // quantityDiscountedSubtotal: subtotal after quantity discounts (if toggle ON), before promo
+  const quantityDiscountAmount = applyQuantityDiscount ? (previewData?.totalDiscount ?? 0) : 0;
+  const quantityDiscountedSubtotal = subtotalAmount - quantityDiscountAmount;
   const promoDiscountAmount =
     applyPromoDiscount && promoStatus?.globalPercent
       ? Math.round(quantityDiscountedSubtotal * promoStatus.globalPercent / 100)
@@ -1263,9 +1282,9 @@ function Step4Summary({
             <span className="text-white/50">Subtotal</span>
             <span className="text-white">{formatCurrency(subtotalAmount)}</span>
           </div>
-          {previewData && previewData.totalDiscount > 0 && (
+          {previewData && previewData.totalDiscount > 0 && applyQuantityDiscount && (
             <div className="flex items-center justify-between text-sm">
-              <span className="text-green-400">Desc. cantidad</span>
+              <span className="text-green-400">Desc. 3x MATAI</span>
               <span className="text-green-400">
                 -{formatCurrency(previewData.totalDiscount)}
               </span>
@@ -1293,6 +1312,38 @@ function Step4Summary({
           </div>
         </div>
       </Card>
+
+      {/* Matai Quantity Discount Toggle */}
+      {previewData && previewData.totalDiscount > 0 && (
+        <Card>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-900/30">
+                <span className="text-sm font-bold text-green-400">3x</span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">
+                  Descuento 3+ MATAI
+                </p>
+                <p className="text-xs text-white/40">
+                  {applyQuantityDiscount
+                    ? `-${formatCurrency(previewData.totalDiscount)} aplicado`
+                    : 'Descuento no aplicado'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onToggleQuantityDiscount(!applyQuantityDiscount)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${applyQuantityDiscount ? 'bg-green-600' : 'bg-glass-200'}`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${applyQuantityDiscount ? 'translate-x-6' : 'translate-x-1'}`}
+              />
+            </button>
+          </div>
+        </Card>
+      )}
 
       {/* Promo Discount Toggle */}
       {promoStatus?.enabled && (

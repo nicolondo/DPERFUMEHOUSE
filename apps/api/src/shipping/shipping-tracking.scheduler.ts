@@ -20,7 +20,7 @@ export class ShippingTrackingScheduler {
     try {
       const shippedOrders = await this.prisma.order.findMany({
         where: {
-          status: 'SHIPPED',
+          status: { in: ['SHIPPED', 'ADDRESS_ERROR'] },
           shipment: { trackingNumber: { not: null } },
         },
         select: { id: true, orderNumber: true },

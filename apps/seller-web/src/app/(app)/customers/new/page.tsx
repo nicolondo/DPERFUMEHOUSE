@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/layout/page-header';
-import { AddressAutocomplete } from '@/components/ui/address-autocomplete';
+import { AddressAutocomplete, CityAutocomplete } from '@/components/ui/address-autocomplete';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { useCreateCustomer } from '@/hooks/use-customers';
 
@@ -221,12 +221,22 @@ export default function NewCustomerPage() {
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Input
-                  label="Ciudad"
-                  value={addressForm.city}
-                  readOnly
-                  className="bg-glass-50 text-white/50"
-                />
+                <div>
+                  {addressForm.city ? (
+                    <Input
+                      label="Ciudad"
+                      value={addressForm.city}
+                      readOnly
+                      className="bg-glass-50 text-white/50"
+                    />
+                  ) : (
+                    <CityAutocomplete
+                      label="Ciudad"
+                      placeholder="Busca tu ciudad..."
+                      onSelect={(city, state) => setAddressForm((p) => ({ ...p, city, state }))}
+                    />
+                  )}
+                </div>
                 <Input
                   label="Departamento"
                   value={addressForm.state}

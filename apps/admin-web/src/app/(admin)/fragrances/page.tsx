@@ -46,8 +46,11 @@ type ProfileForm = z.infer<typeof profileSchema>;
 const GENEROS = ['Masculino', 'Femenino', 'Unisex'];
 const INTENSIDADES = ['Suave', 'Moderada', 'Intensa', 'Muy Intensa'];
 const FAMILIAS = [
-  'Amaderado', 'Ambarado', 'Aromático', 'Chipre', 'Cítrico',
-  'Floral', 'Frutal', 'Gourmand', 'Oriental', 'Verde',
+  'Amaderado', 'Ambarado', 'Ambarado-Especiado', 'Ambarado-Floral', 'Ambarado-Oriental',
+  'Aromático', 'Chipre', 'Cítrico', 'Floral', 'Floral-Amaderado',
+  'Floriental-Frutal', 'Frutal', 'Frutal Floral', 'Frutal-Ambarado', 'Frutal-Gourmand',
+  'Gourmand', 'Gourmand-Lácteo', 'Oriental', 'Oriental Frutal', 'Oriental-Gourmand',
+  'Verde',
 ];
 
 export default function FragrancesPage() {
@@ -259,9 +262,11 @@ export default function FragrancesPage() {
 
   const handleEdit = (data: ProfileForm) => {
     if (!editingProfile) return;
+    // Omit productVariantId — not allowed in UpdateFragranceProfileDto (forbidNonWhitelisted)
+    const { productVariantId: _omit, ...updateData } = data;
     updateMutation.mutate({
       id: editingProfile.id,
-      ...data,
+      ...updateData,
       tagsNegativos: data.tagsNegativos ? data.tagsNegativos.split(',').map((s) => s.trim()).filter(Boolean) : [],
     });
   };

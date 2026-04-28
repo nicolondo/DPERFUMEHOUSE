@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sparkles, Search, Link2, Copy, Check, LayoutList, Columns3, CheckSquare, Square } from 'lucide-react';
+import { Sparkles, Search, Link2, Copy, Check, LayoutList, Columns3, CheckSquare, Square, ShoppingBag } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { PageSpinner } from '@/components/ui/spinner';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
-import { useLeads, useLeadStats, useGenerateLeadLink, useUpdateLeadStatus } from '@/hooks/use-leads';
+import { useLeads, useLeadStats, useGenerateLeadLink, useUpdateLeadStatus, useCurrentUser } from '@/hooks/use-leads';
 import { useCategories } from '@/hooks/use-products';
 import { formatDate } from '@/lib/utils';
 import type { LeadStatus } from '@/lib/types';
@@ -21,6 +21,7 @@ const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bg: stri
   APPOINTMENT: { label: 'Cita Agendada', color: 'text-purple-400', bg: 'bg-purple-500/15' },
   VISITED: { label: 'Visitado', color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
   CONVERTED: { label: 'Convertido', color: 'text-green-400', bg: 'bg-green-500/15' },
+  PURCHASED: { label: 'Compró', color: 'text-emerald-300', bg: 'bg-emerald-400/15' },
 };
 
 const tabs: { label: string; value: FilterTab }[] = [
@@ -29,6 +30,7 @@ const tabs: { label: string; value: FilterTab }[] = [
   { label: 'Citas', value: 'APPOINTMENT' },
   { label: 'Visitados', value: 'VISITED' },
   { label: 'Convertidos', value: 'CONVERTED' },
+  { label: 'Compras', value: 'PURCHASED' },
   { label: 'Enviados', value: 'SENT' },
 ];
 
@@ -51,6 +53,9 @@ export default function LeadsPage() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [linkCopied, setLinkCopied] = useState(false);
   const [generatedLink, setGeneratedLink] = useState('');
+  const [showStoreLinkModal, setShowStoreLinkModal] = useState(false);
+  const [storeLinkCopied, setStoreLinkCopied] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
 
   const { data: leadsData, isLoading } = useLeads({
@@ -61,6 +66,7 @@ export default function LeadsPage() {
   const { data: categoriesData } = useCategories();
   const generateLink = useGenerateLeadLink();
   const updateStatus = useUpdateLeadStatus();
+  const { data: currentUser } = useCurrentUser();
 
   const leads = leadsData?.data ?? [];
 
@@ -116,18 +122,38 @@ export default function LeadsPage() {
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
+  const storeLink = typeof window !== 'undefined' && currentUser?.sellerCode
+    ? `${window.location.origin}/s/${currentUser.sellerCode}`
+    : '';
+
+  const copyStoreLink = () => {
+    if (!storeLink) return;
+    navigator.clipboard.writeText(storeLink);
+    setStoreLinkCopied(true);
+    setTimeout(() => setStoreLinkCopied(false), 2000);
+  };
+
   return (
     <div className="pb-24">
       <PageHeader
         title="Leads"
         action={
-          <button
-            onClick={handleGenerateLink}
-            className="flex items-center gap-1.5 rounded-full bg-accent-purple/20 px-3 py-1.5 text-xs font-medium text-accent-purple"
-          >
-            <Link2 className="h-3.5 w-3.5" />
-            Mi Link
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowStoreLinkModal(true)}
+              className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400"
+            >
+              <ShoppingBag className="h-3.5 w-3.5" />
+              Link Tienda
+            </button>
+            <button
+              onClick={handleGenerateLink}
+              className="flex items-center gap-1.5 rounded-full bg-accent-purple/20 px-3 py-1.5 text-xs font-medium text-accent-purple"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Mi Link
+            </button>
+          </div>
         }
       />
 
@@ -324,6 +350,18 @@ export default function LeadsPage() {
                         )}
                       </div>
                     )}
+                    {lead.status === 'PURCHASED' && lead.purchaseMatch && (
+                      <div className="pl-3 text-right">
+                        {lead.purchaseMatch.boughtRecommended ? (
+                          <p className="text-xs text-emerald-400 font-medium">✓ Recomendado</p>
+                        ) : (
+                          <p className="text-xs text-orange-400 font-medium">Otro producto</p>
+                        )}
+                        {lead.purchaseMatch.recommended.length > 0 && (
+                          <p className="text-[10px] text-white/30">{lead.purchaseMatch.matchRate}% match</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </Card>
               );
@@ -374,6 +412,94 @@ export default function LeadsPage() {
             >
               {generateLink.isPending ? 'Generando...' : 'Generar Link'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Store Link Modal */}
+      {showStoreLinkModal && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setShowStoreLinkModal(false); setShowQR(false); }}>
+          <div
+            className="w-full max-w-lg rounded-t-3xl bg-surface-raised border-t border-glass-border p-6"
+            style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2.5 mb-1">
+              <div className="w-9 h-9 rounded-full bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center">
+                <ShoppingBag className="h-4 w-4 text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-white leading-tight">Tu Tienda Online</h3>
+                <p className="text-[11px] text-white/35">Catálogo · Carrito · Pagos online</p>
+              </div>
+            </div>
+            <p className="text-sm text-white/40 mb-4 mt-2">
+              Comparte este link para que tus clientes vean tus fragancias y puedan comprar directamente
+            </p>
+
+            {currentUser?.sellerCode ? (
+              <>
+                <div className="flex items-center gap-2 rounded-xl bg-glass-50 border border-glass-border p-3 mb-3">
+                  <p className="flex-1 text-sm text-white/70 truncate">{storeLink}</p>
+                  <button
+                    onClick={copyStoreLink}
+                    className="shrink-0 p-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+                  >
+                    {storeLinkCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </button>
+                </div>
+
+                {showQR && (
+                  <div className="mb-3 flex flex-col items-center gap-2 p-4 rounded-xl bg-white">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=10&data=${encodeURIComponent(storeLink)}`}
+                      alt="QR de la tienda"
+                      className="w-[260px] h-[260px]"
+                    />
+                    <p className="text-[11px] text-black/50 text-center">Escanea para abrir tu tienda</p>
+                    <a
+                      href={`https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=20&data=${encodeURIComponent(storeLink)}`}
+                      download={`tienda-${currentUser.sellerCode}.png`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-emerald-600 hover:text-emerald-700 underline"
+                    >
+                      Descargar QR
+                    </a>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setShowQR(v => !v)}
+                  className="w-full py-3 rounded-full bg-glass-50 border border-glass-border text-white/80 font-medium text-sm flex items-center justify-center gap-2 hover:bg-glass-100 transition-colors mb-2"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1" />
+                    <rect x="14" y="3" width="7" height="7" rx="1" />
+                    <rect x="3" y="14" width="7" height="7" rx="1" />
+                    <path d="M14 14h3v3h-3zM20 14h1v1h-1zM14 20h1v1h-1zM18 18h3v3h-3z" />
+                  </svg>
+                  {showQR ? 'Ocultar QR' : 'Mostrar QR'}
+                </button>
+
+                <button
+                  onClick={() => {
+                    const text = encodeURIComponent(`🌿 Mirá mi tienda de fragancias exclusivas D Perfume House:\n${storeLink}\n\nEncuentra tu perfume ideal ✨`);
+                    window.open(`https://wa.me/?text=${text}`, '_blank');
+                  }}
+                  className="w-full py-3 rounded-full bg-[#25D366] text-white font-medium text-sm flex items-center justify-center gap-2 hover:bg-[#22c05d] transition-colors"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                  </svg>
+                  Compartir por WhatsApp
+                </button>
+              </>
+            ) : (
+              <div className="flex items-center justify-center py-6">
+                <div className="w-5 h-5 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />
+              </div>
+            )}
           </div>
         </div>
       )}

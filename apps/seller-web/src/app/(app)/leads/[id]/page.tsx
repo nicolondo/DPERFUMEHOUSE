@@ -5,11 +5,11 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Calendar, Clock, MapPin, MessageSquare,
   Phone, Mail, ChevronRight, Gift, Sparkles, ShoppingBag,
-  ClipboardList, Lightbulb, Target, AlertTriangle,
+  ClipboardList, Lightbulb, Target, AlertTriangle, UserPlus,
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { PageSpinner } from '@/components/ui/spinner';
-import { useLead, useUpdateLeadStatus, useUpdateAppointment, useConvertLead } from '@/hooks/use-leads';
+import { useLead, useUpdateLeadStatus, useUpdateAppointment, useConvertLead, useCreateCustomerFromLead } from '@/hooks/use-leads';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import type { LeadStatus } from '@/lib/types';
 
@@ -19,6 +19,7 @@ const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bg: stri
   APPOINTMENT: { label: 'Cita Agendada', color: 'text-purple-400', bg: 'bg-purple-500/15', next: 'VISITED', nextLabel: 'Marcar Visitado' },
   VISITED: { label: 'Visitado', color: 'text-emerald-400', bg: 'bg-emerald-500/15', next: 'CONVERTED', nextLabel: 'Marcar Convertido' },
   CONVERTED: { label: 'Convertido', color: 'text-green-400', bg: 'bg-green-500/15' },
+  PURCHASED: { label: 'Compró', color: 'text-emerald-300', bg: 'bg-emerald-400/15' },
 };
 
 export default function LeadDetailPage() {
@@ -28,6 +29,8 @@ export default function LeadDetailPage() {
   const updateStatus = useUpdateLeadStatus();
   const updateAppointment = useUpdateAppointment();
   const convertLead = useConvertLead();
+  const createCustomer = useCreateCustomerFromLead();
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
   const [expandedNotes, setExpandedNotes] = useState<Set<number>>(new Set());
   const [appointmentData, setAppointmentData] = useState({
@@ -52,7 +55,7 @@ export default function LeadDetailPage() {
   const analysis = lead.aiAnalysis;
   const recommendations = lead.recommendations || [];
   const script = lead.sellerScript;
-  const hasResponded = ['RESPONDED', 'APPOINTMENT', 'VISITED', 'CONVERTED'].includes(lead.status);
+  const hasResponded = ['RESPONDED', 'APPOINTMENT', 'VISITED', 'CONVERTED', 'PURCHASED'].includes(lead.status);
   const isAppointment = lead.status === 'APPOINTMENT';
   const isPreVisit = lead.status === 'APPOINTMENT' && lead.appointmentDate;
 
@@ -158,6 +161,26 @@ export default function LeadDetailPage() {
               </div>
             )}
           </div>
+          {!lead.customerId && (
+            <button
+              onClick={async () => {
+                setCreatingCustomer(true);
+                try {
+                  const result = await createCustomer.mutateAsync(lead.id);
+                  alert(`Cliente "${result.customerName}" creado exitosamente`);
+                } catch (e: any) {
+                  alert(e?.response?.data?.message || 'Error al crear cliente');
+                } finally {
+                  setCreatingCustomer(false);
+                }
+              }}
+              disabled={creatingCustomer || createCustomer.isPending}
+              className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl bg-accent-purple/15 border border-accent-purple/30 text-accent-purple text-sm font-medium py-2.5 disabled:opacity-50 active:scale-95 transition-all"
+            >
+              <UserPlus className="h-4 w-4" />
+              {creatingCustomer || createCustomer.isPending ? 'Creando...' : 'Crear cliente desde este lead'}
+            </button>
+          )}
         </Card>
 
         {/* AI Analysis — Seller Briefing */}
@@ -344,6 +367,58 @@ export default function LeadDetailPage() {
           </Card>
         )}
 
+        {/* Purchase Match Result */}
+        {lead.status === 'PURCHASED' && lead.purchaseMatch && (
+          <Card>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-400/15">
+                <ShoppingBag className="h-5 w-5 text-emerald-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-white">Compra realizada</p>
+                <p className="text-xs text-white/40">
+                  {lead.purchaseMatch.boughtRecommended
+                    ? `Compró ${lead.purchaseMatch.matched.length} producto${lead.purchaseMatch.matched.length !== 1 ? 's' : ''} recomendado${lead.purchaseMatch.matched.length !== 1 ? 's' : ''}`
+                    : 'Compró productos no recomendados'}
+                </p>
+              </div>
+              {lead.purchaseMatch.recommended.length > 0 && (
+                <div className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                  lead.purchaseMatch.matchRate >= 60 ? 'bg-emerald-400/15 text-emerald-400' :
+                  lead.purchaseMatch.matchRate >= 30 ? 'bg-amber-400/15 text-amber-400' :
+                  'bg-red-400/15 text-red-400'
+                }`}>
+                  {lead.purchaseMatch.matchRate}%
+                </div>
+              )}
+            </div>
+            {lead.purchaseMatch.matched.length > 0 && (
+              <div className="mb-2">
+                <p className="text-xs text-emerald-400 font-medium mb-1">✓ Recomendados que compró</p>
+                {lead.purchaseMatch.matched.map((item: any, i: number) => (
+                  <p key={i} className="text-xs text-white/60 pl-2">• {item.name}</p>
+                ))}
+              </div>
+            )}
+            {lead.purchaseMatch.extra.length > 0 && (
+              <div className="mb-2">
+                <p className="text-xs text-orange-400 font-medium mb-1">+ Otros productos</p>
+                {lead.purchaseMatch.extra.map((item: any, i: number) => (
+                  <p key={i} className="text-xs text-white/60 pl-2">• {item.name}</p>
+                ))}
+              </div>
+            )}
+            {lead.purchaseMatch.unmatched.length > 0 && (
+              <div>
+                <p className="text-xs text-white/30 font-medium mb-1">✗ Recomendados no comprados</p>
+                {lead.purchaseMatch.unmatched.map((item: any, i: number) => (
+                  <p key={i} className="text-xs text-white/30 pl-2">• {item.name}</p>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
+
         {/* Timeline */}
         <Card>
           <h3 className="text-xs font-medium text-white/30 uppercase tracking-wider mb-3">Timeline</h3>
@@ -354,6 +429,7 @@ export default function LeadDetailPage() {
               lead.appointmentAt && { date: lead.appointmentAt, label: 'Cita agendada', icon: '📅' },
               lead.visitedAt && { date: lead.visitedAt, label: 'Visita realizada', icon: '🏠' },
               lead.convertedAt && { date: lead.convertedAt, label: 'Convertido a orden', icon: '🎉' },
+              lead.purchasedAt && { date: lead.purchasedAt, label: 'Compra realizada', icon: '💸' },
             ]
               .filter(Boolean)
               .map((event: any, i: number) => (

@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
+import { AddressAutocomplete, CityAutocomplete, type ParsedAddress } from '@/components/ui/address-autocomplete';
 import { Modal } from '@/components/ui/modal';
 import { FormField } from '@/components/ui/form-field';
 import { PageSpinner } from '@/components/ui/spinner';
@@ -441,7 +442,19 @@ function AddressModal({
           <Input value={form.label} onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} placeholder="Casa, Oficina..." />
         </FormField>
         <FormField label="Dirección" required>
-          <Input value={form.street} onChange={(e) => setForm((p) => ({ ...p, street: e.target.value }))} />
+          <AddressAutocomplete
+            value={form.street}
+            onChange={(val) => setForm((p) => ({ ...p, street: val }))}
+            onSelect={(parsed: ParsedAddress) =>
+              setForm((p) => ({
+                ...p,
+                street: parsed.street,
+                city: parsed.city || p.city,
+                state: parsed.state || p.state,
+                country: parsed.country || p.country,
+              }))
+            }
+          />
         </FormField>
         <FormField label="Detalle (Apto, Piso, Torre)">
           <Input value={form.detail} onChange={(e) => setForm((p) => ({ ...p, detail: e.target.value }))} placeholder="Apto 301" />
@@ -457,7 +470,12 @@ function AddressModal({
         </FormField>
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Ciudad" required>
-            <Input value={form.city} onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} />
+            <CityAutocomplete
+              defaultValue={form.city}
+              onSelect={(city, state) =>
+                setForm((p) => ({ ...p, city, state: state || p.state }))
+              }
+            />
           </FormField>
           <FormField label="Departamento">
             <Input value={form.state} onChange={(e) => setForm((p) => ({ ...p, state: e.target.value }))} />

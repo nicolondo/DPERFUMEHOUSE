@@ -1,4 +1,5 @@
-import { IsUUID, IsNotEmpty, IsString, IsInt, Min, IsOptional, IsEmail, MinLength } from 'class-validator';
+import { IsUUID, IsNotEmpty, IsString, IsInt, Min, IsOptional, IsEmail, MinLength, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class GenerateLinkDto {
   @IsUUID()
@@ -55,4 +56,17 @@ export class PurchaseDto {
   @IsOptional()
   @IsString()
   legalId?: string;
+}
+export class CatalogPurchaseItemDto {
+  @IsUUID()
+  variantId: string;
+
+  @IsInt()
+  @Min(1)
+  quantity: number;
+}
+
+export class CatalogPurchaseDto extends PurchaseDto {
+  @IsOptional()
+  items?: CatalogPurchaseItemDto[];
 }

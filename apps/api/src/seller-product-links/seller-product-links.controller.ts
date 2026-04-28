@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SellerProductLinksService } from './seller-product-links.service';
-import { GenerateLinkDto, PurchaseDto } from './dto';
+import { GenerateLinkDto, PurchaseDto, CatalogPurchaseDto } from './dto';
 
 @Controller('seller-product-links')
 export class SellerProductLinksController {
@@ -44,5 +44,15 @@ export class SellerProductLinksController {
   @Post('public/:code/purchase')
   purchase(@Param('code') code: string, @Body() dto: PurchaseDto) {
     return this.service.purchase(code, dto);
+  }
+
+  @Get('catalog/:sellerCode')
+  getCatalog(@Param('sellerCode') sellerCode: string) {
+    return this.service.getCatalog(sellerCode);
+  }
+
+  @Post('catalog/:sellerCode/purchase')
+  catalogPurchase(@Param('sellerCode') sellerCode: string, @Body() dto: CatalogPurchaseDto) {
+    return this.service.catalogPurchase(sellerCode, dto);
   }
 }

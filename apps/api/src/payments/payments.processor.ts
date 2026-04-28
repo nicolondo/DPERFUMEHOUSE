@@ -182,9 +182,83 @@ export class PaymentsProcessor extends WorkerHost {
       this.logger.error(`Failed to send order notification email for ${order.orderNumber}: ${emailErr.message}`);
     }
 
+    // --- Auto-update related leads ---
+    try {
+      await this.autoUpdateLeadsOnPurchase(order);
+    } catch (leadErr) {
+      this.logger.error(`Failed to auto-update leads for order ${order.orderNumber}: ${leadErr.message}`);
+    }
+
     this.logger.log(
       `Payment processing completed for order ${order.orderNumber}`,
     );
+  }
+
+  private async autoUpdateLeadsOnPurchase(order: {
+    id: string;
+    customerId: string;
+    sellerId: string;
+    items: Array<{ variant: { id: string; name: string; categoryName: string | null } }>;
+  }): Promise<void> {
+    if (!order.customerId) return;
+
+    // Find open leads for this customer (not yet purchased/converted)
+    const leads = await this.prisma.lead.findMany({
+      where: {
+        customerId: order.customerId,
+        status: { in: ['SENT', 'RESPONDED', 'APPOINTMENT', 'VISITED'] },
+        purchasedOrderId: null,
+      },
+    });
+
+    if (leads.length === 0) return;
+
+    const purchasedVariantIds = new Set(order.items.map((i) => i.variant.id));
+    const purchasedItems = order.items.map((i) => ({
+      variantId: i.variant.id,
+      name: i.variant.name,
+    }));
+
+    for (const lead of leads) {
+      const recs = (lead.recommendations as any[]) || [];
+      const recommended = recs.map((r: any) => ({
+        variantId: r.productVariantId,
+        name: r.name,
+        compatibility: r.compatibility,
+      }));
+
+      const matchedRecs = recommended.filter((r) => purchasedVariantIds.has(r.variantId));
+      const unmatchedRecs = recommended.filter((r) => !purchasedVariantIds.has(r.variantId));
+      const extraPurchases = purchasedItems.filter((p) => !recommended.find((r) => r.variantId === p.variantId));
+
+      const matchRate = recommended.length > 0
+        ? Math.round((matchedRecs.length / recommended.length) * 100)
+        : 0;
+
+      const purchaseMatch = {
+        recommended,
+        purchased: purchasedItems,
+        matched: matchedRecs,
+        unmatched: unmatchedRecs,
+        extra: extraPurchases,
+        matchRate,
+        boughtRecommended: matchedRecs.length > 0,
+      };
+
+      await this.prisma.lead.update({
+        where: { id: lead.id },
+        data: {
+          status: 'PURCHASED',
+          purchasedOrderId: order.id,
+          purchasedAt: new Date(),
+          purchaseMatch,
+        },
+      });
+
+      this.logger.log(
+        `Lead ${lead.id} marked PURCHASED — matchRate: ${matchRate}%, matched: ${matchedRecs.length}/${recommended.length}`,
+      );
+    }
   }
 
 }
