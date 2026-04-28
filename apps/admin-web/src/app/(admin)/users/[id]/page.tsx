@@ -429,6 +429,22 @@ export default function UserDetailPage() {
             </div>
           </div>
         </Card>
+        {user.role === "SELLER_L2" && user.parent && (
+          <div
+            className="rounded-2xl border border-glass-border bg-glass-100 shadow-glass backdrop-blur-xl p-6 cursor-pointer hover:bg-white/5 transition-colors"
+            onClick={() => router.push("/users/" + user.parent!.id)}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
+                <Users className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-white/50">Vendedor Padre (L1)</p>
+                <p className="text-sm font-semibold text-white truncate">{user.parent.name}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Commission Scale Summary */}

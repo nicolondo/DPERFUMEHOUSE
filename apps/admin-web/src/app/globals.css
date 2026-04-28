@@ -168,3 +168,58 @@ input, textarea, select {
     text-shadow: 0 0 20px hsl(var(--gold) / 0.3);
   }
 }
+
+/* Google Maps Places Autocomplete dropdown */
+.pac-container {
+  z-index: 99999 !important;
+  border-radius: 12px !important;
+  border: 1px solid hsl(var(--border)) !important;
+  background: hsl(var(--card)) !important;
+  box-shadow: var(--shadow-card) !important;
+  -webkit-backdrop-filter: blur(40px) !important;
+  backdrop-filter: blur(40px) !important;
+  margin-top: 4px !important;
+  font-family: inherit;
+  max-height: 200px !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.pac-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.4;
+  border-top: 1px solid hsl(var(--border) / 0.5);
+  color: hsl(var(--muted-foreground));
+}
+.pac-item:first-child {
+  border-top: none;
+}
+.pac-item:hover,
+.pac-item:active {
+  background-color: hsl(var(--muted));
+}
+
+.pac-container::-webkit-scrollbar {
+  width: 4px;
+}
+.pac-container::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+
+.pac-item-query {
+  font-size: 14px;
+  color: hsl(var(--foreground));
+}
+
+.pac-icon {
+  display: none;
+}
+
+.pac-matched {
+  font-weight: 600;
+  color: hsl(var(--primary));
+}

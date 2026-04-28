@@ -53,6 +53,7 @@ const USER_SELECT: Prisma.UserSelect = {
   },
   createdAt: true,
   updatedAt: true,
+  sellerCode: true,
 };
 
 @Injectable()
@@ -269,7 +270,10 @@ export class UsersService {
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
-        select: USER_SELECT,
+        select: {
+          ...USER_SELECT,
+          parent: { select: { id: true, name: true } },
+        },
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },

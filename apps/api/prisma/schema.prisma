@@ -20,6 +20,7 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+  ADDRESS_ERROR
 }
 
 enum PaymentStatus {
@@ -66,6 +67,7 @@ enum ShipmentStatus {
   IN_TRANSIT
   DELIVERED
   CANCELLED
+  ADDRESS_ERROR
 }
 
 enum PayoutStatus {
@@ -88,6 +90,7 @@ enum LeadStatus {
   APPOINTMENT
   VISITED
   CONVERTED
+  PURCHASED
 }
 
 enum LeadMode {
@@ -588,6 +591,9 @@ model Lead {
   appointmentAt        DateTime?   @map("appointment_at")
   visitedAt            DateTime?   @map("visited_at")
   convertedAt          DateTime?   @map("converted_at")
+  purchasedOrderId     String?     @map("purchased_order_id") @db.Uuid
+  purchasedAt          DateTime?   @map("purchased_at")
+  purchaseMatch        Json?       @map("purchase_match")
   emailSentAt          DateTime?   @map("email_sent_at")
   language              String      @default("es")
   createdAt            DateTime    @default(now()) @map("created_at")

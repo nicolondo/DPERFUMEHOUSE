@@ -46,9 +46,12 @@ export class ShippingService {
   }
 
   private async getDefaultPackage() {
-    const [weightStr, dimensionsStr] = await Promise.all([
+    const [weightStr, dimensionsStr, itemsPerBoxStr, declaredValueStr, packagingModeStr] = await Promise.all([
       this.settings.get('shipping_default_weight'),
       this.settings.get('shipping_default_dimensions'),
+      this.settings.get('shipping_items_per_box'),
+      this.settings.get('shipping_declared_value_per_item'),
+      this.settings.get('shipping_packaging_mode'),
     ]);
 
     const weight = parseFloat(weightStr || '1');
@@ -57,7 +60,12 @@ export class ShippingService {
       if (dimensionsStr) dimensions = JSON.parse(dimensionsStr);
     } catch {}
 
-    return { weight, dimensions };
+    const itemsPerBox = parseInt(itemsPerBoxStr || '4', 10) || 4;
+    const declaredValuePerItem = parseFloat(declaredValueStr || '20000') || 20000;
+    // Modes: 'grouped' (default) = group N items per box | 'single' = one box per item | 'all_in_one' = one box for everything
+    const packagingMode = (packagingModeStr || 'grouped') as 'grouped' | 'single' | 'all_in_one';
+
+    return { weight, dimensions, itemsPerBox, declaredValuePerItem, packagingMode };
   }
 
   // Map full state names to Envia-compatible abbreviations
@@ -135,13 +143,16 @@ export class ShippingService {
     return digits;
   }
 
-  private async buildDestination(order: { customer: { name: string; phone?: string | null; email?: string | null; documentType?: string | null; documentNumber?: string | null }; address: { street: string; city: string; state?: string | null; zip?: string | null; country: string; phone?: string | null } | null }) {
+  private async buildDestination(order: { customer: { name: string; phone?: string | null; email?: string | null; documentType?: string | null; documentNumber?: string | null }; address: { street: string; detail?: string | null; city: string; state?: string | null; zip?: string | null; country: string; phone?: string | null } | null }) {
     if (!order.address) {
       throw new BadRequestException('Order has no delivery address');
     }
 
     const countryCode = this.normalizeCountry(order.address.country);
-    const { street: parsedStreet, number: streetNumber } = this.parseStreetNumber(order.address.street);
+    const { street: parsedStreet, number: parsedNumber } = this.parseStreetNumber(order.address.street);
+    const streetNumber = order.address.detail
+      ? `${parsedNumber} ${order.address.detail}`
+      : parsedNumber;
     const identification_type = order.customer.documentType || 'CC';
     const senderIdFallback = await this.settings.get('shipping_sender_id_number') || '22222222';
     const identification_number = order.customer.documentNumber || senderIdFallback;
@@ -157,6 +168,7 @@ export class ShippingService {
         identification_number,
         street: parsedStreet,
         number: streetNumber,
+        ...(order.address.detail ? { street2: order.address.detail } : {}),
         city: geo.cityCode || geo.city,
         state: geo.state,
         country: countryCode,
@@ -172,6 +184,7 @@ export class ShippingService {
       identification_number,
       street: parsedStreet,
       number: streetNumber,
+      ...(order.address.detail ? { street2: order.address.detail } : {}),
       city: order.address.city,
       state: this.normalizeState(order.address.state || ''),
       country: countryCode,
@@ -181,24 +194,36 @@ export class ShippingService {
 
   private async buildPackages(order: { items: Array<{ quantity: number; unitPrice: any }>; subtotal: any }) {
     const pkg = await this.getDefaultPackage();
+    const { weight: baseWeight, dimensions, itemsPerBox, declaredValuePerItem, packagingMode } = pkg;
     const totalItems = order.items.reduce((sum, i) => sum + i.quantity, 0);
-    const ITEMS_PER_BOX = 4;
-    const DECLARED_VALUE_PER_ITEM = 20000;
-    const numBoxes = Math.ceil(totalItems / ITEMS_PER_BOX);
 
+    const makeBox = (qty: number) => ({
+      type: 'box',
+      content: 'Perfumes',
+      amount: 1,
+      declaredValue: qty * declaredValuePerItem,
+      lengthUnit: 'CM',
+      weightUnit: 'KG',
+      weight: Math.max(0.1, qty * baseWeight),
+      dimensions,
+    });
+
+    if (packagingMode === 'all_in_one') {
+      // Everything in a single box
+      return [makeBox(totalItems)];
+    }
+
+    if (packagingMode === 'single') {
+      // One box per unit
+      return Array.from({ length: totalItems }, () => makeBox(1));
+    }
+
+    // Default: 'grouped' — group up to itemsPerBox units per box
+    const numBoxes = Math.ceil(totalItems / itemsPerBox);
     return Array.from({ length: numBoxes }, (_, i) => {
       const isLastBox = i === numBoxes - 1;
-      const itemsInBox = isLastBox ? totalItems - i * ITEMS_PER_BOX : ITEMS_PER_BOX;
-      return {
-        type: 'box',
-        content: 'Perfumes',
-        amount: 1,
-        declaredValue: itemsInBox * DECLARED_VALUE_PER_ITEM,
-        lengthUnit: 'CM',
-        weightUnit: 'KG',
-        weight: Math.ceil(itemsInBox / ITEMS_PER_BOX),
-        dimensions: pkg.dimensions,
-      };
+      const qty = isLastBox ? totalItems - i * itemsPerBox : itemsPerBox;
+      return makeBox(qty);
     });
   }
 
@@ -260,12 +285,18 @@ export class ShippingService {
     const destination = await this.buildDestination(order);
     const packages = await this.buildPackages(order);
 
+    const addressDetail = (order.address as any)?.detail || '';
     const labelRequest = {
       origin,
       destination,
       packages,
       shipment: { type: 1, carrier, service },
-      settings: { currency: 'COP', printFormat: 'PDF', printSize: 'PAPER_4X6' },
+      settings: {
+        currency: 'COP',
+        printFormat: 'PDF',
+        printSize: 'PAPER_4X6',
+        ...(addressDetail ? { comments: addressDetail } : {}),
+      },
     };
 
     this.logger.log(`Generate label request: ${JSON.stringify(labelRequest).substring(0, 1500)}`);
@@ -363,6 +394,8 @@ export class ShippingService {
       'Transit': ShipmentStatus.IN_TRANSIT,
       'Delivered': ShipmentStatus.DELIVERED,
       'Cancelled': ShipmentStatus.CANCELLED,
+      'Address error': ShipmentStatus.ADDRESS_ERROR,
+      'Address Error': ShipmentStatus.ADDRESS_ERROR,
     };
     const newStatus = statusMap[trackData?.status];
     if (newStatus && order.shipment.status !== newStatus) {
@@ -379,6 +412,12 @@ export class ShippingService {
         data: { status: 'DELIVERED' },
       });
       this.logger.log(`Order ${order.orderNumber} auto-marked as DELIVERED via tracking poll`);
+    } else if (resolvedStatus === ShipmentStatus.ADDRESS_ERROR && order.status !== 'ADDRESS_ERROR') {
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: { status: 'ADDRESS_ERROR' },
+      });
+      this.logger.warn(`Order ${order.orderNumber} marked ADDRESS_ERROR via tracking poll`);
     }
 
     const shipment = await this.prisma.shipment.findUnique({
@@ -480,6 +519,8 @@ export class ShippingService {
       shipmentStatus = ShipmentStatus.DELIVERED;
     } else if (status.includes('picked') || status.includes('recolectado')) {
       shipmentStatus = ShipmentStatus.PICKED_UP;
+    } else if (status.includes('address')) {
+      shipmentStatus = ShipmentStatus.ADDRESS_ERROR;
     }
 
     await this.prisma.shipmentEvent.create({
@@ -501,6 +542,11 @@ export class ShippingService {
       await this.prisma.order.update({
         where: { id: shipment.orderId },
         data: { status: 'DELIVERED' },
+      });
+    } else if (shipmentStatus === ShipmentStatus.ADDRESS_ERROR) {
+      await this.prisma.order.update({
+        where: { id: shipment.orderId },
+        data: { status: 'ADDRESS_ERROR' },
       });
     }
 

@@ -203,9 +203,10 @@ export interface CreateOrderInput {
   notes?: string;
   paymentMethod?: 'ONLINE' | 'CASH';
   applyPromoDiscount?: boolean;
+  applyQuantityDiscount?: boolean;
 }
 
-export type LeadStatus = 'SENT' | 'RESPONDED' | 'APPOINTMENT' | 'VISITED' | 'CONVERTED';
+export type LeadStatus = 'SENT' | 'RESPONDED' | 'APPOINTMENT' | 'VISITED' | 'CONVERTED' | 'PURCHASED';
 
 export interface Lead {
   id: string;
@@ -231,6 +232,17 @@ export interface Lead {
   visitedAt?: string;
   convertedAt?: string;
   convertedOrder?: any;
+  purchasedOrderId?: string;
+  purchasedAt?: string;
+  purchaseMatch?: {
+    recommended: Array<{ variantId: string; name: string; compatibility: number }>;
+    purchased: Array<{ variantId: string; name: string }>;
+    matched: Array<{ variantId: string; name: string; compatibility: number }>;
+    unmatched: Array<{ variantId: string; name: string; compatibility: number }>;
+    extra: Array<{ variantId: string; name: string }>;
+    matchRate: number;
+    boughtRecommended: boolean;
+  };
   orderId?: string;
   budgetRange?: string;
   isForGift?: boolean;

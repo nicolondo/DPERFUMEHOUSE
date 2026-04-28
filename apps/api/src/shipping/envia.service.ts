@@ -176,6 +176,13 @@ export class EnviaService {
       throw new Error(`Envia API error: ${response.status} - ${JSON.stringify(data)}`);
     }
 
+    // Envia returns errors with HTTP 200 and meta="error"
+    if (data && data.meta === 'error' && data.error) {
+      const errMsg = data.error.message || data.error.description || JSON.stringify(data.error);
+      this.logger.error(`Envia API logical error: ${JSON.stringify(data.error)}`);
+      throw new Error(errMsg);
+    }
+
     return data as T;
   }
 
@@ -199,8 +206,11 @@ export class EnviaService {
 
   async schedulePickup(req: EnviaPickupRequest): Promise<{ meta: string; data: EnviaPickupResult }> {
     this.logger.log(`Scheduling pickup for ${req.shipment.carrier}`);
+    this.logger.log(`Pickup payload: ${JSON.stringify(req)}`);
     const baseUrl = await this.getBaseUrl();
-    return this.request(`${baseUrl}/ship/pickup/`, 'POST', req);
+    const result = await this.request<{ meta: string; data: EnviaPickupResult }>(`${baseUrl}/ship/pickup/`, 'POST', req);
+    this.logger.log(`Pickup response: ${JSON.stringify(result)}`);
+    return result;
   }
 
   async cancelShipment(carrier: string, trackingNumber: string): Promise<{ meta: string; data: EnviaCancelResult }> {

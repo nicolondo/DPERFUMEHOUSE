@@ -173,7 +173,7 @@ export function PhoneInput({
   return (
     <div className={cn('w-full', className)}>
       {label && (
-        <label className="mb-1.5 block text-sm font-medium text-gray-700">
+        <label className="mb-1.5 block text-sm font-medium text-white/70">
           {label}
         </label>
       )}
@@ -182,13 +182,13 @@ export function PhoneInput({
           type="button"
           onClick={() => setIsOpen(!isOpen)}
           className={cn(
-            'flex items-center gap-1 rounded-l-xl border border-r-0 bg-gray-50 px-3 py-3 text-sm transition-colors',
-            'hover:bg-gray-100 focus:outline-none',
-            error ? 'border-red-300' : 'border-gray-200',
+            'flex items-center gap-1 rounded-l-xl border border-r-0 border-glass-border bg-glass-50 px-3 py-3 text-sm transition-colors',
+            'hover:bg-white/10 focus:outline-none',
+            error ? 'border-red-500/50' : '',
           )}
         >
           <span className="text-base">{selectedCountry.flag}</span>
-          <span className="text-gray-700 font-medium">{selectedCountry.dial}</span>
+          <span className="text-white/70 font-medium">{selectedCountry.dial}</span>
           <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
         </button>
 
@@ -198,10 +198,10 @@ export function PhoneInput({
           onChange={(e) => handlePhoneChange(e.target.value)}
           placeholder={placeholder}
           className={cn(
-            'flex-1 rounded-r-xl border bg-white py-3 px-3 text-base text-gray-900',
-            'placeholder:text-gray-400',
+            'flex-1 rounded-r-xl border border-glass-border bg-glass-50 py-3 px-3 text-base text-white/70',
+            'placeholder:text-white/30',
             'focus:border-brand-purple-500 focus:outline-none focus:ring-2 focus:ring-brand-purple-500/20',
-            error ? 'border-red-300' : 'border-gray-200',
+            error ? 'border-red-500/50' : '',
           )}
         />
 

@@ -265,6 +265,14 @@ export class PaymentsService {
       normalizedStatus === 'FAILED' ||
       normalizedStatus === 'DECLINED'
     ) {
+      // Ignore late DECLINED webhooks if order is already PAID
+      if (paymentLink.order.status === 'PAID' || paymentLink.order.paymentStatus === 'COMPLETED') {
+        this.logger.warn(
+          `Ignoring late DECLINED webhook for already-PAID order ${paymentLink.order.orderNumber}`,
+        );
+        return;
+      }
+
       await this.prisma.paymentLink.update({
         where: { id: paymentLink.id },
         data: { status: 'FAILED' },
@@ -475,6 +483,14 @@ export class PaymentsService {
       wompiStatus === 'VOIDED' ||
       wompiStatus === 'ERROR'
     ) {
+      // Ignore late DECLINED webhooks if order is already PAID
+      if (paymentLink.order.status === 'PAID' || paymentLink.order.paymentStatus === 'COMPLETED') {
+        this.logger.warn(
+          `Ignoring late ${wompiStatus} Wompi webhook for already-PAID order ${paymentLink.order.orderNumber}`,
+        );
+        return;
+      }
+
       await this.prisma.paymentLink.update({
         where: { id: paymentLink.id },
         data: { status: 'FAILED' },
@@ -847,6 +863,14 @@ export class PaymentsService {
           `Wompi payment APPROVED for order ${order.orderNumber}`,
         );
       } else {
+        // Ignore late DECLINED webhooks if order is already PAID
+        if (order.status === 'PAID' || order.paymentStatus === 'COMPLETED') {
+          this.logger.warn(
+            `Ignoring late ${status} Wompi webhook for already-PAID order ${order.orderNumber}`,
+          );
+          return;
+        }
+
         await this.prisma.paymentLink.updateMany({
           where: { orderId: order.id },
           data: { status: 'FAILED' },

@@ -23,7 +23,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Modal } from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
-import { AddressAutocomplete, type ParsedAddress } from '@/components/ui/address-autocomplete';
+import { AddressAutocomplete, CityAutocomplete, type ParsedAddress } from '@/components/ui/address-autocomplete';
 import { PageHeader } from '@/components/layout/page-header';
 import { useCustomer, useAddAddress, useUpdateAddress } from '@/hooks/use-customers';
 import { useOrders } from '@/hooks/use-orders';
@@ -401,18 +401,23 @@ export default function CustomerDetailPage() {
               setAddressForm((prev) => ({ ...prev, phone: val }))
             }
           />
-          {(addressForm.city || addressForm.state) && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-white/70">Ciudad</label>
-                <p className="rounded-xl border border-glass-border bg-glass-50 py-3 px-4 text-base text-white/70">{addressForm.city || '-'}</p>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-white/70">Departamento</label>
-                <p className="rounded-xl border border-glass-border bg-glass-50 py-3 px-4 text-base text-white/70">{addressForm.state || '-'}</p>
-              </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-white/70">Ciudad</label>
+              {addressForm.city ? (
+                <p className="rounded-xl border border-glass-border bg-glass-50 py-3 px-4 text-base text-white/70">{addressForm.city}</p>
+              ) : (
+                <CityAutocomplete
+                  placeholder="Busca tu ciudad..."
+                  onSelect={(city, state) => setAddressForm((prev) => ({ ...prev, city, state }))}
+                />
+              )}
             </div>
-          )}
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-white/70">Departamento</label>
+              <p className="rounded-xl border border-glass-border bg-glass-50 py-3 px-4 text-base text-white/70">{addressForm.state || '-'}</p>
+            </div>
+          </div>
           <Input
             label="Instrucciones adicionales"
             placeholder="Timbre, porteria, horario..."
@@ -440,7 +445,7 @@ export default function CustomerDetailPage() {
             fullWidth
             onClick={handleAddAddress}
             loading={addAddress.isPending}
-            disabled={!addressForm.label || !addressForm.street}
+            disabled={!addressForm.label || !addressForm.street || !addressForm.city}
           >
             Guardar Direccion
           </Button>
@@ -535,7 +540,17 @@ function EditAddressModal({
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Ciudad" value={form.city} readOnly className="bg-glass-50 text-white/50" />
+          <div>
+            {form.city ? (
+              <Input label="Ciudad" value={form.city} readOnly className="bg-glass-50 text-white/50" />
+            ) : (
+              <CityAutocomplete
+                label="Ciudad"
+                placeholder="Busca tu ciudad..."
+                onSelect={(city, state) => setForm((p) => ({ ...p, city, state }))}
+              />
+            )}
+          </div>
           <Input label="Departamento" value={form.state} readOnly className="bg-glass-50 text-white/50" />
         </div>
         <Input

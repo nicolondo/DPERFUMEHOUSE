@@ -1433,6 +1433,9 @@ function ShippingSettings() {
   const [defaultLength, setDefaultLength] = useState('25');
   const [defaultWidth, setDefaultWidth] = useState('20');
   const [defaultHeight, setDefaultHeight] = useState('10');
+  const [itemsPerBox, setItemsPerBox] = useState('4');
+  const [declaredValuePerItem, setDeclaredValuePerItem] = useState('20000');
+  const [packagingMode, setPackagingMode] = useState('grouped');
   const [senderIdType, setSenderIdType] = useState('CC');
   const [senderIdNumber, setSenderIdNumber] = useState('');
   const [enviaApiKey, setEnviaApiKey] = useState('');
@@ -1459,6 +1462,9 @@ function ShippingSettings() {
       setSenderIdType((map.get('shipping_sender_id_type') as string) || 'CC');
       setSenderIdNumber((map.get('shipping_sender_id_number') as string) || '');
       setDefaultWeight((map.get('shipping_default_weight') as string) || '1');
+      setItemsPerBox((map.get('shipping_items_per_box') as string) || '4');
+      setDeclaredValuePerItem((map.get('shipping_declared_value_per_item') as string) || '20000');
+      setPackagingMode((map.get('shipping_packaging_mode') as string) || 'grouped');
       setEnviaApiKey((map.get('envia_api_key') as string) || '');
       setEnviaBaseUrl((map.get('envia_base_url') as string) || 'https://api.envia.com');
       setEnviaQueriesUrl((map.get('envia_queries_url') as string) || 'https://queries.envia.com');
@@ -1493,6 +1499,9 @@ function ShippingSettings() {
           height: Number(defaultHeight),
           unit: 'CM',
         }) },
+        { key: 'shipping_items_per_box', value: itemsPerBox },
+        { key: 'shipping_declared_value_per_item', value: declaredValuePerItem },
+        { key: 'shipping_packaging_mode', value: packagingMode },
         { key: 'envia_api_key', value: enviaApiKey },
         { key: 'envia_base_url', value: enviaBaseUrl },
         { key: 'envia_queries_url', value: enviaQueriesUrl },
@@ -1584,6 +1593,32 @@ function ShippingSettings() {
               <Input type="number" value={defaultHeight} onChange={(e) => setDefaultHeight(e.target.value)} />
             </FormField>
           </div>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Configuración de Paquetes</CardTitle>
+        </CardHeader>
+        <div className="p-6 pt-0 space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <FormField label="Modo de empaquetado" hint="Cómo se agrupan los perfumes en cajas">
+              <Select value={packagingMode} onChange={(e) => setPackagingMode(e.target.value)}>
+                <option value="grouped">Agrupado (N perfumes por caja)</option>
+                <option value="all_in_one">Todo en una caja</option>
+                <option value="single">Una caja por perfume</option>
+              </Select>
+            </FormField>
+            <FormField label="Perfumes por caja" hint="Máximo de unidades por caja (modo Agrupado)">
+              <Input type="number" min="1" value={itemsPerBox} onChange={(e) => setItemsPerBox(e.target.value)} placeholder="4" />
+            </FormField>
+            <FormField label="Valor declarado por perfume (COP)" hint="Valor asegurado por unidad">
+              <Input type="number" min="0" value={declaredValuePerItem} onChange={(e) => setDeclaredValuePerItem(e.target.value)} placeholder="20000" />
+            </FormField>
+          </div>
+          <p className="text-xs text-white/40">
+            <strong>Agrupado:</strong> agrupa hasta N unidades por caja. <strong>Todo en una:</strong> siempre una sola caja. <strong>Una por perfume:</strong> una caja por unidad.
+          </p>
         </div>
       </Card>
 

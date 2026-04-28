@@ -112,11 +112,38 @@ export function useGenerateLeadLink() {
   });
 }
 
+export function useCreateCustomerFromLead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (leadId: string) => {
+      const { data } = await api.post(`/leads/${leadId}/create-customer`);
+      return unwrap(data) as { customerId: string; customerName: string };
+    },
+    onSuccess: (_, leadId) => {
+      queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+  });
+}
+
 export function useSendQuestionnaireEmail() {
   return useMutation({
     mutationFn: async (leadId: string) => {
       const { data } = await api.post(`/leads/${leadId}/send-email`);
       return unwrap(data) as { success: boolean; email: string };
     },
+  });
+}
+export function useCurrentUser() {
+  return useQuery({
+    queryKey: ['current-user'],
+    queryFn: async () => {
+      const { data } = await api.get('/users/me');
+      return (data?.data || data) as {
+        id: string; name: string; email: string;
+        role: string; sellerCode?: string; avatar?: string;
+      };
+    },
+    staleTime: 5 * 60 * 1000,
   });
 }

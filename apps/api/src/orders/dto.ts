@@ -47,6 +47,10 @@ export class CreateOrderBodyDto {
   @IsBoolean()
   @IsOptional()
   applyPromoDiscount?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  applyQuantityDiscount?: boolean;
 }
 
 export class UpdateOrderAddressDto {
