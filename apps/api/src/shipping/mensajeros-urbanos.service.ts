@@ -105,7 +105,7 @@ export interface MUEnvelope<T> {
 @Injectable()
 export class MensajerosUrbanosService {
   private readonly logger = new Logger(MensajerosUrbanosService.name);
-  private readonly baseUrl = 'https://integraciones.mensajerosurbanos.com';
+  private readonly baseUrl = 'https://mu-integraciones.mensajerosurbanos.com';
 
   constructor(private settings: SettingsService) {}
 

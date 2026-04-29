@@ -73,6 +73,7 @@ export default function OrderDetailPage() {
 
   // Shipping state
   const [shippingRates, setShippingRates] = useState<any[]>([]);
+  const [shippingError, setShippingError] = useState<string | null>(null);
   const [selectedRate, setSelectedRate] = useState<{ carrier: string; service: string } | null>(null);
   const [trackingData, setTrackingData] = useState<any>(null);
   const [pickupModalOpen, setPickupModalOpen] = useState(false);
@@ -87,6 +88,10 @@ export default function OrderDetailPage() {
     },
     onSuccess: (data) => {
       setShippingRates(data.rates || []);
+      setShippingError(data.error || (data.rates?.length === 0 ? 'No se obtuvieron tarifas de la transportadora.' : null));
+    },
+    onError: () => {
+      setShippingError(null);
     },
   });
 
@@ -704,6 +709,13 @@ export default function OrderDetailPage() {
             {quoteRatesMutation.isError && (
               <div className="rounded-lg bg-status-danger-muted border border-status-danger/30 px-4 py-3 text-sm text-status-danger">
                 {(quoteRatesMutation.error as any)?.response?.data?.message || 'Error al cotizar. Verifica la configuración de envíos.'}
+              </div>
+            )}
+
+            {/* Backend logical error (e.g. MU API failure) */}
+            {!quoteRatesMutation.isError && shippingError && shippingRates.length === 0 && (
+              <div className="rounded-lg bg-status-warning-muted border border-status-warning/30 px-4 py-3 text-sm text-status-warning">
+                {shippingError}
               </div>
             )}
 
