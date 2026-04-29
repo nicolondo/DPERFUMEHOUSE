@@ -601,6 +601,27 @@ export class OdooService {
       this.logger.log(`Confirmed Odoo sale order ${orderId}`);
       return true;
     } catch (error) {
+      // If the error is about missing replenishment/route rules (product config issue),
+      // fall back to directly writing state='sale' so we can still invoice the order.
+      const msg: string = error?.message || '';
+      if (
+        msg.includes('reabastecimiento') ||
+        msg.includes('replenishment') ||
+        msg.includes('route') ||
+        msg.includes('Existencias')
+      ) {
+        this.logger.warn(
+          `action_confirm failed for SO ${orderId} due to route/replenishment config — forcing state to 'sale' directly`,
+        );
+        try {
+          await this.execute('sale.order', 'write', [[orderId], { state: 'sale' }]);
+          this.logger.log(`SO ${orderId} state forced to 'sale'`);
+          return true;
+        } catch (writeErr) {
+          this.logger.error(`Failed to force state for SO ${orderId}`, writeErr);
+          throw writeErr;
+        }
+      }
       this.logger.error(
         `Failed to confirm sale order ${orderId} in Odoo`,
         error,
