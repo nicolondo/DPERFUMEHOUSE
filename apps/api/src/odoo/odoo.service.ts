@@ -814,6 +814,30 @@ export class OdooService {
         this.logger.log(`SO ${saleOrderId} confirmed (was ${soState})`);
       }
 
+      // 1b. Ensure qty_delivered matches qty_ordered on all lines so invoicing by
+      //     "delivered quantities" policy works (products shipped outside Odoo).
+      try {
+        const soLines = await this.execute(
+          'sale.order.line',
+          'search_read',
+          [[['order_id', '=', saleOrderId]]],
+          { fields: ['id', 'product_uom_qty', 'qty_delivered'] },
+        );
+        for (const line of soLines) {
+          if ((line.qty_delivered ?? 0) < line.product_uom_qty) {
+            await this.execute('sale.order.line', 'write', [
+              [line.id],
+              { qty_delivered: line.product_uom_qty },
+            ]);
+          }
+        }
+        if (soLines.length > 0) {
+          this.logger.log(`Set qty_delivered on ${soLines.length} line(s) for SO ${saleOrderId}`);
+        }
+      } catch (qtyErr) {
+        this.logger.warn(`Could not set qty_delivered for SO ${saleOrderId}: ${qtyErr.message}`);
+      }
+
       const soCtx = { active_ids: [saleOrderId], active_model: 'sale.order', active_id: saleOrderId };
 
       // 2. Create invoice via wizard — active_ids must be in 'context' key
