@@ -20,22 +20,30 @@ export const MU_CITY = {
 
 export const MU_TYPE_SERVICE_DELIVERY = 4;
 
+export interface MUClientData {
+  name: string;
+  phone: string;
+  email?: string;
+  identification_type?: string;
+  identification_number?: string;
+}
+
 export interface MUCoordinate {
   lat?: number;
   long?: number;
   address: string;
+  /**
+   * For /api/calculate: free-text city (e.g. "Medellin").
+   * For /api/create: must match the documented enum (lowercase, e.g. "medellin", "bogota").
+   */
   city: string;
-  country?: string;
-  /** Origin/destination contact info (only required for create endpoint) */
-  name?: string;
-  phone?: string;
-  email?: string;
   observation?: string;
-  /** 1 = pickup point (origin), 2 = delivery point (destination) */
-  type?: number;
-  /** Required by /api/create per coordinate (V2). */
+  /** Required by /api/create per coordinate. */
   order_id?: string;
   description?: string;
+  /** Required by /api/create — contact info for that coordinate. */
+  client_data?: MUClientData;
+  /** Required by /api/create — items at that coordinate. */
   products?: Array<{ name: string; quantity: number; price?: number; sku: string }>;
 }
 

@@ -23,10 +23,44 @@ export class ShippingService {
     return MensajerosUrbanosService.isMedellin(order.address?.city);
   }
 
+  /** Map a city free-text to MU's documented enum value for /api/create coordinates. */
+  private toMUCityEnum(city: string | null | undefined): string {
+    if (!city) return 'medellin';
+    const norm = city
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+    const map: Record<string, string> = {
+      medellin: 'medellin',
+      bogota: 'bogota',
+      cali: 'cali',
+      barranquilla: 'barranquilla',
+      cartagena: 'cartagena',
+      'santa marta': 'sta_marta',
+      'sta marta': 'sta_marta',
+      bucaramanga: 'bucaramanga',
+      ibague: 'ibague',
+      armenia: 'armenia',
+      pereira: 'pereira',
+      manizales: 'manizales',
+      neiva: 'neiva',
+      valledupar: 'valledupar',
+      chia: 'chia',
+      envigado: 'ant_envigado',
+      bello: 'ant_bello',
+      itagui: 'ant_itagui',
+      sabaneta: 'ant_sabaneta',
+      'la estrella': 'ant_la_estrella',
+      caldas: 'ant_caldas',
+    };
+    return map[norm] || norm.replace(/\s+/g, '_');
+  }
+
   /** Build the [origin, destination] coordinate pair for MU. */
   private async buildMUCoordinates(
     order: any,
-    extras?: { orderId: string; description: string; products: Array<{ name: string; quantity: number; price?: number }> },
+    extras?: { orderId: string; description: string; products: Array<{ name: string; quantity: number; price?: number; sku: string }> },
   ): Promise<MUCoordinate[]> {
     if (!order.address) {
       throw new BadRequestException('La orden no tiene dirección de entrega');
@@ -45,39 +79,57 @@ export class ShippingService {
       ? `${order.address.street} ${order.address.detail}`
       : order.address.street;
 
+    // For /api/create (extras present), use the documented schema:
+    //   { order_id, address, city (enum), description, client_data, products }
+    if (extras) {
+      return [
+        {
+          order_id: extras.orderId,
+          address: originStreet,
+          city: this.toMUCityEnum(originCity),
+          description: extras.description,
+          client_data: {
+            name: originName || 'D Perfume House',
+            phone: this.normalizePhone(originPhone) || '',
+          },
+          products: extras.products.map((p) => ({
+            name: p.name,
+            quantity: p.quantity,
+            price: p.price,
+            sku: (p as any).sku || 'SKU',
+          })),
+        },
+        {
+          order_id: extras.orderId,
+          address: destAddress,
+          city: this.toMUCityEnum(order.address.city),
+          description: extras.description,
+          client_data: {
+            name: order.customer?.name || '',
+            phone: this.normalizePhone(order.address.phone || order.customer?.phone) || '',
+            email: order.customer?.email || undefined,
+          },
+          products: extras.products.map((p) => ({
+            name: p.name,
+            quantity: p.quantity,
+            price: p.price,
+            sku: (p as any).sku || 'SKU',
+          })),
+        },
+      ];
+    }
+
+    // For /api/calculate keep the legacy lightweight shape (free-text city).
     return [
       {
-        type: 1,
         address: originStreet,
         city: originCity,
-        country: 'Colombia',
-        name: originName || 'D Perfume House',
-        phone: this.normalizePhone(originPhone),
         observation: 'Recogida en tienda',
-        ...(extras
-          ? {
-              order_id: extras.orderId,
-              description: extras.description,
-              products: extras.products,
-            }
-          : {}),
       },
       {
-        type: 2,
         address: destAddress,
         city: order.address.city,
-        country: order.address.country || 'Colombia',
-        name: order.customer?.name || '',
-        phone: this.normalizePhone(order.address.phone || order.customer?.phone),
-        email: order.customer?.email || undefined,
         observation: order.address.detail || undefined,
-        ...(extras
-          ? {
-              order_id: extras.orderId,
-              description: extras.description,
-              products: extras.products,
-            }
-          : {}),
       },
     ];
   }
