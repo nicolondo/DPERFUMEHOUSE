@@ -798,8 +798,9 @@ export default function PayPage() {
 
 
         {/* Footer */}
-        <div className="text-center pt-2 pb-6">
+        <div className="text-center pt-2 pb-6 space-y-1">
           <p className="text-[#4a3825] text-xs">Pago procesado de forma segura</p>
+          <p className="text-[#3a2c1a] text-xs">© {new Date().getFullYear()} D Perfume House</p>
         </div>
       </div>
     </div>
