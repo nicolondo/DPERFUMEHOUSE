@@ -595,7 +595,11 @@ export default function OrderDetailPage() {
                 onClick={() => quoteRatesMutation.mutate()}
                 disabled={quoteRatesMutation.isPending}
               >
-                {quoteRatesMutation.isPending ? 'Cotizando...' : 'Cotizar Envío'}
+                {quoteRatesMutation.isPending
+                  ? 'Cotizando...'
+                  : order.address?.city?.toLowerCase().includes('medell')
+                    ? 'Cotizar Envío MU'
+                    : 'Cotizar Envío Envia'}
               </Button>
             )}
             {(order.status === 'SHIPPED' || order.shipment?.trackingNumber) && order.shipment?.status !== 'CANCELLED' && (
