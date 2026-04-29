@@ -104,6 +104,7 @@ export type OrderStatus =
   | 'PAID'
   | 'PREPARING'
   | 'SHIPPED'
+  | 'IN_TRANSIT'
   | 'DELIVERED'
   | 'CANCELLED';
 

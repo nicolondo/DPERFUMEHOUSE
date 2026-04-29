@@ -47,6 +47,7 @@ const orderStatusMap: Record<OrderStatus, { label: string; variant: BadgeVariant
   PAID: { label: 'Pagado', variant: 'success' },
   PREPARING: { label: 'Preparando', variant: 'info' },
   SHIPPED: { label: 'Enviado', variant: 'orange' },
+  IN_TRANSIT: { label: 'En Camino', variant: 'warning' },
   DELIVERED: { label: 'Entregado', variant: 'brown' },
   CANCELLED: { label: 'Cancelado', variant: 'danger' },
 };

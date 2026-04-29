@@ -547,6 +547,9 @@ export class ShippingService {
       },
     });
 
+    // Clear any leftover events from a previous (cancelled) label
+    await this.prisma.shipmentEvent.deleteMany({ where: { shipmentId: shipment.id } });
+
     await this.prisma.order.update({
       where: { id: orderId },
       data: { status: 'SHIPPED', shipping: result.total },
@@ -608,6 +611,11 @@ export class ShippingService {
       const resolvedStatus = newStatus ?? order.shipment.status;
       if (resolvedStatus === ShipmentStatus.DELIVERED && order.status !== 'DELIVERED') {
         await this.prisma.order.update({ where: { id: orderId }, data: { status: 'DELIVERED' } });
+      } else if (
+        (resolvedStatus === ShipmentStatus.IN_TRANSIT || resolvedStatus === ShipmentStatus.PICKED_UP) &&
+        order.status !== 'IN_TRANSIT' && order.status !== 'DELIVERED'
+      ) {
+        await this.prisma.order.update({ where: { id: orderId }, data: { status: 'IN_TRANSIT' } });
       }
       const shipment = await this.prisma.shipment.findUnique({
         where: { orderId },
@@ -672,6 +680,15 @@ export class ShippingService {
         data: { status: 'DELIVERED' },
       });
       this.logger.log(`Order ${order.orderNumber} auto-marked as DELIVERED via tracking poll`);
+    } else if (
+      (resolvedStatus === ShipmentStatus.IN_TRANSIT || resolvedStatus === ShipmentStatus.PICKED_UP) &&
+      order.status !== 'IN_TRANSIT' && order.status !== 'DELIVERED'
+    ) {
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: { status: 'IN_TRANSIT' },
+      });
+      this.logger.log(`Order ${order.orderNumber} auto-marked as IN_TRANSIT via tracking poll`);
     } else if (resolvedStatus === ShipmentStatus.ADDRESS_ERROR && order.status !== 'ADDRESS_ERROR') {
       await this.prisma.order.update({
         where: { id: orderId },
@@ -742,6 +759,7 @@ export class ShippingService {
 
     if (order.shipment.carrier === MU_CARRIER) {
       await this.mu.cancel(order.shipment.trackingNumber);
+      await this.prisma.shipmentEvent.deleteMany({ where: { shipmentId: order.shipment.id } });
       await this.prisma.shipment.update({
         where: { orderId },
         data: { status: ShipmentStatus.CANCELLED },
@@ -755,6 +773,7 @@ export class ShippingService {
       order.shipment.trackingNumber,
     );
 
+    await this.prisma.shipmentEvent.deleteMany({ where: { shipmentId: order.shipment.id } });
     await this.prisma.shipment.update({
       where: { orderId },
       data: { status: ShipmentStatus.CANCELLED },
@@ -808,6 +827,11 @@ export class ShippingService {
       await this.prisma.order.update({ where: { id: shipment.orderId }, data: { status: 'DELIVERED' } });
     } else if (newStatus === ShipmentStatus.CANCELLED) {
       await this.prisma.order.update({ where: { id: shipment.orderId }, data: { status: 'PAID' } });
+    } else if (newStatus === ShipmentStatus.IN_TRANSIT || newStatus === ShipmentStatus.PICKED_UP) {
+      const order = await this.prisma.order.findUnique({ where: { id: shipment.orderId }, select: { status: true } });
+      if (order && order.status !== 'IN_TRANSIT' && order.status !== 'DELIVERED') {
+        await this.prisma.order.update({ where: { id: shipment.orderId }, data: { status: 'IN_TRANSIT' } });
+      }
     }
 
     this.logger.log(`MU webhook processed: ${uuid} → ${newStatus}`);
@@ -895,6 +919,11 @@ export class ShippingService {
         where: { id: shipment.orderId },
         data: { status: 'ADDRESS_ERROR' },
       });
+    } else if (shipmentStatus === ShipmentStatus.IN_TRANSIT || shipmentStatus === ShipmentStatus.PICKED_UP) {
+      const order = await this.prisma.order.findUnique({ where: { id: shipment.orderId }, select: { status: true } });
+      if (order && order.status !== 'IN_TRANSIT' && order.status !== 'DELIVERED') {
+        await this.prisma.order.update({ where: { id: shipment.orderId }, data: { status: 'IN_TRANSIT' } });
+      }
     }
 
     this.logger.log(`Webhook processed: ${trackingNumber} → ${shipmentStatus}`);

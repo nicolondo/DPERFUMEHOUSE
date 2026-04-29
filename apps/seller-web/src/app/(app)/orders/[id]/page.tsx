@@ -39,6 +39,7 @@ const STATUS_TIMELINE_CASH: {
 }[] = [
   { status: 'PAID', label: 'Pagado', icon: CheckCircle },
   { status: 'SHIPPED', label: 'Enviado', icon: Truck },
+  { status: 'IN_TRANSIT', label: 'En Camino', icon: Truck },
   { status: 'DELIVERED', label: 'Entregado', icon: CheckCircle },
 ];
 
@@ -50,13 +51,15 @@ const STATUS_TIMELINE_ONLINE: {
   { status: 'PENDING_PAYMENT', label: 'Pago Pendiente', icon: CreditCard },
   { status: 'PAID', label: 'Pagado', icon: CheckCircle },
   { status: 'SHIPPED', label: 'Enviado', icon: Truck },
+  { status: 'IN_TRANSIT', label: 'En Camino', icon: Truck },
   { status: 'DELIVERED', label: 'Entregado', icon: CheckCircle },
 ];
 
 const STATUS_ORDER_CASH: Record<string, number> = {
   PAID: 0,
   SHIPPED: 1,
-  DELIVERED: 2,
+  IN_TRANSIT: 2,
+  DELIVERED: 3,
   CANCELLED: -1,
 };
 
@@ -65,7 +68,8 @@ const STATUS_ORDER_ONLINE: Record<string, number> = {
   PENDING_PAYMENT: 0,
   PAID: 1,
   SHIPPED: 2,
-  DELIVERED: 3,
+  IN_TRANSIT: 3,
+  DELIVERED: 4,
   CANCELLED: -1,
 };
 
@@ -143,9 +147,9 @@ export default function OrderDetailPage() {
   }
 
   const isCash = order.paymentMethod === 'CASH';
-  const isPaid = order.paymentStatus === 'COMPLETED' || ['PAID', 'SHIPPED', 'DELIVERED'].includes(order.status.toUpperCase());
+  const isPaid = order.paymentStatus === 'COMPLETED' || ['PAID', 'SHIPPED', 'IN_TRANSIT', 'DELIVERED'].includes(order.status.toUpperCase());
   const statusUpper = String(order.status || '').toUpperCase();
-  const canEditAddress = !['SHIPPED', 'DELIVERED', 'CANCELLED'].includes(statusUpper);
+  const canEditAddress = !['SHIPPED', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED'].includes(statusUpper);
   const canDelete = order.status === 'PENDING_PAYMENT' && !isPaid;
   const customerAddresses = customer?.addresses || [];
   const statusTimeline = isCash ? STATUS_TIMELINE_CASH : STATUS_TIMELINE_ONLINE;

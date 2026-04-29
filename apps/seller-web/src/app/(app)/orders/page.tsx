@@ -20,6 +20,7 @@ const tabs: { label: string; value: FilterTab }[] = [
   { label: 'Pago Pendiente', value: 'PENDING_PAYMENT' },
   { label: 'Pagados', value: 'PAID' },
   { label: 'Enviados', value: 'SHIPPED' },
+  { label: 'En Camino', value: 'IN_TRANSIT' },
   { label: 'Entregados', value: 'DELIVERED' },
   { label: 'Cancelados', value: 'CANCELLED' },
 ];

@@ -297,12 +297,15 @@ export default function CustomerDetailPage() {
                         ? 'bg-status-success/15 text-status-success'
                         : order.status === 'SHIPPED'
                         ? 'bg-accent-purple/15 text-accent-purple'
+                        : order.status === 'IN_TRANSIT'
+                        ? 'bg-status-warning/15 text-status-warning'
                         : order.status === 'PENDING_PAYMENT'
                         ? 'bg-status-warning/15 text-status-warning'
                         : 'bg-white/10 text-white/50'
                     }`}>
                       {order.status === 'PAID' ? 'Pagado'
                         : order.status === 'SHIPPED' ? 'Enviado'
+                        : order.status === 'IN_TRANSIT' ? 'En Camino'
                         : order.status === 'DELIVERED' ? 'Entregado'
                         : order.status === 'PENDING_PAYMENT' ? 'Pago Pendiente'
                         : order.status}

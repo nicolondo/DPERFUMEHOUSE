@@ -237,6 +237,7 @@ export default function UserDetailPage() {
     PAID: 'success',
     CONFIRMED: 'success',
     SHIPPED: 'info',
+    IN_TRANSIT: 'warning',
     DELIVERED: 'success',
     CANCELLED: 'danger',
   };

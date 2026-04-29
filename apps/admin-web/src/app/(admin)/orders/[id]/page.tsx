@@ -20,6 +20,7 @@ const orderStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'da
   PAID: 'success',
   CONFIRMED_ODOO: 'info',
   SHIPPED: 'info',
+  IN_TRANSIT: 'warning',
   DELIVERED: 'success',
   CANCELLED: 'danger',
   REFUNDED: 'danger',
@@ -32,6 +33,7 @@ const orderStatusLabel: Record<string, string> = {
   PAID: 'Pagado',
   CONFIRMED_ODOO: 'Confirmado',
   SHIPPED: 'Enviado',
+  IN_TRANSIT: 'En Camino',
   DELIVERED: 'Entregado',
   CANCELLED: 'Cancelado',
   REFUNDED: 'Reembolsado',
@@ -398,7 +400,7 @@ export default function OrderDetailPage() {
                 Error: {(markPaidMutation.error as any)?.response?.data?.message || 'No se pudo marcar como pagado'}
               </p>
             )}
-            {(order.status === 'PAID' || order.status === 'SHIPPED') && (
+            {(order.status === 'PAID' || order.status === 'SHIPPED' || order.status === 'IN_TRANSIT') && (
               <Button
                 variant="secondary"
                 icon={<Truck className="h-4 w-4" />}
@@ -585,7 +587,7 @@ export default function OrderDetailPage() {
       </Card>
 
       {/* Shipping / Envia.com section */}
-      {(order.status === 'PAID' || order.status === 'SHIPPED' || order.status === 'DELIVERED' || order.status === 'ADDRESS_ERROR') && (
+      {(order.status === 'PAID' || order.status === 'SHIPPED' || order.status === 'IN_TRANSIT' || order.status === 'DELIVERED' || order.status === 'ADDRESS_ERROR') && (
         <Card padding={false}>
           <div className="border-b border-glass-border px-6 py-4 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-white flex items-center gap-2">
@@ -607,7 +609,7 @@ export default function OrderDetailPage() {
                     : 'Cotizar Envío Envia'}
               </Button>
             )}
-            {(order.status === 'SHIPPED' || order.shipment?.trackingNumber) && order.shipment?.status !== 'CANCELLED' && (
+            {(order.status === 'SHIPPED' || order.status === 'IN_TRANSIT' || order.shipment?.trackingNumber) && order.shipment?.status !== 'CANCELLED' && (
               <div className="flex items-center gap-2">
                 {order.shipment?.trackingNumber && order.shipment?.status !== 'PICKUP_SCHEDULED' && (
                   <Button

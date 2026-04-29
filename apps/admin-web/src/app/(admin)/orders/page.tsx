@@ -19,6 +19,7 @@ const orderStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'da
   CONFIRMED: 'info',
   PROCESSING: 'info',
   SHIPPED: 'orange',
+  IN_TRANSIT: 'warning',
   DELIVERED: 'brown',
   CANCELLED: 'danger',
   RETURNED: 'danger',
@@ -41,6 +42,7 @@ const orderStatusLabels: Record<string, string> = {
   CONFIRMED: 'Confirmado',
   PROCESSING: 'Procesando',
   SHIPPED: 'Enviado',
+  IN_TRANSIT: 'En Camino',
   DELIVERED: 'Entregado',
   CANCELLED: 'Cancelado',
   RETURNED: 'Devuelto',
@@ -206,6 +208,7 @@ export default function OrdersPage() {
           <option value="PENDING_PAYMENT">Pago Pendiente</option>
           <option value="PAID">Pagado</option>
           <option value="SHIPPED">Enviado</option>
+          <option value="IN_TRANSIT">En Camino</option>
           <option value="DELIVERED">Entregado</option>
           <option value="CANCELLED">Cancelado</option>
         </Select>
