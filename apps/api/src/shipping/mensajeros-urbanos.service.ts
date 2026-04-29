@@ -67,6 +67,7 @@ export interface MUCreateRequest {
   observation: string;
   description: string;
   os: string;
+  store_id?: string | number;
   coordinates: MUCoordinate[];
 }
 
@@ -160,7 +161,11 @@ export class MensajerosUrbanosService {
     }
 
     if (!res.ok || (parsed?.status && parsed.status !== 'success' && parsed.status_code !== 200)) {
-      const msg = parsed?.message || parsed?.error || res.statusText;
+      const raw = parsed?.message || parsed?.error || res.statusText;
+      const msg =
+        res.status === 500
+          ? `Error interno en Mensajeros Urbanos (500). Verificá que la cuenta MU esté activada y el store_id configurado en Settings → Envíos. Detalle: ${raw}`
+          : raw;
       this.logger.warn(`MU ${path} error ${res.status}: ${JSON.stringify(parsed).slice(0, 500)}`);
       throw new BadRequestException(`Mensajeros Urbanos: ${msg}`);
     }
@@ -200,7 +205,10 @@ export class MensajerosUrbanosService {
     startTime: string;
     roundtrip?: 0 | 1;
     cityId?: number;
+    storeId?: string;
   }): Promise<MUCreateResponse> {
+    // Fallback to the store_id saved in settings if not passed explicitly
+    const storeId = input.storeId || (await this.settings.get('mensajeros_urbanos_store_id')) || undefined;
     const body: MUCreateRequest = {
       type_service: MU_TYPE_SERVICE_DELIVERY,
       roundtrip: input.roundtrip ?? 0,
@@ -211,6 +219,7 @@ export class MensajerosUrbanosService {
       observation: input.observation,
       description: input.description,
       os: 'NEW API 2.0',
+      ...(storeId ? { store_id: storeId } : {}),
       coordinates: input.coordinates,
     };
 

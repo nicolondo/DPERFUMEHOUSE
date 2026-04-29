@@ -447,7 +447,8 @@ export class ShippingService {
   }
 
   private async generateMULabel(orderId: string, order: any) {
-    const declaredValue = Number(order.subtotal || 0);
+    // MU uses declared_value for insurance purposes; minimum allowed is 100 COP
+    const declaredValue = Math.max(100, Number(order.subtotal || 0));
 
     const totalItems = order.items.reduce((s: number, i: any) => s + i.quantity, 0);
     const description = `${totalItems} producto${totalItems === 1 ? '' : 's'} — D Perfume House`;
