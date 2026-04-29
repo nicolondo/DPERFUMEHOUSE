@@ -78,7 +78,7 @@ export class ShippingService {
             client_email: order.customer?.email || '',
             products_value: '100',
             domicile_value: '0',
-            payment_type: '1',
+            payment_type: '3',
           },
           products: extras.products,
         },
