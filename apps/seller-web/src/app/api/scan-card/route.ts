@@ -39,17 +39,23 @@ export async function POST(req: NextRequest) {
     });
 
     const text = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
+    console.log('scan-card raw response:', text);
     const match = text.match(/\{[\s\S]*?\}/);
-    if (!match) return NextResponse.json({});
+    if (!match) {
+      console.warn('scan-card: no JSON match in response');
+      return NextResponse.json({});
+    }
 
     const data = JSON.parse(match[0]);
-    return NextResponse.json({
+    const result = {
       number: typeof data.number === 'string' ? data.number.replace(/\D/g, '').substring(0, 16) : '',
       expiry: typeof data.expiry === 'string' ? data.expiry : '',
       name: typeof data.name === 'string' ? data.name : '',
-    });
-  } catch (err) {
-    console.error('scan-card error:', err);
-    return NextResponse.json({ error: 'Scan failed' }, { status: 500 });
+    };
+    console.log('scan-card parsed:', result);
+    return NextResponse.json(result);
+  } catch (err: any) {
+    console.error('scan-card error:', err?.status, err?.message, err?.error || err);
+    return NextResponse.json({ error: err?.message || 'Scan failed' }, { status: 500 });
   }
 }

@@ -263,14 +263,21 @@ export function CardForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: base64, mediaType: 'image/jpeg' }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.number) setCardNumber(data.number.replace(/(.{4})/g, '$1 ').trim());
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(`Scan: ${res.status} ${data?.error || 'error'}`);
+        console.error('scan-card response:', res.status, data);
+      } else {
+        if (data.number) setCardNumber(String(data.number).replace(/(.{4})/g, '$1 ').trim());
         if (data.expiry) setExpiry(data.expiry);
         if (data.name) setCardHolder(data.name);
+        if (!data.number && !data.expiry && !data.name) {
+          setError('No se detectaron datos en la imagen');
+        }
       }
-    } catch {
-      // silent
+    } catch (err: any) {
+      setError(`Scan error: ${err?.message || 'unknown'}`);
+      console.error('scan-card exception:', err);
     } finally {
       setScanning(false);
     }
