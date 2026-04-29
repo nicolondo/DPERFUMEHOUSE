@@ -105,9 +105,14 @@ export interface MUEnvelope<T> {
 @Injectable()
 export class MensajerosUrbanosService {
   private readonly logger = new Logger(MensajerosUrbanosService.name);
-  private readonly baseUrl = 'https://mu-integraciones.mensajerosurbanos.com';
+  private readonly defaultBaseUrl = 'https://mu-integraciones.mensajerosurbanos.com';
 
   constructor(private settings: SettingsService) {}
+
+  private async getBaseUrl(): Promise<string> {
+    const configured = await this.settings.get('mensajeros_urbanos_base_url');
+    return (configured && configured.trim().replace(/\/+$/, '')) || this.defaultBaseUrl;
+  }
 
   /** Detect Medellin from a city string. */
   static isMedellin(city: string | null | undefined): boolean {
@@ -132,7 +137,8 @@ export class MensajerosUrbanosService {
 
   private async request<T>(path: string, body: Record<string, unknown>): Promise<T> {
     const token = await this.getToken();
-    const url = `${this.baseUrl}${path}`;
+    const baseUrl = await this.getBaseUrl();
+    const url = `${baseUrl}${path}`;
     const payload = { access_token: token, ...body };
 
     const res = await fetch(url, {
