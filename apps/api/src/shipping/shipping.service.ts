@@ -520,15 +520,13 @@ export class ShippingService {
       daneCode,
     });
 
-    const trackUrl = `https://plataforma.mensajerosurbanos.com/track-service-external#?uuid=${result.uuid}`;
-
     const shipment = await this.prisma.shipment.upsert({
       where: { orderId },
       update: {
         carrier: MU_CARRIER,
         service: 'sameDay',
         trackingNumber: result.uuid,
-        trackUrl,
+        trackUrl: null,
         labelUrl: null,
         enviaShipmentId: null,
         totalPrice: result.total,
@@ -541,7 +539,7 @@ export class ShippingService {
         carrier: MU_CARRIER,
         service: 'sameDay',
         trackingNumber: result.uuid,
-        trackUrl,
+        trackUrl: null,
         totalPrice: result.total,
         currency: 'COP',
         status: ShipmentStatus.LABEL_CREATED,
