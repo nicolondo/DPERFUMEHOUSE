@@ -57,4 +57,11 @@ export class ShippingController {
   async listCarriers() {
     return this.shippingService.listCarriers();
   }
+
+  @Post('mu/setup-store')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async setupMUStore() {
+    return this.shippingService.setupMUStore();
+  }
 }

@@ -12,4 +12,11 @@ export class ShippingWebhookController {
     this.shippingService.handleWebhook(payload).catch(() => {});
     return { received: true };
   }
+
+  @Post('mensajeros-urbanos')
+  @HttpCode(200)
+  async handleMUWebhook(@Body() payload: any) {
+    this.shippingService.handleMUWebhook(payload).catch(() => {});
+    return { received: true };
+  }
 }

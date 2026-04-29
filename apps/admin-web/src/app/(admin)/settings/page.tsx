@@ -1443,6 +1443,9 @@ function ShippingSettings() {
   const [enviaBaseUrl, setEnviaBaseUrl] = useState('https://api.envia.com');
   const [enviaQueriesUrl, setEnviaQueriesUrl] = useState('https://queries.envia.com');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [muToken, setMuToken] = useState('');
+  const [muStoreId, setMuStoreId] = useState('');
+  const [showMuToken, setShowMuToken] = useState(false);
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings', 'shipping'],
@@ -1469,6 +1472,8 @@ function ShippingSettings() {
       setEnviaApiKey((map.get('envia_api_key') as string) || '');
       setEnviaBaseUrl((map.get('envia_base_url') as string) || 'https://api.envia.com');
       setEnviaQueriesUrl((map.get('envia_queries_url') as string) || 'https://queries.envia.com');
+      setMuToken((map.get('mensajeros_urbanos_token') as string) || '');
+      setMuStoreId((map.get('mensajeros_urbanos_store_id') as string) || '');
       try {
         const dims = JSON.parse((map.get('shipping_default_dimensions') as string) || '{}');
         setDefaultLength(String(dims.length || 25));
@@ -1506,6 +1511,8 @@ function ShippingSettings() {
         { key: 'envia_api_key', value: enviaApiKey },
         { key: 'envia_base_url', value: enviaBaseUrl },
         { key: 'envia_queries_url', value: enviaQueriesUrl },
+        { key: 'mensajeros_urbanos_token', value: muToken },
+        { key: 'mensajeros_urbanos_store_id', value: muStoreId },
       ];
       await updateSettings(items);
     },
@@ -1654,6 +1661,40 @@ function ShippingSettings() {
             </FormField>
           </div>
           <p className="text-xs text-gray-500">Sandbox: api-test.envia.com / queries-test.envia.com — Producción: api.envia.com / queries.envia.com</p>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Mensajeros Urbanos (Domicilios Medellín)</CardTitle>
+        </CardHeader>
+        <div className="p-6 pt-0 space-y-4">
+          <p className="text-xs text-white/50">
+            Cuando una orden tiene dirección en <strong>Medellín</strong>, se usa automáticamente este método de envío en lugar de Envía.com.
+          </p>
+          <FormField label="Token JWT (access_token)">
+            <div className="relative">
+              <Input
+                type={showMuToken ? 'text' : 'password'}
+                value={muToken}
+                onChange={(e) => setMuToken(e.target.value)}
+                placeholder="eyJhbGciOiJIUzI1NiIs..."
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                onClick={() => setShowMuToken(!showMuToken)}
+              >
+                {showMuToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </FormField>
+          <FormField label="Store ID (opcional, autogenerado al crear tienda)">
+            <Input value={muStoreId} onChange={(e) => setMuStoreId(e.target.value)} placeholder="8466" />
+          </FormField>
+          <p className="text-xs text-gray-500">
+            Webhook URL: <code className="text-white/70">https://api.dperfumehouse.com/webhooks/mensajeros-urbanos</code>
+          </p>
         </div>
       </Card>
 

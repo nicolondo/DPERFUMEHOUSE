@@ -2,7 +2,10 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { EnviaService, EnviaRateRequest, EnviaGenerateRequest, EnviaPickupRequest } from './envia.service';
+import { MensajerosUrbanosService, MUCoordinate, MU_CITY } from './mensajeros-urbanos.service';
 import { ShipmentStatus } from '@prisma/client';
+
+export const MU_CARRIER = 'mensajerosUrbanos';
 
 @Injectable()
 export class ShippingService {
@@ -12,7 +15,55 @@ export class ShippingService {
     private prisma: PrismaService,
     private settings: SettingsService,
     private envia: EnviaService,
+    private mu: MensajerosUrbanosService,
   ) {}
+
+  /** Returns true if the destination is in Medellin (case/diacritics insensitive). */
+  private isMedellinOrder(order: { address: { city: string } | null }): boolean {
+    return MensajerosUrbanosService.isMedellin(order.address?.city);
+  }
+
+  /** Build the [origin, destination] coordinate pair for MU. */
+  private async buildMUCoordinates(order: any): Promise<MUCoordinate[]> {
+    if (!order.address) {
+      throw new BadRequestException('La orden no tiene dirección de entrega');
+    }
+    const [originName, originPhone, originStreet, originCity] = await Promise.all([
+      this.settings.get('shipping_origin_name'),
+      this.settings.get('shipping_origin_phone'),
+      this.settings.get('shipping_origin_street'),
+      this.settings.get('shipping_origin_city'),
+    ]);
+    if (!originStreet || !originCity) {
+      throw new BadRequestException('Falta configurar la dirección de origen (Settings → Envíos).');
+    }
+
+    const destAddress = order.address.detail
+      ? `${order.address.street} ${order.address.detail}`
+      : order.address.street;
+
+    return [
+      {
+        type: 1,
+        address: originStreet,
+        city: originCity,
+        country: 'Colombia',
+        name: originName || 'D Perfume House',
+        phone: this.normalizePhone(originPhone),
+        observation: 'Recogida en tienda',
+      },
+      {
+        type: 2,
+        address: destAddress,
+        city: order.address.city,
+        country: order.address.country || 'Colombia',
+        name: order.customer?.name || '',
+        phone: this.normalizePhone(order.address.phone || order.customer?.phone),
+        email: order.customer?.email || undefined,
+        observation: order.address.detail || undefined,
+      },
+    ];
+  }
 
   private async getOriginAddress() {
     const [name, phone, street, city, state, country, zip, senderIdType, senderIdNumber] = await Promise.all([
@@ -244,6 +295,29 @@ export class ShippingService {
 
   async quoteRates(orderId: string, carrier?: string) {
     const order = await this.getOrderForShipping(orderId);
+
+    // Medellin → use Mensajeros Urbanos exclusively
+    if (this.isMedellinOrder(order)) {
+      try {
+        const declaredValue = Number(order.subtotal || 0);
+        const coordinates = await this.buildMUCoordinates(order);
+        const quote = await this.mu.calculate({ declaredValue, coordinates });
+        const rate = {
+          carrier: MU_CARRIER,
+          service: 'sameDay',
+          serviceDescription: 'Mensajeros Urbanos — Domicilio Medellín (mismo día)',
+          deliveryEstimate: '2-4 horas',
+          totalPrice: String(quote.total_service ?? 0),
+          currency: 'COP',
+          metadata: { distance: quote.total_distance, baseValue: quote.base_value },
+        };
+        return { orderId, rates: [rate] };
+      } catch (e: any) {
+        this.logger.warn(`MU quote failed: ${e.message}`);
+        return { orderId, rates: [], error: `Mensajeros Urbanos: ${e.message}` };
+      }
+    }
+
     const origin = await this.getOriginAddress();
     const destination = await this.buildDestination(order);
     const packages = await this.buildPackages(order);
@@ -252,7 +326,7 @@ export class ShippingService {
     this.logger.log(`Quote rates — destination: ${JSON.stringify(destination)}`);
     this.logger.log(`Quote rates — packages: ${JSON.stringify(packages)}`);
 
-    const carriers = carrier ? [carrier] : ['serviEntrega', 'coordinadora', 'interRapidisimo', 'tcc', 'deprisa', 'mensajerosUrbanos'];
+    const carriers = carrier ? [carrier] : ['serviEntrega', 'coordinadora', 'interRapidisimo', 'tcc', 'deprisa'];
 
     const ratePromises = carriers.map(async (c) => {
       try {
@@ -281,6 +355,12 @@ export class ShippingService {
 
   async generateLabel(orderId: string, carrier: string, service: string) {
     const order = await this.getOrderForShipping(orderId);
+
+    // Mensajeros Urbanos branch — either explicitly chosen or order is in Medellin
+    if (carrier === MU_CARRIER || this.isMedellinOrder(order)) {
+      return this.generateMULabel(orderId, order);
+    }
+
     const origin = await this.getOriginAddress();
     const destination = await this.buildDestination(order);
     const packages = await this.buildPackages(order);
@@ -349,11 +429,125 @@ export class ShippingService {
     return shipment;
   }
 
+  private async generateMULabel(orderId: string, order: any) {
+    const declaredValue = Number(order.subtotal || 0);
+    const coordinates = await this.buildMUCoordinates(order);
+
+    const now = new Date();
+    // Schedule for ~30 minutes from now to give time for the system to assign a courier
+    now.setMinutes(now.getMinutes() + 30);
+    const startDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
+    const startTime = now.toTimeString().slice(0, 8); // HH:MM:SS
+
+    const totalItems = order.items.reduce((s: number, i: any) => s + i.quantity, 0);
+    const description = `${totalItems} producto${totalItems === 1 ? '' : 's'} — D Perfume House`;
+    const observation = `Pedido ${order.orderNumber}`;
+
+    const result = await this.mu.createService({
+      declaredValue,
+      coordinates,
+      description,
+      observation,
+      startDate,
+      startTime,
+    });
+
+    const trackUrl = `https://plataforma.mensajerosurbanos.com/track-service-external#?uuid=${result.uuid}`;
+
+    const shipment = await this.prisma.shipment.upsert({
+      where: { orderId },
+      update: {
+        carrier: MU_CARRIER,
+        service: 'sameDay',
+        trackingNumber: result.uuid,
+        trackUrl,
+        labelUrl: null,
+        enviaShipmentId: null,
+        totalPrice: result.total,
+        currency: 'COP',
+        status: ShipmentStatus.LABEL_CREATED,
+        enviaRawResponse: result as any,
+      },
+      create: {
+        orderId,
+        carrier: MU_CARRIER,
+        service: 'sameDay',
+        trackingNumber: result.uuid,
+        trackUrl,
+        totalPrice: result.total,
+        currency: 'COP',
+        status: ShipmentStatus.LABEL_CREATED,
+        enviaRawResponse: result as any,
+      },
+    });
+
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'SHIPPED', shipping: result.total },
+    });
+
+    return shipment;
+  }
+
+  /** Map MU's status_id (1..n) to internal ShipmentStatus. */
+  private mapMUStatus(statusId: number | undefined, statusName?: string): ShipmentStatus | null {
+    // Common MU status_id values:
+    // 1 = Por asignar | 2 = Pendiente | 3 = Asignado | 4 = En curso (en camino)
+    // 5 = Finalizado (entregado) | 6 = Cancelado | 7 = Sin mensajero
+    if (statusId === 5) return ShipmentStatus.DELIVERED;
+    if (statusId === 6 || statusId === 7) return ShipmentStatus.CANCELLED;
+    if (statusId === 4) return ShipmentStatus.IN_TRANSIT;
+    if (statusId === 3) return ShipmentStatus.PICKED_UP;
+    if (statusId === 1 || statusId === 2) return ShipmentStatus.LABEL_CREATED;
+    const s = (statusName || '').toLowerCase();
+    if (s.includes('finaliz') || s.includes('entreg')) return ShipmentStatus.DELIVERED;
+    if (s.includes('cancel')) return ShipmentStatus.CANCELLED;
+    if (s.includes('curso') || s.includes('camino') || s.includes('progress')) return ShipmentStatus.IN_TRANSIT;
+    if (s.includes('asign')) return ShipmentStatus.PICKED_UP;
+    return null;
+  }
+
   async trackOrder(orderId: string) {
     const order = await this.getOrderForShipping(orderId);
 
     if (!order.shipment?.trackingNumber) {
       throw new BadRequestException('No tracking number for this order');
+    }
+
+    if (order.shipment.carrier === MU_CARRIER) {
+      const muData = await this.mu.track(order.shipment.trackingNumber);
+      const newStatus = this.mapMUStatus(muData.status_id, muData.status);
+      const events = (muData.history as any[]) || [];
+      for (const ev of events) {
+        const ts = new Date(ev.date || ev.timestamp || Date.now());
+        const desc = ev.description || ev.status || '';
+        const existing = await this.prisma.shipmentEvent.findFirst({
+          where: { shipmentId: order.shipment.id, timestamp: ts, description: desc },
+        });
+        if (!existing) {
+          await this.prisma.shipmentEvent.create({
+            data: {
+              shipmentId: order.shipment.id,
+              timestamp: ts,
+              location: ev.location || '',
+              description: desc,
+              status: muData.status || '',
+            },
+          });
+        }
+      }
+      if (newStatus && order.shipment.status !== newStatus) {
+        await this.prisma.shipment.update({ where: { orderId }, data: { status: newStatus } });
+      }
+      const resolvedStatus = newStatus ?? order.shipment.status;
+      if (resolvedStatus === ShipmentStatus.DELIVERED && order.status !== 'DELIVERED') {
+        await this.prisma.order.update({ where: { id: orderId }, data: { status: 'DELIVERED' } });
+      }
+      const shipment = await this.prisma.shipment.findUnique({
+        where: { orderId },
+        include: { events: { orderBy: { timestamp: 'desc' } } },
+      });
+      return { tracking: muData, shipment };
     }
 
     const response = await this.envia.trackShipment([order.shipment.trackingNumber]);
@@ -435,6 +629,10 @@ export class ShippingService {
       throw new BadRequestException('Order must have a shipping label first');
     }
 
+    if (order.shipment.carrier === MU_CARRIER) {
+      throw new BadRequestException('Mensajeros Urbanos no requiere agendar recolección: el mensajero llega automáticamente.');
+    }
+
     const origin = await this.getOriginAddress();
     const pkg = await this.getDefaultPackage();
     const totalItems = order.items.reduce((sum, i) => sum + i.quantity, 0);
@@ -476,6 +674,16 @@ export class ShippingService {
       throw new BadRequestException('No shipment to cancel');
     }
 
+    if (order.shipment.carrier === MU_CARRIER) {
+      await this.mu.cancel(order.shipment.trackingNumber);
+      await this.prisma.shipment.update({
+        where: { orderId },
+        data: { status: ShipmentStatus.CANCELLED },
+      });
+      await this.prisma.order.update({ where: { id: orderId }, data: { status: 'PAID' } });
+      return { cancelled: true };
+    }
+
     const response = await this.envia.cancelShipment(
       order.shipment.carrier,
       order.shipment.trackingNumber,
@@ -492,6 +700,79 @@ export class ShippingService {
     });
 
     return response.data;
+  }
+
+  /**
+   * Handle Mensajeros Urbanos status callback.
+   * Payload shape (per MU docs):
+   *   { token, id_company, type, date, order_id, details: { uuid, status, status_id, ... } }
+   */
+  async handleMUWebhook(payload: any) {
+    const uuid = payload?.details?.uuid;
+    if (!uuid) {
+      this.logger.warn('MU webhook received without uuid');
+      return;
+    }
+
+    const shipment = await this.prisma.shipment.findFirst({
+      where: { trackingNumber: uuid, carrier: MU_CARRIER },
+    });
+    if (!shipment) {
+      this.logger.warn(`MU webhook: no shipment for uuid ${uuid}`);
+      return;
+    }
+
+    const newStatus = this.mapMUStatus(payload.details?.status_id, payload.details?.status) ?? shipment.status;
+
+    await this.prisma.shipmentEvent.create({
+      data: {
+        shipmentId: shipment.id,
+        timestamp: new Date(payload?.date || Date.now()),
+        location: payload?.details?.url || '',
+        description: payload?.details?.finish_description || payload?.details?.status || '',
+        status: payload?.details?.status || '',
+      },
+    });
+
+    if (newStatus !== shipment.status) {
+      await this.prisma.shipment.update({ where: { id: shipment.id }, data: { status: newStatus } });
+    }
+
+    if (newStatus === ShipmentStatus.DELIVERED) {
+      await this.prisma.order.update({ where: { id: shipment.orderId }, data: { status: 'DELIVERED' } });
+    } else if (newStatus === ShipmentStatus.CANCELLED) {
+      await this.prisma.order.update({ where: { id: shipment.orderId }, data: { status: 'PAID' } });
+    }
+
+    this.logger.log(`MU webhook processed: ${uuid} → ${newStatus}`);
+  }
+
+  /** Provision the MU pickup store using current shipping origin settings. */
+  async setupMUStore() {
+    const [name, phone, street, city] = await Promise.all([
+      this.settings.get('shipping_origin_name'),
+      this.settings.get('shipping_origin_phone'),
+      this.settings.get('shipping_origin_street'),
+      this.settings.get('shipping_origin_city'),
+    ]);
+    if (!street || !city) throw new BadRequestException('Configura primero la dirección de origen.');
+
+    const cityId = MensajerosUrbanosService.isMedellin(city) ? MU_CITY.medellin : MU_CITY.medellin;
+    const result = await this.mu.addStore({
+      idPoint: 'dperfumehouse-main',
+      name: name || 'D Perfume House',
+      address: street,
+      cityId,
+      phone: this.normalizePhone(phone),
+      schedule: 'L-S 9:00AM - 7:00PM',
+      parking: 0,
+    });
+    await this.prisma.appSetting.upsert({
+      where: { key: 'mensajeros_urbanos_store_id' },
+      update: { value: String(result.id) },
+      create: { key: 'mensajeros_urbanos_store_id', value: String(result.id), group: 'shipping' },
+    });
+    return result;
   }
 
   async handleWebhook(payload: any) {
