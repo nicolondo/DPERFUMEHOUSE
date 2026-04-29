@@ -456,6 +456,7 @@ export class ShippingService {
       name: String(it.variant?.name || 'Producto'),
       quantity: Number(it.quantity) || 1,
       price: Number(it.unitPrice || 0),
+      sku: String(it.variant?.sku || it.variant?.id || 'SKU'),
     }));
 
     const coordinates = await this.buildMUCoordinates(order, {

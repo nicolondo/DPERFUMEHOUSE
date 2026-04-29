@@ -36,7 +36,7 @@ export interface MUCoordinate {
   /** Required by /api/create per coordinate (V2). */
   order_id?: string;
   description?: string;
-  products?: Array<{ name: string; quantity: number; price?: number }>;
+  products?: Array<{ name: string; quantity: number; price?: number; sku: string }>;
 }
 
 export interface MUCalculateRequest {
