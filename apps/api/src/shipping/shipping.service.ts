@@ -61,7 +61,7 @@ export class ShippingService {
     }
 
     const destAddress = order.address.detail
-      ? `${order.address.street} ${order.address.detail}`
+      ? `${order.address.street}, ${order.address.detail}`
       : order.address.street;
 
     if (extras) {
@@ -76,7 +76,7 @@ export class ShippingService {
             client_name: order.customer?.name || '',
             client_phone: this.normalizePhone(order.address.phone || order.customer?.phone) || '',
             client_email: order.customer?.email || '',
-            products_value: String(Math.round(order.subtotal || 0)),
+            products_value: '100',
             domicile_value: '0',
             payment_type: '1',
           },
