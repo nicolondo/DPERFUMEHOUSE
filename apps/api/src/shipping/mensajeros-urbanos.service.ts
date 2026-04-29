@@ -4,10 +4,33 @@ import { SettingsService } from '../settings/settings.service';
 /**
  * Mensajeros Urbanos (MU) — Domicilios API v2.0 client.
  * Docs: https://integraciones.mensajerosurbanos.com/domicilios
- *
- * Currently supports Medellin only (city id = 3).
  */
 
+/** DANE codes for supported cities (used by /api/create). */
+export const MU_DANE_CODE: Record<string, string> = {
+  medellin: '05001',
+  bogota: '11001',
+  cali: '76001',
+  barranquilla: '08001',
+  cartagena: '13001',
+  sta_marta: '47001',
+  bucaramanga: '68001',
+  ibague: '73001',
+  armenia: '63001',
+  pereira: '66001',
+  manizales: '17001',
+  neiva: '41001',
+  valledupar: '20001',
+  chia: '25175',
+  envigado: '05266',
+  bello: '05088',
+  itagui: '05360',
+  sabaneta: '05631',
+  la_estrella: '05380',
+  caldas: '05129',
+};
+
+/** City numeric ID used by /api/calculate only. */
 export const MU_CITY = {
   bogota: 1,
   cali: 2,
@@ -20,31 +43,42 @@ export const MU_CITY = {
 
 export const MU_TYPE_SERVICE_DELIVERY = 4;
 
+/** Client contact info per coordinate for /api/create. */
 export interface MUClientData {
-  name: string;
-  phone: string;
-  email?: string;
-  identification_type?: string;
-  identification_number?: string;
+  client_name: string;
+  client_phone: string;
+  client_email?: string;
+  products_value?: string;
+  domicile_value?: string;
+  client_document?: string;
+  payment_type?: string;
 }
 
+/** Product item per coordinate for /api/create. */
+export interface MUProduct {
+  store_id: string;
+  sku: string;
+  product_name: string;
+  url_img?: string;
+  value: number;
+  quantity: number;
+  barcode?: string;
+  planogram?: string;
+}
+
+/** Coordinate shape for /api/create. */
 export interface MUCoordinate {
+  order_id?: string;
+  address: string;
+  /** /api/create: not sent (dane_code at root). /api/calculate: free-text city. */
+  city?: string;
+  token?: string;
+  description?: string;
+  observation?: string;
+  client_data?: MUClientData;
+  products?: MUProduct[];
   lat?: number;
   long?: number;
-  address: string;
-  /**
-   * For /api/calculate: free-text city (e.g. "Medellin").
-   * For /api/create: must match the documented enum (lowercase, e.g. "medellin", "bogota").
-   */
-  city: string;
-  observation?: string;
-  /** Required by /api/create per coordinate. */
-  order_id?: string;
-  description?: string;
-  /** Required by /api/create — contact info for that coordinate. */
-  client_data?: MUClientData;
-  /** Required by /api/create — items at that coordinate. */
-  products?: Array<{ name: string; quantity: number; price?: number; sku: string }>;
 }
 
 export interface MUCalculateRequest {
@@ -69,7 +103,7 @@ export interface MUCreateRequest {
   type_service: number;
   roundtrip: 0 | 1;
   declared_value: number;
-  city: number;
+  dane_code: string;
   start_date: string; // YYYY-MM-DD
   start_time: string; // HH:MM:SS
   observation: string;
@@ -212,7 +246,7 @@ export class MensajerosUrbanosService {
     startDate: string;
     startTime: string;
     roundtrip?: 0 | 1;
-    cityId?: number;
+    daneCode?: string;
     storeId?: string;
   }): Promise<MUCreateResponse> {
     // Fallback to the store_id saved in settings if not passed explicitly
@@ -221,7 +255,7 @@ export class MensajerosUrbanosService {
       type_service: MU_TYPE_SERVICE_DELIVERY,
       roundtrip: input.roundtrip ?? 0,
       declared_value: Math.max(0, Math.round(input.declaredValue)),
-      city: input.cityId ?? MU_CITY.medellin,
+      dane_code: input.daneCode ?? MU_DANE_CODE['medellin'],
       start_date: input.startDate,
       start_time: input.startTime,
       observation: input.observation,

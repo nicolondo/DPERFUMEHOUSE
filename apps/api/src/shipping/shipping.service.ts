@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { EnviaService, EnviaRateRequest, EnviaGenerateRequest, EnviaPickupRequest } from './envia.service';
-import { MensajerosUrbanosService, MUCoordinate, MU_CITY } from './mensajeros-urbanos.service';
+import { MensajerosUrbanosService, MUCoordinate, MUProduct, MU_CITY, MU_DANE_CODE } from './mensajeros-urbanos.service';
 import { ShipmentStatus } from '@prisma/client';
 
 export const MU_CARRIER = 'mensajerosUrbanos';
@@ -23,103 +23,76 @@ export class ShippingService {
     return MensajerosUrbanosService.isMedellin(order.address?.city);
   }
 
-  /** Map a city free-text to MU's documented enum value for /api/create coordinates. */
-  private toMUCityEnum(city: string | null | undefined): string {
+  /** Normalize a city string to a DANE code key (lowercase, no accents). */
+  private toDaneKey(city: string | null | undefined): string {
     if (!city) return 'medellin';
     const norm = city
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
       .trim();
-    const map: Record<string, string> = {
-      medellin: 'medellin',
-      bogota: 'bogota',
-      cali: 'cali',
-      barranquilla: 'barranquilla',
-      cartagena: 'cartagena',
+    const aliases: Record<string, string> = {
       'santa marta': 'sta_marta',
       'sta marta': 'sta_marta',
-      bucaramanga: 'bucaramanga',
-      ibague: 'ibague',
-      armenia: 'armenia',
-      pereira: 'pereira',
-      manizales: 'manizales',
-      neiva: 'neiva',
-      valledupar: 'valledupar',
-      chia: 'chia',
-      envigado: 'ant_envigado',
-      bello: 'ant_bello',
-      itagui: 'ant_itagui',
-      sabaneta: 'ant_sabaneta',
-      'la estrella': 'ant_la_estrella',
-      caldas: 'ant_caldas',
+      'la estrella': 'la_estrella',
+      ant_envigado: 'envigado',
+      ant_bello: 'bello',
+      ant_itagui: 'itagui',
+      ant_sabaneta: 'sabaneta',
+      ant_la_estrella: 'la_estrella',
+      ant_caldas: 'caldas',
     };
-    return map[norm] || norm.replace(/\s+/g, '_');
+    const key = aliases[norm] ?? norm.replace(/\s+/g, '_');
+    return key;
   }
 
-  /** Build the [origin, destination] coordinate pair for MU. */
+  /**
+   * Build coordinate(s) for MU requests.
+   *
+   * For /api/create: returns 1 coordinate (destination only), with client_data and products.
+   * For /api/calculate: returns 2 lightweight coordinates [origin, destination].
+   */
   private async buildMUCoordinates(
     order: any,
-    extras?: { orderId: string; description: string; products: Array<{ name: string; quantity: number; price?: number; sku: string }> },
+    extras?: { orderId: string; description: string; products: MUProduct[] },
   ): Promise<MUCoordinate[]> {
     if (!order.address) {
       throw new BadRequestException('La orden no tiene dirección de entrega');
-    }
-    const [originName, originPhone, originStreet, originCity] = await Promise.all([
-      this.settings.get('shipping_origin_name'),
-      this.settings.get('shipping_origin_phone'),
-      this.settings.get('shipping_origin_street'),
-      this.settings.get('shipping_origin_city'),
-    ]);
-    if (!originStreet || !originCity) {
-      throw new BadRequestException('Falta configurar la dirección de origen (Settings → Envíos).');
     }
 
     const destAddress = order.address.detail
       ? `${order.address.street} ${order.address.detail}`
       : order.address.street;
 
-    // For /api/create (extras present), use the documented schema:
-    //   { order_id, address, city (enum), description, client_data, products }
     if (extras) {
+      // /api/create: single destination coordinate per MU docs
       return [
         {
           order_id: extras.orderId,
-          address: originStreet,
-          city: this.toMUCityEnum(originCity),
-          description: extras.description,
-          client_data: {
-            name: originName || 'D Perfume House',
-            phone: this.normalizePhone(originPhone) || '',
-          },
-          products: extras.products.map((p) => ({
-            name: p.name,
-            quantity: p.quantity,
-            price: p.price,
-            sku: (p as any).sku || 'SKU',
-          })),
-        },
-        {
-          order_id: extras.orderId,
           address: destAddress,
-          city: this.toMUCityEnum(order.address.city),
+          token: '',
           description: extras.description,
           client_data: {
-            name: order.customer?.name || '',
-            phone: this.normalizePhone(order.address.phone || order.customer?.phone) || '',
-            email: order.customer?.email || undefined,
+            client_name: order.customer?.name || '',
+            client_phone: this.normalizePhone(order.address.phone || order.customer?.phone) || '',
+            client_email: order.customer?.email || '',
+            products_value: String(Math.round(order.subtotal || 0)),
+            domicile_value: '0',
+            payment_type: '1',
           },
-          products: extras.products.map((p) => ({
-            name: p.name,
-            quantity: p.quantity,
-            price: p.price,
-            sku: (p as any).sku || 'SKU',
-          })),
+          products: extras.products,
         },
       ];
     }
 
-    // For /api/calculate keep the legacy lightweight shape (free-text city).
+    // /api/calculate: lightweight [origin, destination]
+    const [originStreet, originCity] = await Promise.all([
+      this.settings.get('shipping_origin_street'),
+      this.settings.get('shipping_origin_city'),
+    ]);
+    if (!originStreet || !originCity) {
+      throw new BadRequestException('Falta configurar la dirección de origen (Settings → Envíos).');
+    }
     return [
       {
         address: originStreet,
@@ -505,11 +478,20 @@ export class ShippingService {
     const totalItems = order.items.reduce((s: number, i: any) => s + i.quantity, 0);
     const description = `${totalItems} producto${totalItems === 1 ? '' : 's'} — D Perfume House`;
     const observation = `Pedido ${order.orderNumber}`;
+
+    // store_id is required per product by MU's /api/create endpoint
+    const muStoreId = (await this.settings.get('mensajeros_urbanos_store_id')) || 'A100';
+
+    // Build products using MU's documented schema
     const products = order.items.map((it: any) => ({
-      name: String(it.variant?.name || 'Producto'),
-      quantity: Number(it.quantity) || 1,
-      price: Number(it.unitPrice || 0),
+      store_id: muStoreId,
       sku: String(it.variant?.sku || it.variant?.id || 'SKU'),
+      product_name: String(it.variant?.name || 'Producto'),
+      value: Number(it.unitPrice || 0),
+      quantity: Number(it.quantity) || 1,
+      url_img: '',
+      barcode: String(it.variant?.sku || it.variant?.id || 'SKU'),
+      planogram: 'Entrega',
     }));
 
     const coordinates = await this.buildMUCoordinates(order, {
@@ -517,6 +499,10 @@ export class ShippingService {
       description,
       products,
     });
+
+    // Resolve DANE code from delivery city
+    const daneKey = this.toDaneKey(order.address?.city);
+    const daneCode = MU_DANE_CODE[daneKey] ?? MU_DANE_CODE['medellin'];
 
     const now = new Date();
     // Schedule for ~30 minutes from now to give time for the system to assign a courier
@@ -531,6 +517,7 @@ export class ShippingService {
       observation,
       startDate,
       startTime,
+      daneCode,
     });
 
     const trackUrl = `https://plataforma.mensajerosurbanos.com/track-service-external#?uuid=${result.uuid}`;
