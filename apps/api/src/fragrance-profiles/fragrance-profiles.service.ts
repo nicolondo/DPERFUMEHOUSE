@@ -79,7 +79,7 @@ export class FragranceProfilesService {
       where: { isActive: true },
       include: {
         productVariant: {
-          select: { id: true, name: true, price: true, sku: true, categoryName: true, images: { where: { isPrimary: true }, take: 1 } },
+          select: { id: true, name: true, price: true, sku: true, stock: true, categoryName: true, images: { where: { isPrimary: true }, take: 1 } },
         },
       },
     });

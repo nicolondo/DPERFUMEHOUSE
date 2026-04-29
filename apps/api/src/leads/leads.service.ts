@@ -110,10 +110,13 @@ export class LeadsService {
       perfumeName ? this.fragellaService.getProfile(perfumeName).catch(() => null) : Promise.resolve(null),
     ]);
 
+    // Exclude out-of-stock fragrances so AI never recommends them
+    const inStockProfiles = allFragranceProfiles.filter((fp: any) => (fp.productVariant?.stock ?? 0) > 0);
+
     // Filter fragrance profiles by selected categories
     const fragranceProfiles = categoriesToFilter
-      ? allFragranceProfiles.filter((fp: any) => fp.productVariant?.categoryName && categoriesToFilter!.includes(fp.productVariant.categoryName))
-      : allFragranceProfiles;
+      ? inStockProfiles.filter((fp: any) => fp.productVariant?.categoryName && categoriesToFilter!.includes(fp.productVariant.categoryName))
+      : inStockProfiles;
 
     // Pre-filter by gender — must happen before AI to avoid cross-gender recommendations
     const clientGender = dto.answers?.forWhom === 'gift'
@@ -248,6 +251,9 @@ export class LeadsService {
       perfumeName ? this.fragellaService.getProfile(perfumeName).catch(() => null) : Promise.resolve(null),
     ]);
 
+    // Exclude out-of-stock fragrances so AI never recommends them
+    const inStockProfiles = allFragranceProfiles.filter((fp: any) => (fp.productVariant?.stock ?? 0) > 0);
+
     // Filter by stored categories, or fallback to seller's allowed categories
     let categoriesToFilter: string[] | null = lead.selectedCategories as string[] | null;
     if (!categoriesToFilter) {
@@ -260,8 +266,8 @@ export class LeadsService {
       }
     }
     const fragranceProfiles = categoriesToFilter
-      ? allFragranceProfiles.filter((fp: any) => fp.productVariant?.categoryName && categoriesToFilter!.includes(fp.productVariant.categoryName))
-      : allFragranceProfiles;
+      ? inStockProfiles.filter((fp: any) => fp.productVariant?.categoryName && categoriesToFilter!.includes(fp.productVariant.categoryName))
+      : inStockProfiles;
 
     if (fragranceProfiles.length === 0) {
       throw new BadRequestException('No fragrance profiles available');
