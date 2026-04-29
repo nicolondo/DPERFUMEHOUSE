@@ -2,9 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Prevent iOS Safari auto-zoom on input focus */
-input, textarea, select {
-  font-size: max(16px, 1em);
+/* Prevent iOS Safari auto-zoom on input focus — must override Tailwind text-* utilities on mobile */
+@media (max-width: 768px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
 
 @layer base {
