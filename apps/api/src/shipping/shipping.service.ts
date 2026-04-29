@@ -301,7 +301,7 @@ export class ShippingService {
       include: {
         customer: true,
         address: true,
-        items: { include: { variant: { include: { product: true } } } },
+        items: { include: { variant: true } },
         shipment: { include: { events: { orderBy: { timestamp: 'desc' } } } },
       },
     });
@@ -453,7 +453,7 @@ export class ShippingService {
     const description = `${totalItems} producto${totalItems === 1 ? '' : 's'} — D Perfume House`;
     const observation = `Pedido ${order.orderNumber}`;
     const products = order.items.map((it: any) => ({
-      name: String(it.variant?.product?.name || it.variant?.name || 'Producto'),
+      name: String(it.variant?.name || 'Producto'),
       quantity: Number(it.quantity) || 1,
       price: Number(it.unitPrice || 0),
     }));
