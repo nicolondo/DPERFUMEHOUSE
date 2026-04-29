@@ -611,7 +611,7 @@ export default function OrderDetailPage() {
             )}
             {(order.status === 'SHIPPED' || order.status === 'IN_TRANSIT' || order.shipment?.trackingNumber) && order.shipment?.status !== 'CANCELLED' && (
               <div className="flex items-center gap-2">
-                {order.shipment?.trackingNumber && order.shipment?.status !== 'PICKUP_SCHEDULED' && (
+                {order.shipment?.trackingNumber && order.shipment?.status !== 'PICKUP_SCHEDULED' && order.shipment?.carrier !== 'mensajerosUrbanos' && (
                   <Button
                     variant="secondary"
                     size="sm"
