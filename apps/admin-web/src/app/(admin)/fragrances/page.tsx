@@ -18,9 +18,10 @@ import { DataTable, Column } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input, Select, Textarea } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { FormField } from '@/components/ui/form-field';
 import { Modal } from '@/components/ui/modal';
-import { Plus, Search, Sparkles, Upload, FlaskConical, Pencil } from 'lucide-react';
+import { Plus, Sparkles, Upload, FlaskConical, Pencil } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
 const profileSchema = z.object({
@@ -406,15 +407,12 @@ export default function FragrancesPage() {
 
       {/* Search */}
       <div className="filter-bar mb-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-          <Input
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Buscar perfume..."
-            className="pl-10"
-          />
-        </div>
+        <SearchInput
+          containerClassName="flex-1 max-w-sm"
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          placeholder="Buscar perfume..."
+        />
       </div>
 
       {/* Table */}

@@ -19,11 +19,12 @@ import { DataTable, Column } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input, Select } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { FormField } from '@/components/ui/form-field';
 import { Modal } from '@/components/ui/modal';
 import { formatPercent } from '@/lib/utils';
-import { Plus, Search, Pencil, TrendingUp } from 'lucide-react';
+import { Plus, Pencil, TrendingUp } from 'lucide-react';
 
 type CommissionScaleTier = {
   minSales: number;
@@ -381,18 +382,14 @@ export default function UsersPage() {
       </div>
 
       <div className="filter-bar">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-          <Input
-            placeholder="Buscar por nombre o email..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="pl-9"
-          />
-        </div>
+        <SearchInput
+          placeholder="Buscar por nombre o email..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
         <Select
           value={roleFilter}
           onChange={(e) => {

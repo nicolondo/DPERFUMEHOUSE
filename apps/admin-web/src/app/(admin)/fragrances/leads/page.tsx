@@ -6,7 +6,8 @@ import { fetchAdminLeads, fetchAdminLeadAnalytics, fetchAdminLeadById } from '@/
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Input, Select } from '@/components/ui/input';
-import { Search, Target, TrendingUp, Users, ShoppingBag, X, Star, Sparkles, Phone, Mail, MapPin, Calendar, Clock, Gift, Lightbulb, AlertTriangle, ClipboardList, MessageSquare } from 'lucide-react';
+import { SearchInput } from '@/components/ui/search-input';
+import { Target, TrendingUp, Users, ShoppingBag, X, Star, Sparkles, Phone, Mail, MapPin, Calendar, Clock, Gift, Lightbulb, AlertTriangle, ClipboardList, MessageSquare } from 'lucide-react';
 import { formatDate, formatCurrency } from '@/lib/utils';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -489,15 +490,12 @@ export default function AdminLeadsPage() {
 
       {/* Filters */}
       <div className="filter-bar mb-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-          <Input
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Buscar por nombre o teléfono..."
-            className="pl-10"
-          />
-        </div>
+        <SearchInput
+          containerClassName="flex-1 max-w-sm"
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          placeholder="Buscar por nombre o teléfono..."
+        />
         <Select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}

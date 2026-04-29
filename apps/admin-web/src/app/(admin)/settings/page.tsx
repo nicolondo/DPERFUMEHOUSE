@@ -26,6 +26,7 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input, Select } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { FormField } from '@/components/ui/form-field';
 import { DataTable, type Column } from '@/components/ui/data-table';
@@ -874,11 +875,11 @@ function OdooSettings() {
         <FormField label="Categorias a Sincronizar" hint="Selecciona las categorias de productos a importar. Si no seleccionas ninguna, se importan todas.">
           <div className="space-y-2">
             <div className="flex gap-2">
-              <Input
+              <SearchInput
+                containerClassName="flex-1"
                 placeholder="Buscar categoria..."
                 value={categorySearch}
                 onChange={(e) => setCategorySearch(e.target.value)}
-                className="flex-1"
               />
               <Button
                 variant="outline"

@@ -7,8 +7,9 @@ import { fetchCustomers, fetchSellers } from '@/lib/api';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Input, Select } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { formatDate, formatPhone } from '@/lib/utils';
-import { Search, Mail, Phone, ShoppingBag } from 'lucide-react';
+import { Mail, Phone, ShoppingBag } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
 export default function CustomersPage() {
@@ -114,18 +115,14 @@ export default function CustomersPage() {
       </div>
 
       <div className="filter-bar">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-          <Input
-            placeholder="Buscar por nombre, email o telefono..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="pl-9"
-          />
-        </div>
+        <SearchInput
+          placeholder="Buscar por nombre, email o telefono..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
         <Select
           value={sellerFilter}
           onChange={(e) => {
