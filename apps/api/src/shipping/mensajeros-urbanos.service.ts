@@ -33,6 +33,10 @@ export interface MUCoordinate {
   observation?: string;
   /** 1 = pickup point (origin), 2 = delivery point (destination) */
   type?: number;
+  /** Required by /api/create per coordinate (V2). */
+  order_id?: string;
+  description?: string;
+  products?: Array<{ name: string; quantity: number; price?: number }>;
 }
 
 export interface MUCalculateRequest {

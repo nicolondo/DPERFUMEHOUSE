@@ -24,7 +24,10 @@ export class ShippingService {
   }
 
   /** Build the [origin, destination] coordinate pair for MU. */
-  private async buildMUCoordinates(order: any): Promise<MUCoordinate[]> {
+  private async buildMUCoordinates(
+    order: any,
+    extras?: { orderId: string; description: string; products: Array<{ name: string; quantity: number; price?: number }> },
+  ): Promise<MUCoordinate[]> {
     if (!order.address) {
       throw new BadRequestException('La orden no tiene dirección de entrega');
     }
@@ -51,6 +54,13 @@ export class ShippingService {
         name: originName || 'D Perfume House',
         phone: this.normalizePhone(originPhone),
         observation: 'Recogida en tienda',
+        ...(extras
+          ? {
+              order_id: extras.orderId,
+              description: extras.description,
+              products: extras.products,
+            }
+          : {}),
       },
       {
         type: 2,
@@ -61,6 +71,13 @@ export class ShippingService {
         phone: this.normalizePhone(order.address.phone || order.customer?.phone),
         email: order.customer?.email || undefined,
         observation: order.address.detail || undefined,
+        ...(extras
+          ? {
+              order_id: extras.orderId,
+              description: extras.description,
+              products: extras.products,
+            }
+          : {}),
       },
     ];
   }
@@ -284,7 +301,7 @@ export class ShippingService {
       include: {
         customer: true,
         address: true,
-        items: true,
+        items: { include: { variant: { include: { product: true } } } },
         shipment: { include: { events: { orderBy: { timestamp: 'desc' } } } },
       },
     });
@@ -431,17 +448,27 @@ export class ShippingService {
 
   private async generateMULabel(orderId: string, order: any) {
     const declaredValue = Number(order.subtotal || 0);
-    const coordinates = await this.buildMUCoordinates(order);
+
+    const totalItems = order.items.reduce((s: number, i: any) => s + i.quantity, 0);
+    const description = `${totalItems} producto${totalItems === 1 ? '' : 's'} — D Perfume House`;
+    const observation = `Pedido ${order.orderNumber}`;
+    const products = order.items.map((it: any) => ({
+      name: String(it.variant?.product?.name || it.variant?.name || 'Producto'),
+      quantity: Number(it.quantity) || 1,
+      price: Number(it.unitPrice || 0),
+    }));
+
+    const coordinates = await this.buildMUCoordinates(order, {
+      orderId: String(order.orderNumber || orderId),
+      description,
+      products,
+    });
 
     const now = new Date();
     // Schedule for ~30 minutes from now to give time for the system to assign a courier
     now.setMinutes(now.getMinutes() + 30);
     const startDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
     const startTime = now.toTimeString().slice(0, 8); // HH:MM:SS
-
-    const totalItems = order.items.reduce((s: number, i: any) => s + i.quantity, 0);
-    const description = `${totalItems} producto${totalItems === 1 ? '' : 's'} — D Perfume House`;
-    const observation = `Pedido ${order.orderNumber}`;
 
     const result = await this.mu.createService({
       declaredValue,
