@@ -129,6 +129,15 @@ export class OrdersController {
     return this.ordersService.syncOdoo(id, body?.odooSaleOrderId);
   }
 
+  @Post('backfill-odoo-delivery')
+  @HttpCode(HttpStatus.OK)
+  async backfillOdooDelivery(@CurrentUser() user: CurrentUserPayload) {
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only admins can backfill deliveries');
+    }
+    return this.ordersService.backfillOdooDelivery();
+  }
+
   @Post(':id/link-odoo')
   @HttpCode(HttpStatus.OK)
   async linkOdoo(

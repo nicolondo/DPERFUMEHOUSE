@@ -655,7 +655,12 @@ export class OdooService {
 
         // Validate (confirm) the picking if not already done
         if (pickings[0].state !== 'done') {
-          await this.validateDelivery(pickingId);
+          try {
+            await this.validateDelivery(pickingId);
+          } catch (valErr) {
+            // Validation failure should not prevent us from saving the picking reference
+            this.logger.warn(`Could not validate picking ${pickingId}: ${valErr.message} — saving picking ID anyway`);
+          }
         }
 
         return pickingId;

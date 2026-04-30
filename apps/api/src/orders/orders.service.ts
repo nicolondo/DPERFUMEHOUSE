@@ -1056,6 +1056,42 @@ export class OrdersService {
   }
 
   /**
+   * Admin-only: backfill odoo_delivery_id for orders that have a sale order but no delivery.
+   * Optionally accepts a specific orderId; if omitted, processes all eligible orders.
+   */
+  async backfillOdooDelivery(orderId?: string) {
+    const where: any = {
+      odooSaleOrderId: { not: null },
+      odooDeliveryId: null,
+      status: { in: ['PAID', 'SHIPPED', 'IN_TRANSIT', 'DELIVERED'] },
+    };
+    if (orderId) {
+      where.id = orderId;
+    }
+
+    const orders = await this.prisma.order.findMany({ where, select: { id: true, orderNumber: true, odooSaleOrderId: true } });
+    this.logger.log(`Backfill delivery: found ${orders.length} order(s) missing odoo_delivery_id`);
+
+    const results: { orderNumber: string; deliveryId: number | null; error?: string }[] = [];
+
+    for (const order of orders) {
+      try {
+        const deliveryId = await this.odooService.createDelivery(order.odooSaleOrderId!);
+        if (deliveryId) {
+          await this.prisma.order.update({ where: { id: order.id }, data: { odooDeliveryId: deliveryId } });
+          this.logger.log(`Backfilled delivery ${deliveryId} for order ${order.orderNumber}`);
+        }
+        results.push({ orderNumber: order.orderNumber, deliveryId: deliveryId ?? null });
+      } catch (err) {
+        this.logger.warn(`Could not backfill delivery for ${order.orderNumber}: ${err.message}`);
+        results.push({ orderNumber: order.orderNumber, deliveryId: null, error: err.message });
+      }
+    }
+
+    return results;
+  }
+
+  /**
    * Admin-only: link an existing Odoo SO to an order (without creating a new one).
    */
   async linkOdoo(orderId: string, odooSaleOrderId: number, odooOrderName?: string) {
