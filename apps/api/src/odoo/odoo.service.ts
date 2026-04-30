@@ -754,26 +754,34 @@ export class OdooService {
 
   async createDelivery(saleOrderId: number): Promise<number | null> {
     try {
-      // Read pickings generated from the sale order confirmation
+      // Read pickings generated from the sale order confirmation (exclude cancelled)
       const pickings = await this.execute(
         'stock.picking',
         'search_read',
         [
           [
             ['sale_id', '=', saleOrderId],
+            ['state', '!=', 'cancel'],
           ],
         ],
         {
-          fields: ['id', 'state'],
+          fields: ['id', 'state', 'move_ids'],
           limit: 1,
         },
       );
 
       if (pickings.length > 0) {
         const pickingId = pickings[0].id;
+        const moveCount = pickings[0].move_ids?.length ?? 0;
         this.logger.log(
-          `Found delivery picking ${pickingId} (state: ${pickings[0].state}) for sale order ${saleOrderId}`,
+          `Found delivery picking ${pickingId} (state: ${pickings[0].state}, moves: ${moveCount}) for sale order ${saleOrderId}`,
         );
+
+        // If the picking has no moves it was created empty (e.g. prior failed attempt) — skip it
+        if (pickings[0].state !== 'done' && moveCount === 0) {
+          this.logger.warn(`Picking ${pickingId} has no moves — skipping, will attempt manual creation`);
+          return null;
+        }
 
         // Validate (confirm) the picking if not already done
         if (pickings[0].state !== 'done') {
