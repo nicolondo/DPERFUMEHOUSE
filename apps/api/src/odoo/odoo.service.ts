@@ -616,6 +616,14 @@ export class OdooService {
         try {
           await this.execute('sale.order', 'write', [[orderId], { state: 'sale' }]);
           this.logger.log(`SO ${orderId} state forced to 'sale'`);
+          // Trigger stock rule launch so Odoo creates the stock.picking
+          try {
+            await this.execute('sale.order', '_action_launch_stock_rule', [[orderId]]);
+            this.logger.log(`Stock rule triggered for SO ${orderId}`);
+          } catch (ruleErr) {
+            // _action_launch_stock_rule may not be callable via XML-RPC on all Odoo versions
+            this.logger.warn(`Could not trigger stock rule for SO ${orderId}: ${ruleErr.message}`);
+          }
           return true;
         } catch (writeErr) {
           this.logger.error(`Failed to force state for SO ${orderId}`, writeErr);
@@ -628,6 +636,12 @@ export class OdooService {
       );
       throw error;
     }
+  }
+
+  /** Try to launch stock procurement rules for an SO (creates picking if not yet generated). */
+  async launchStockRule(saleOrderId: number): Promise<void> {
+    await this.execute('sale.order', '_action_launch_stock_rule', [[saleOrderId]]);
+    this.logger.log(`Stock rule launched for SO ${saleOrderId}`);
   }
 
   async createDelivery(saleOrderId: number): Promise<number | null> {

@@ -1076,6 +1076,11 @@ export class OrdersService {
 
     for (const order of orders) {
       try {
+        // First try triggering the stock rule to create the picking (handles the state-write fallback case)
+        try {
+          await this.odooService.launchStockRule(order.odooSaleOrderId!);
+        } catch (_) { /* ignore – picking may already exist or method unavailable */ }
+
         const deliveryId = await this.odooService.createDelivery(order.odooSaleOrderId!);
         if (deliveryId) {
           await this.prisma.order.update({ where: { id: order.id }, data: { odooDeliveryId: deliveryId } });
