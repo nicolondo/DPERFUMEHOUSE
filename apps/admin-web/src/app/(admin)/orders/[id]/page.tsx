@@ -204,7 +204,7 @@ export default function OrderDetailPage() {
   if (error || !order) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => router.back()}>
+        <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => router.push('/orders')}>
           Volver
         </Button>
         <div className="rounded-xl border border-status-danger/30 bg-status-danger-muted p-6 text-center">
@@ -317,7 +317,7 @@ export default function OrderDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => router.back()}>
+        <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => router.push('/orders')}>
           Volver a Pedidos
         </Button>
         <div className="flex items-center gap-2">
