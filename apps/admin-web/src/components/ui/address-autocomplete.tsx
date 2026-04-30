@@ -81,14 +81,18 @@ function parsePlace(place: google.maps.places.PlaceResult): ParsedAddress {
     street = place.formatted_address ? place.formatted_address.split(',')[0].trim() : place.name || '';
   }
 
+  const rawCity =
+    getComponent('locality') ||
+    getComponent('administrative_area_level_2') ||
+    getComponent('sublocality_level_1') ||
+    '';
+  const cleanCity = rawCity.replace(/,?\s*D\.?C\.?$/i, '').trim();
+  const rawState = getComponent('administrative_area_level_1');
+
   return {
     street: street || '',
-    city:
-      getComponent('locality') ||
-      getComponent('administrative_area_level_2') ||
-      getComponent('sublocality_level_1') ||
-      '',
-    state: getComponent('administrative_area_level_1'),
+    city: cleanCity,
+    state: cleanCity.toLowerCase() === 'bogotá' || cleanCity.toLowerCase() === 'bogota' ? 'Cundinamarca' : rawState,
     country: getComponent('country', true),
     lat: place.geometry?.location?.lat(),
     lng: place.geometry?.location?.lng(),
@@ -287,9 +291,11 @@ export function CityAutocomplete({
         const components = place.address_components || [];
         const getComp = (type: string) => components.find((c) => c.types.includes(type))?.long_name || '';
         const city = getComp('locality') || getComp('administrative_area_level_2') || (place.name as string) || '';
+        const cleanCity = city.replace(/,?\s*D\.?C\.?$/i, '').trim();
         const state = getComp('administrative_area_level_1');
-        setInputValue(city);
-        onSelectRef.current(city, state);
+        const cleanState = cleanCity.toLowerCase() === 'bogotá' || cleanCity.toLowerCase() === 'bogota' ? 'Cundinamarca' : state;
+        setInputValue(cleanCity);
+        onSelectRef.current(cleanCity, cleanState);
       }
     });
     autocompleteRef.current = autocomplete;

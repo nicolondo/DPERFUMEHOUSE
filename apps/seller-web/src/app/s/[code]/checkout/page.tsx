@@ -219,8 +219,11 @@ export default function StoreCheckoutPage() {
       const streetNum = get('street_number');
       const route = get('route');
       setStreet([route, streetNum].filter(Boolean).join(' '));
-      setCity(get('locality') || get('administrative_area_level_2'));
-      setState(get('administrative_area_level_1'));
+      const rawCity = get('locality') || get('administrative_area_level_2');
+      const cleanCity = rawCity.replace(/,?\s*D\.?C\.?$/i, '').trim();
+      setCity(cleanCity);
+      const rawState = get('administrative_area_level_1');
+      setState(cleanCity.toLowerCase() === 'bogotá' || cleanCity.toLowerCase() === 'bogota' ? 'Cundinamarca' : rawState);
     });
   }, [mapsReady]);
 

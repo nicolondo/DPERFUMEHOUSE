@@ -81,14 +81,29 @@ function parsePlace(place: google.maps.places.PlaceResult): ParsedAddress {
     street = place.formatted_address ? place.formatted_address.split(',')[0].trim() : place.name || '';
   }
 
+  const rawCity =
+    getComponent('locality') ||
+    getComponent('administrative_area_level_2') ||
+    getComponent('sublocality_level_1') ||
+    '';
+
+  // Normalize Bogotá: Google returns "Bogotá, D.C." for both city and state,
+  // but the correct city is "Bogotá" and the department is "Cundinamarca".
+  const normalizeCity = (city: string) =>
+    city.replace(/,?\s*D\.?C\.?$/i, '').trim();
+  const normalizeState = (city: string, state: string) => {
+    const cleanCity = city.replace(/,?\s*D\.?C\.?$/i, '').trim().toLowerCase();
+    if (cleanCity === 'bogotá' || cleanCity === 'bogota') return 'Cundinamarca';
+    return state;
+  };
+
+  const city = normalizeCity(rawCity);
+  const rawState = getComponent('administrative_area_level_1');
+
   return {
     street: street || '',
-    city:
-      getComponent('locality') ||
-      getComponent('administrative_area_level_2') ||
-      getComponent('sublocality_level_1') ||
-      '',
-    state: getComponent('administrative_area_level_1'),
+    city,
+    state: normalizeState(rawCity, rawState),
     country: getComponent('country', true),
     lat: place.geometry?.location?.lat(),
     lng: place.geometry?.location?.lng(),
