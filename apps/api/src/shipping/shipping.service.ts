@@ -76,7 +76,7 @@ export class ShippingService {
             client_name: order.customer?.name || '',
             client_phone: this.normalizePhone(order.address.phone || order.customer?.phone) || '',
             client_email: order.customer?.email || '',
-            products_value: String(Math.round(extras.productsValue ?? 100)),
+            products_value: '100',
             domicile_value: '0',
             payment_type: '3',
           },
@@ -488,17 +488,12 @@ export class ShippingService {
     const configuredValue = muDeclaredValueStr ? parseFloat(muDeclaredValueStr) : null;
     const declaredValue = Math.max(100, configuredValue ?? Number(order.subtotal || 0));
 
-    // Per-product value: distribute configured value evenly across items, or use real unit price
-    const perItemValue = configuredValue != null
-      ? Math.round(configuredValue / Math.max(1, totalItems))
-      : null;
-
     // Build products using MU's documented schema
     const products = order.items.map((it: any) => ({
       store_id: storeId,
       sku: String(it.variant?.sku || it.variant?.id || 'SKU'),
       product_name: String(it.variant?.name || 'Producto'),
-      value: perItemValue ?? Number(it.unitPrice || 0),
+      value: 100,
       quantity: Number(it.quantity) || 1,
       url_img: '',
       barcode: String(it.variant?.sku || it.variant?.id || 'SKU'),
@@ -509,7 +504,6 @@ export class ShippingService {
       orderId: String(order.orderNumber || orderId),
       description,
       products,
-      productsValue: declaredValue,
     });
 
     // Resolve DANE code from delivery city
