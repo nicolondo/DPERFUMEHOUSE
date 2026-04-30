@@ -504,8 +504,11 @@ export class ShippingService {
     const daneCode = MU_DANE_CODE[daneKey] ?? MU_DANE_CODE['medellin'];
 
     const now = new Date();
-    const startDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
-    const startTime = now.toTimeString().slice(0, 8); // HH:MM:SS
+    // Format in Colombia timezone (UTC-5 / America/Bogota)
+    const bogotaDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+    const bogotaTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(now);
+    const startDate = bogotaDate; // YYYY-MM-DD
+    const startTime = bogotaTime; // HH:MM:SS
 
     const result = await this.mu.createService({
       declaredValue,
