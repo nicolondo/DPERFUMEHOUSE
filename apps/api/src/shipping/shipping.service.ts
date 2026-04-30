@@ -477,16 +477,9 @@ export class ShippingService {
     const observation = `Pedido ${order.orderNumber}`;
 
     // store_id is required per product by MU's /api/create endpoint
-    const [muStoreId, muDeclaredValueStr] = await Promise.all([
-      this.settings.get('mensajeros_urbanos_store_id'),
-      this.settings.get('mensajeros_urbanos_declared_value'),
-    ]);
+    const muStoreId = await this.settings.get('mensajeros_urbanos_store_id');
     const storeId = muStoreId || 'A100';
-
-    // If mensajeros_urbanos_declared_value is set in Settings, use it instead of real sale value.
-    // This controls both the declared_value sent to MU and the per-product value in products[].
-    const configuredValue = muDeclaredValueStr ? parseFloat(muDeclaredValueStr) : null;
-    const declaredValue = Math.max(100, configuredValue ?? Number(order.subtotal || 0));
+    const declaredValue = 100;
 
     // Build products using MU's documented schema
     const products = order.items.map((it: any) => ({
