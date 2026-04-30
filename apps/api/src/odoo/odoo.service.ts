@@ -664,12 +664,12 @@ export class OdooService {
       }
       const so = soData[0];
 
-      // Get SO lines
+      // Get SO lines — Odoo 17 renamed product_uom → product_uom_id on sale.order.line
       const lines = await this.execute(
         'sale.order.line',
         'read',
         [so.order_line],
-        { fields: ['id', 'product_id', 'product_uom_qty', 'product_uom', 'name'] },
+        { fields: ['id', 'product_id', 'product_uom_qty', 'product_uom_id', 'name'] },
       ) as any[];
 
       const deliverableLines = lines.filter(
@@ -722,6 +722,8 @@ export class OdooService {
 
       // Create stock.move for each deliverable line
       for (const line of deliverableLines) {
+        // product_uom_id is the Odoo 17 field name for UoM on sale.order.line
+        const uomId = line.product_uom_id?.[0] ?? line.product_uom_id ?? line.product_uom?.[0] ?? line.product_uom;
         await this.execute(
           'stock.move',
           'create',
@@ -730,7 +732,7 @@ export class OdooService {
             picking_id: pickingId,
             product_id: line.product_id?.[0] ?? line.product_id,
             product_uom_qty: line.product_uom_qty,
-            product_uom: line.product_uom?.[0] ?? line.product_uom,
+            product_uom: uomId,
             location_id: pickingType.default_location_src_id?.[0],
             location_dest_id: destLocId,
             sale_line_id: line.id,
