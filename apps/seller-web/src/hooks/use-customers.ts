@@ -10,7 +10,7 @@ export function useCustomers(search?: string) {
     queryFn: async () => {
       const params = new URLSearchParams();
       if (search) params.set('search', search);
-      params.set('limit', '50');
+      params.set('pageSize', '500');
 
       const { data } = await api.get(`/customers?${params}`);
       return unwrap(data);

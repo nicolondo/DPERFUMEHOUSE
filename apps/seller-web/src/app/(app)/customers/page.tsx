@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Plus, Phone, Mail, ChevronRight } from 'lucide-react';
+import { Search, Plus, Phone, Mail, ChevronRight, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { PageSpinner } from '@/components/ui/spinner';
@@ -26,12 +26,24 @@ export default function CustomersPage() {
 
       <div className="px-4 space-y-4">
         {/* Search */}
-        <Input
-          placeholder="Buscar por nombre, email o telefono..."
-          leftIcon={<Search className="h-5 w-5" />}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div className="relative">
+          <Input
+            placeholder="Buscar por nombre, email o telefono..."
+            leftIcon={<Search className="h-5 w-5" />}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={search ? 'pr-10' : ''}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
 
         {/* List */}
         {isLoading ? (
