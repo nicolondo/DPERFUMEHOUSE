@@ -728,7 +728,6 @@ export class OdooService {
           'stock.move',
           'create',
           [{
-            name: line.name,
             picking_id: pickingId,
             product_id: line.product_id?.[0] ?? line.product_id,
             product_uom_qty: line.product_uom_qty,
