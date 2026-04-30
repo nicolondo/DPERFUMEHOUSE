@@ -1076,12 +1076,23 @@ export class OrdersService {
 
     for (const order of orders) {
       try {
-        // First try triggering the stock rule to create the picking (handles the state-write fallback case)
-        try {
-          await this.odooService.launchStockRule(order.odooSaleOrderId!);
-        } catch (_) { /* ignore – picking may already exist or method unavailable */ }
+        // First try finding an existing picking
+        let deliveryId = await this.odooService.createDelivery(order.odooSaleOrderId!);
 
-        const deliveryId = await this.odooService.createDelivery(order.odooSaleOrderId!);
+        // If no picking found, try to create one manually (handles state-write fallback case)
+        if (!deliveryId) {
+          this.logger.log(`No picking found for SO ${order.odooSaleOrderId} — attempting manual creation`);
+          deliveryId = await this.odooService.createPickingManually(order.odooSaleOrderId!);
+          // After manual creation, validate via createDelivery (sets done qty + validates)
+          if (deliveryId) {
+            try {
+              await this.odooService.validateDelivery(deliveryId);
+            } catch (valErr) {
+              this.logger.warn(`Could not validate manually created picking ${deliveryId}: ${valErr.message}`);
+            }
+          }
+        }
+
         if (deliveryId) {
           await this.prisma.order.update({ where: { id: order.id }, data: { odooDeliveryId: deliveryId } });
           this.logger.log(`Backfilled delivery ${deliveryId} for order ${order.orderNumber}`);

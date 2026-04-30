@@ -644,6 +644,113 @@ export class OdooService {
     this.logger.log(`Stock rule launched for SO ${saleOrderId}`);
   }
 
+  /**
+   * Manually create a stock.picking (delivery order) for an SO that has state='sale'
+   * but no picking (happens when action_confirm fallback writes state directly).
+   * Returns the created picking id, or null on failure.
+   */
+  async createPickingManually(saleOrderId: number): Promise<number | null> {
+    try {
+      // Get SO data
+      const soData = await this.execute(
+        'sale.order',
+        'read',
+        [[saleOrderId]],
+        { fields: ['name', 'partner_id', 'company_id', 'warehouse_id', 'order_line'] },
+      ) as any[];
+      if (!soData || soData.length === 0) {
+        this.logger.warn(`SO ${saleOrderId} not found in Odoo`);
+        return null;
+      }
+      const so = soData[0];
+
+      // Get SO lines
+      const lines = await this.execute(
+        'sale.order.line',
+        'read',
+        [so.order_line],
+        { fields: ['id', 'product_id', 'product_uom_qty', 'product_uom', 'name'] },
+      ) as any[];
+
+      const deliverableLines = lines.filter(
+        (l: any) => l.product_id && l.product_uom_qty > 0,
+      );
+      if (deliverableLines.length === 0) {
+        this.logger.warn(`No deliverable lines on SO ${saleOrderId}`);
+        return null;
+      }
+
+      // Get outgoing picking type for the SO's warehouse
+      const warehouseId = so.warehouse_id?.[0];
+      const pickingTypeDomain: any[] = [['code', '=', 'outgoing']];
+      if (warehouseId) pickingTypeDomain.push(['warehouse_id', '=', warehouseId]);
+      const pickingTypes = await this.execute(
+        'stock.picking.type',
+        'search_read',
+        [pickingTypeDomain],
+        { fields: ['id', 'default_location_src_id', 'default_location_dest_id'], limit: 1 },
+      ) as any[];
+      if (!pickingTypes || pickingTypes.length === 0) {
+        this.logger.error(`No outgoing picking type found for SO ${saleOrderId}`);
+        return null;
+      }
+      const pickingType = pickingTypes[0];
+
+      // Get customer location
+      const custLocs = await this.execute(
+        'stock.location',
+        'search',
+        [[['usage', '=', 'customer'], ['company_id', 'in', [false, so.company_id?.[0] || 1]]]],
+        { limit: 1 },
+      ) as number[];
+      const destLocId = custLocs?.[0] ?? pickingType.default_location_dest_id?.[0];
+
+      // Create the picking
+      const pickingId = await this.execute(
+        'stock.picking',
+        'create',
+        [{
+          picking_type_id: pickingType.id,
+          partner_id: so.partner_id?.[0],
+          origin: so.name,
+          sale_id: saleOrderId,
+          location_id: pickingType.default_location_src_id?.[0],
+          location_dest_id: destLocId,
+          company_id: so.company_id?.[0],
+        }],
+      ) as number;
+
+      // Create stock.move for each deliverable line
+      for (const line of deliverableLines) {
+        await this.execute(
+          'stock.move',
+          'create',
+          [{
+            name: line.name,
+            picking_id: pickingId,
+            product_id: line.product_id?.[0] ?? line.product_id,
+            product_uom_qty: line.product_uom_qty,
+            product_uom: line.product_uom?.[0] ?? line.product_uom,
+            location_id: pickingType.default_location_src_id?.[0],
+            location_dest_id: destLocId,
+            sale_line_id: line.id,
+            company_id: so.company_id?.[0],
+          }],
+        );
+      }
+
+      // Confirm + assign availability
+      await this.execute('stock.picking', 'action_confirm', [[pickingId]]);
+      await this.execute('stock.picking', 'action_assign', [[pickingId]]);
+
+      this.logger.log(`Manually created picking ${pickingId} for SO ${saleOrderId}`);
+      return pickingId;
+    } catch (err) {
+      this.logger.error(`Failed to manually create picking for SO ${saleOrderId}: ${err.message}`);
+      return null;
+    }
+  }
+
   async createDelivery(saleOrderId: number): Promise<number | null> {
     try {
       // Read pickings generated from the sale order confirmation
