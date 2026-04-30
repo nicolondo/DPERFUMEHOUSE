@@ -80,8 +80,9 @@ export default function OrderDetailPage() {
   const [trackingData, setTrackingData] = useState<any>(null);
   const [pickupModalOpen, setPickupModalOpen] = useState(false);
   const [pickupDate, setPickupDate] = useState('');
-  const [pickupTimeFrom, setPickupTimeFrom] = useState(9);
-  const [pickupTimeTo, setPickupTimeTo] = useState(17);
+  const [pickupWindow, setPickupWindow] = useState('8-18');
+  const pickupTimeFrom = Number(pickupWindow.split('-')[0]);
+  const pickupTimeTo = Number(pickupWindow.split('-')[1]);
 
   const quoteRatesMutation = useMutation({
     mutationFn: async () => {
@@ -901,31 +902,17 @@ export default function OrderDetailPage() {
               className="w-full rounded-xl border border-glass-border bg-glass-50 py-2.5 px-4 text-sm text-white focus:border-accent-purple focus:outline-none"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-white/70">Desde (hora)</label>
-              <select
-                value={pickupTimeFrom}
-                onChange={(e) => setPickupTimeFrom(Number(e.target.value))}
-                className="w-full rounded-xl border border-glass-border bg-glass-50 py-2.5 px-4 text-sm text-white focus:border-accent-purple focus:outline-none"
-              >
-                {Array.from({ length: 24 }, (_, i) => (
-                  <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-white/70">Hasta (hora)</label>
-              <select
-                value={pickupTimeTo}
-                onChange={(e) => setPickupTimeTo(Number(e.target.value))}
-                className="w-full rounded-xl border border-glass-border bg-glass-50 py-2.5 px-4 text-sm text-white focus:border-accent-purple focus:outline-none"
-              >
-                {Array.from({ length: 24 }, (_, i) => (
-                  <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-white/70">Ventana horaria</label>
+            <select
+              value={pickupWindow}
+              onChange={(e) => setPickupWindow(e.target.value)}
+              className="w-full rounded-xl border border-glass-border bg-glass-50 py-2.5 px-4 text-sm text-white focus:border-accent-purple focus:outline-none"
+            >
+              <option value="8-12">Mañana: 08:00 – 12:00</option>
+              <option value="13-17">Tarde: 13:00 – 17:00</option>
+              <option value="8-18">Día completo: 08:00 – 18:00</option>
+            </select>
           </div>
           {pickupMutation.isError && (
             <p className="text-sm text-status-danger">
@@ -938,7 +925,7 @@ export default function OrderDetailPage() {
               variant="primary"
               onClick={() => pickupMutation.mutate()}
               loading={pickupMutation.isPending}
-              disabled={!pickupDate || pickupTimeFrom >= pickupTimeTo}
+              disabled={!pickupDate}
             >
               Confirmar Recogida
             </Button>

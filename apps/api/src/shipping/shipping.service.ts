@@ -721,23 +721,28 @@ export class ShippingService {
     const totalItems = order.items.reduce((sum, i) => sum + i.quantity, 0);
     const ITEMS_PER_BOX = 4;
 
-    const response = await this.envia.schedulePickup({
-      origin,
-      shipment: {
-        type: 1,
-        carrier: order.shipment.carrier,
-        pickup: {
-          weightUnit: 'KG',
-          totalWeight: Math.ceil(totalItems / ITEMS_PER_BOX),
-          totalPackages: 1,
-          date,
-          timeFrom,
-          timeTo,
+    let response: { meta: string; data: any };
+    try {
+      response = await this.envia.schedulePickup({
+        origin,
+        shipment: {
+          type: 1,
           carrier: order.shipment.carrier,
-          trackingNumbers: [order.shipment.trackingNumber],
+          pickup: {
+            weightUnit: 'KG',
+            totalWeight: Math.ceil(totalItems / ITEMS_PER_BOX),
+            totalPackages: 1,
+            date,
+            timeFrom,
+            timeTo,
+            carrier: order.shipment.carrier,
+            trackingNumbers: [order.shipment.trackingNumber],
+          },
         },
-      },
-    });
+      });
+    } catch (err: any) {
+      throw new BadRequestException(err.message || 'Error al agendar recogida con Envia');
+    }
 
     await this.prisma.shipment.update({
       where: { orderId },
