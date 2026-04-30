@@ -54,7 +54,7 @@ export class ShippingService {
    */
   private async buildMUCoordinates(
     order: any,
-    extras?: { orderId: string; description: string; products: MUProduct[] },
+    extras?: { orderId: string; description: string; products: MUProduct[]; productsValue?: number },
   ): Promise<MUCoordinate[]> {
     if (!order.address) {
       throw new BadRequestException('La orden no tiene dirección de entrega');
@@ -76,7 +76,7 @@ export class ShippingService {
             client_name: order.customer?.name || '',
             client_phone: this.normalizePhone(order.address.phone || order.customer?.phone) || '',
             client_email: order.customer?.email || '',
-            products_value: '100',
+            products_value: String(Math.round(extras.productsValue ?? 100)),
             domicile_value: '0',
             payment_type: '3',
           },
@@ -472,22 +472,33 @@ export class ShippingService {
   }
 
   private async generateMULabel(orderId: string, order: any) {
-    // MU uses declared_value for insurance purposes; minimum allowed is 100 COP
-    const declaredValue = Math.max(100, Number(order.subtotal || 0));
-
     const totalItems = order.items.reduce((s: number, i: any) => s + i.quantity, 0);
     const description = `${totalItems} producto${totalItems === 1 ? '' : 's'} — D Perfume House`;
     const observation = `Pedido ${order.orderNumber}`;
 
     // store_id is required per product by MU's /api/create endpoint
-    const muStoreId = (await this.settings.get('mensajeros_urbanos_store_id')) || 'A100';
+    const [muStoreId, muDeclaredValueStr] = await Promise.all([
+      this.settings.get('mensajeros_urbanos_store_id'),
+      this.settings.get('mensajeros_urbanos_declared_value'),
+    ]);
+    const storeId = muStoreId || 'A100';
+
+    // If mensajeros_urbanos_declared_value is set in Settings, use it instead of real sale value.
+    // This controls both the declared_value sent to MU and the per-product value in products[].
+    const configuredValue = muDeclaredValueStr ? parseFloat(muDeclaredValueStr) : null;
+    const declaredValue = Math.max(100, configuredValue ?? Number(order.subtotal || 0));
+
+    // Per-product value: distribute configured value evenly across items, or use real unit price
+    const perItemValue = configuredValue != null
+      ? Math.round(configuredValue / Math.max(1, totalItems))
+      : null;
 
     // Build products using MU's documented schema
     const products = order.items.map((it: any) => ({
-      store_id: muStoreId,
+      store_id: storeId,
       sku: String(it.variant?.sku || it.variant?.id || 'SKU'),
       product_name: String(it.variant?.name || 'Producto'),
-      value: Number(it.unitPrice || 0),
+      value: perItemValue ?? Number(it.unitPrice || 0),
       quantity: Number(it.quantity) || 1,
       url_img: '',
       barcode: String(it.variant?.sku || it.variant?.id || 'SKU'),
@@ -498,6 +509,7 @@ export class ShippingService {
       orderId: String(order.orderNumber || orderId),
       description,
       products,
+      productsValue: declaredValue,
     });
 
     // Resolve DANE code from delivery city
@@ -505,8 +517,6 @@ export class ShippingService {
     const daneCode = MU_DANE_CODE[daneKey] ?? MU_DANE_CODE['medellin'];
 
     const now = new Date();
-    // Schedule for ~30 minutes from now to give time for the system to assign a courier
-    now.setMinutes(now.getMinutes() + 30);
     const startDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
     const startTime = now.toTimeString().slice(0, 8); // HH:MM:SS
 
