@@ -408,13 +408,11 @@ export class PayoutsService {
   // ========================================================================
 
   /**
-   * Aggregates pending amounts per seller:
-   *   - Sum of unlinked APPROVED commissions (still owed but no payout yet)
-   *   - Sum of existing PENDING SellerPayouts
+   * Aggregates pending amounts per seller from APPROVED unlinked commissions only.
    * Validates bank data and Wompi bank mapping. Returns eligible/excluded.
    */
   async previewPendingForWompi() {
-    // 1) APPROVED & unlinked commissions grouped by user
+    // APPROVED & unlinked commissions grouped by user
     const approvedAgg = await this.prisma.commission.groupBy({
       by: ['userId'],
       where: {
@@ -424,27 +422,9 @@ export class PayoutsService {
       _sum: { amount: true },
     });
 
-    // 2) PENDING payouts grouped by user
-    const pendingPayouts = await this.prisma.sellerPayout.findMany({
-      where: { status: PayoutStatus.PENDING },
-      select: { id: true, userId: true, amount: true },
-    });
+    const userIds = approvedAgg.map((a) => a.userId);
 
-    const pendingPayoutByUser = new Map<string, { ids: string[]; total: number }>();
-    for (const p of pendingPayouts) {
-      const cur = pendingPayoutByUser.get(p.userId) || { ids: [], total: 0 };
-      cur.ids.push(p.id);
-      cur.total += p.amount.toNumber();
-      pendingPayoutByUser.set(p.userId, cur);
-    }
-
-    // Combine user list
-    const userIds = new Set<string>([
-      ...approvedAgg.map((a) => a.userId),
-      ...pendingPayoutByUser.keys(),
-    ]);
-
-    if (userIds.size === 0) {
+    if (userIds.length === 0) {
       return {
         eligible: [],
         excluded: [],
@@ -455,7 +435,7 @@ export class PayoutsService {
     }
 
     const users = await this.prisma.user.findMany({
-      where: { id: { in: Array.from(userIds) } },
+      where: { id: { in: userIds } },
       select: {
         id: true,
         name: true,
@@ -484,8 +464,6 @@ export class PayoutsService {
       accountHolder: string | null;
       identificationNumber: string | null;
       approvedAmount: number;
-      existingPendingPayoutIds: string[];
-      existingPendingAmount: number;
       totalAmount: number;
     };
     type Excluded = {
@@ -501,9 +479,7 @@ export class PayoutsService {
 
     for (const u of users) {
       const approvedAmount = approvedByUser.get(u.id) ?? 0;
-      const pendingInfo = pendingPayoutByUser.get(u.id) || { ids: [], total: 0 };
-      const totalAmount = approvedAmount + pendingInfo.total;
-      if (totalAmount <= 0) continue;
+      if (approvedAmount <= 0) continue;
 
       const missing: string[] = [];
       if (!u.bankName) missing.push('banco');
@@ -517,7 +493,7 @@ export class PayoutsService {
           userId: u.id,
           userName: u.name,
           userEmail: u.email,
-          amount: totalAmount,
+          amount: approvedAmount,
           reason: `Faltan datos bancarios: ${missing.join(', ')}`,
         });
         continue;
@@ -531,7 +507,7 @@ export class PayoutsService {
           userId: u.id,
           userName: u.name,
           userEmail: u.email,
-          amount: totalAmount,
+          amount: approvedAmount,
           reason: `Error consultando bancos Wompi: ${err.message}`,
         });
         continue;
@@ -541,7 +517,7 @@ export class PayoutsService {
           userId: u.id,
           userName: u.name,
           userEmail: u.email,
-          amount: totalAmount,
+          amount: approvedAmount,
           reason: `Banco "${u.bankName}" no se pudo mapear a Wompi`,
         });
         continue;
@@ -558,9 +534,7 @@ export class PayoutsService {
         accountHolder: u.bankAccountHolder,
         identificationNumber: u.identificationNumber,
         approvedAmount,
-        existingPendingPayoutIds: pendingInfo.ids,
-        existingPendingAmount: pendingInfo.total,
-        totalAmount,
+        totalAmount: approvedAmount,
       });
     }
 
@@ -576,17 +550,15 @@ export class PayoutsService {
   }
 
   /**
-   * Creates a single Wompi batch with one transaction per eligible seller.
-   * For each eligible seller:
-   *   - Reuses their existing PENDING payouts (consolidated into one), OR
-   *   - Creates a new SellerPayout for unpaid APPROVED commissions
-   * Then marks the resulting payout as PROCESSING with Wompi metadata.
+   * Creates a single Wompi batch with one transaction per eligible seller,
+   * paying their APPROVED unlinked commissions. Creates a new SellerPayout
+   * per seller, links the commissions to it, and marks it PROCESSING.
    */
   async payAllPendingViaWompi() {
     const preview = await this.previewPendingForWompi();
     if (preview.eligible.length === 0) {
       throw new BadRequestException(
-        'No hay vendedores elegibles para pagar con Wompi (sin comisiones aprobadas o sin datos bancarios)',
+        'No hay comisiones aprobadas elegibles para pagar con Wompi',
       );
     }
 
@@ -606,11 +578,7 @@ export class PayoutsService {
 
     const batchRef = `dph-${Date.now()}`;
 
-    // For each eligible seller, ensure ONE consolidated SellerPayout exists.
-    // Strategy:
-    //  - If seller has existing PENDING payouts, keep the first and merge others into it
-    //  - If seller has APPROVED unlinked commissions, link them and bump the payout amount
-    //  - If seller has no PENDING payout but has APPROVED commissions, create one
+    // Create one SellerPayout per eligible seller, linking their APPROVED commissions
     type Prepared = {
       payoutId: string;
       eligible: typeof preview.eligible[number];
@@ -621,45 +589,27 @@ export class PayoutsService {
       let payoutId: string | null = null;
 
       await this.prisma.$transaction(async (tx) => {
-        // Reuse first existing pending payout (or create one)
-        if (e.existingPendingPayoutIds.length > 0) {
-          payoutId = e.existingPendingPayoutIds[0];
-          // Cancel-merge any extras into the first by transferring their commissions
-          const extras = e.existingPendingPayoutIds.slice(1);
-          if (extras.length > 0) {
-            await tx.commission.updateMany({
-              where: { payoutId: { in: extras } },
-              data: { payoutId },
-            });
-            await tx.sellerPayout.deleteMany({
-              where: { id: { in: extras } },
-            });
-          }
-        } else {
-          const created = await tx.sellerPayout.create({
-            data: {
-              userId: e.userId,
-              amount: new Prisma.Decimal(0),
-              method: 'WOMPI',
-              status: PayoutStatus.PENDING,
-            },
-          });
-          payoutId = created.id;
-        }
+        const created = await tx.sellerPayout.create({
+          data: {
+            userId: e.userId,
+            amount: new Prisma.Decimal(0),
+            method: 'WOMPI',
+            status: PayoutStatus.PENDING,
+          },
+        });
+        payoutId = created.id;
 
-        // Link any APPROVED unlinked commissions
-        if (e.approvedAmount > 0) {
-          await tx.commission.updateMany({
-            where: {
-              userId: e.userId,
-              status: CommissionStatus.APPROVED,
-              payoutId: null,
-            },
-            data: { payoutId },
-          });
-        }
+        // Link APPROVED unlinked commissions to this new payout
+        await tx.commission.updateMany({
+          where: {
+            userId: e.userId,
+            status: CommissionStatus.APPROVED,
+            payoutId: null,
+          },
+          data: { payoutId },
+        });
 
-        // Recompute payout amount from linked commissions (source of truth)
+        // Recompute payout amount from linked commissions
         const linkedAgg = await tx.commission.aggregate({
           where: { payoutId },
           _sum: { amount: true },
