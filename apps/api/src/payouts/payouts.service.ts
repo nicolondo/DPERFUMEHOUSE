@@ -453,6 +453,36 @@ export class PayoutsService {
       approvedByUser.set(a.userId, a._sum.amount?.toNumber() ?? 0);
     }
 
+    // Compute "available for payout" per user (same logic as commission summary):
+    // available = (sum of all non-REVERSED commissions) - (sum of payouts in PENDING/PROCESSING/COMPLETED)
+    const [allCommissionsAgg, payoutsAgg] = await Promise.all([
+      this.prisma.commission.groupBy({
+        by: ['userId'],
+        where: {
+          userId: { in: userIds },
+          status: { not: CommissionStatus.REVERSED },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.sellerPayout.groupBy({
+        by: ['userId'],
+        where: {
+          userId: { in: userIds },
+          status: { in: ['PENDING', 'PROCESSING', 'COMPLETED'] },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const totalCommByUser = new Map<string, number>();
+    for (const a of allCommissionsAgg) {
+      totalCommByUser.set(a.userId, a._sum.amount?.toNumber() ?? 0);
+    }
+    const totalPaidOutByUser = new Map<string, number>();
+    for (const a of payoutsAgg) {
+      totalPaidOutByUser.set(a.userId, a._sum.amount?.toNumber() ?? 0);
+    }
+
     type Eligible = {
       userId: string;
       userName: string | null;
@@ -481,6 +511,23 @@ export class PayoutsService {
       const approvedAmount = approvedByUser.get(u.id) ?? 0;
       if (approvedAmount <= 0) continue;
 
+      // Cap payable amount by availableForPayout (matches manual "Crear Pago" modal logic)
+      const totalComm = totalCommByUser.get(u.id) ?? 0;
+      const totalPaidOut = totalPaidOutByUser.get(u.id) ?? 0;
+      const availableForPayout = Math.max(0, totalComm - totalPaidOut);
+      const payableAmount = Math.min(approvedAmount, availableForPayout);
+
+      if (payableAmount <= 0) {
+        excluded.push({
+          userId: u.id,
+          userName: u.name,
+          userEmail: u.email,
+          amount: approvedAmount,
+          reason: `Sin saldo disponible (ya pagado ${totalPaidOut.toLocaleString('es-CO')} de ${totalComm.toLocaleString('es-CO')})`,
+        });
+        continue;
+      }
+
       const missing: string[] = [];
       if (!u.bankName) missing.push('banco');
       if (!u.bankAccountNumber) missing.push('cuenta');
@@ -493,7 +540,7 @@ export class PayoutsService {
           userId: u.id,
           userName: u.name,
           userEmail: u.email,
-          amount: approvedAmount,
+          amount: payableAmount,
           reason: `Faltan datos bancarios: ${missing.join(', ')}`,
         });
         continue;
@@ -507,7 +554,7 @@ export class PayoutsService {
           userId: u.id,
           userName: u.name,
           userEmail: u.email,
-          amount: approvedAmount,
+          amount: payableAmount,
           reason: `Error consultando bancos Wompi: ${err.message}`,
         });
         continue;
@@ -517,7 +564,7 @@ export class PayoutsService {
           userId: u.id,
           userName: u.name,
           userEmail: u.email,
-          amount: approvedAmount,
+          amount: payableAmount,
           reason: `Banco "${u.bankName}" no se pudo mapear a Wompi`,
         });
         continue;
@@ -533,8 +580,8 @@ export class PayoutsService {
         accountNumber: u.bankAccountNumber,
         accountHolder: u.bankAccountHolder,
         identificationNumber: u.identificationNumber,
-        approvedAmount,
-        totalAmount: approvedAmount,
+        approvedAmount: payableAmount,
+        totalAmount: payableAmount,
       });
     }
 
@@ -599,26 +646,36 @@ export class PayoutsService {
         });
         payoutId = created.id;
 
-        // Link APPROVED unlinked commissions to this new payout
-        await tx.commission.updateMany({
+        // Link APPROVED unlinked commissions oldest-first up to e.totalAmount (capped by availableForPayout)
+        const candidates = await tx.commission.findMany({
           where: {
             userId: e.userId,
             status: CommissionStatus.APPROVED,
             payoutId: null,
           },
-          data: { payoutId },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, amount: true },
         });
+        const cap = e.totalAmount;
+        const idsToLink: string[] = [];
+        let running = 0;
+        for (const c of candidates) {
+          const amt = c.amount.toNumber();
+          if (running + amt > cap + 0.5) break; // small epsilon to avoid float issues
+          idsToLink.push(c.id);
+          running += amt;
+        }
+        if (idsToLink.length > 0) {
+          await tx.commission.updateMany({
+            where: { id: { in: idsToLink } },
+            data: { payoutId },
+          });
+        }
 
-        // Recompute payout amount from linked commissions
-        const linkedAgg = await tx.commission.aggregate({
-          where: { payoutId },
-          _sum: { amount: true },
-        });
-        const total = linkedAgg._sum.amount?.toNumber() ?? e.totalAmount;
-
+        // Use the capped totalAmount as the payout amount (may differ slightly from linked sum if no exact match)
         await tx.sellerPayout.update({
           where: { id: payoutId! },
-          data: { amount: new Prisma.Decimal(total) },
+          data: { amount: new Prisma.Decimal(e.totalAmount) },
         });
       });
 
