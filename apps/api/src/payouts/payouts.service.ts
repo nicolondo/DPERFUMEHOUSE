@@ -692,7 +692,7 @@ export class PayoutsService {
       name: e.accountHolder || e.userName || '',
       email: e.userEmail || '',
       amount: Math.round(e.totalAmount * 100), // COP cents
-      reference: `payout-${payoutId}`,
+      reference: `p-${payoutId.replace(/-/g, '')}`.slice(0, 40),
     }));
 
     const idempotencyKey = `dph-batch-${batchRef}`;
