@@ -716,8 +716,17 @@ export class PayoutsService {
     }
 
     const batchId: string | undefined = response?.id || response?.data?.id;
-    const txnList: Array<any> =
-      response?.transactions || response?.data?.transactions || [];
+    const rawTxnList =
+      response?.transactions ??
+      response?.data?.transactions ??
+      response?.data?.data?.transactions;
+    const txnList: Array<any> = Array.isArray(rawTxnList) ? rawTxnList : [];
+    this.logger.log(
+      `Wompi batch response keys: ${Object.keys(response ?? {}).join(',')} | txnList length: ${txnList.length}`,
+    );
+
+    const buildRef = (payoutId: string) =>
+      `p-${payoutId.replace(/-/g, '')}`.slice(0, 40);
 
     const txnByRef = new Map<string, any>();
     for (const t of txnList) {
@@ -727,7 +736,7 @@ export class PayoutsService {
 
     await this.prisma.$transaction(
       prepared.map(({ payoutId }) => {
-        const txn = txnByRef.get(`payout-${payoutId}`);
+        const txn = txnByRef.get(buildRef(payoutId));
         return this.prisma.sellerPayout.update({
           where: { id: payoutId },
           data: {
