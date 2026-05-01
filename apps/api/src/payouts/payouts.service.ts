@@ -408,88 +408,167 @@ export class PayoutsService {
   // ========================================================================
 
   /**
-   * Build the eligible/excluded breakdown for the Wompi batch from PENDING
-   * SellerPayouts. A payout is eligible only if the seller has complete bank
-   * data and the bank can be mapped to a Wompi bankId.
+   * Aggregates pending amounts per seller:
+   *   - Sum of unlinked APPROVED commissions (still owed but no payout yet)
+   *   - Sum of existing PENDING SellerPayouts
+   * Validates bank data and Wompi bank mapping. Returns eligible/excluded.
    */
   async previewPendingForWompi() {
-    const pending = await this.prisma.sellerPayout.findMany({
-      where: { status: PayoutStatus.PENDING },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            bankName: true,
-            bankAccountType: true,
-            bankAccountNumber: true,
-            bankAccountHolder: true,
-            identificationNumber: true,
-          },
-        },
+    // 1) APPROVED & unlinked commissions grouped by user
+    const approvedAgg = await this.prisma.commission.groupBy({
+      by: ['userId'],
+      where: {
+        status: CommissionStatus.APPROVED,
+        payoutId: null,
       },
-      orderBy: { createdAt: 'asc' },
+      _sum: { amount: true },
     });
 
-    const eligible: Array<{ payout: any; bankId: string }> = [];
-    const excluded: Array<{ payout: any; reason: string }> = [];
+    // 2) PENDING payouts grouped by user
+    const pendingPayouts = await this.prisma.sellerPayout.findMany({
+      where: { status: PayoutStatus.PENDING },
+      select: { id: true, userId: true, amount: true },
+    });
 
-    for (const p of pending) {
-      const u = p.user;
+    const pendingPayoutByUser = new Map<string, { ids: string[]; total: number }>();
+    for (const p of pendingPayouts) {
+      const cur = pendingPayoutByUser.get(p.userId) || { ids: [], total: 0 };
+      cur.ids.push(p.id);
+      cur.total += p.amount.toNumber();
+      pendingPayoutByUser.set(p.userId, cur);
+    }
+
+    // Combine user list
+    const userIds = new Set<string>([
+      ...approvedAgg.map((a) => a.userId),
+      ...pendingPayoutByUser.keys(),
+    ]);
+
+    if (userIds.size === 0) {
+      return {
+        eligible: [],
+        excluded: [],
+        totalEligible: 0,
+        totalEligibleCount: 0,
+        totalExcludedCount: 0,
+      };
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: Array.from(userIds) } },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        bankName: true,
+        bankAccountType: true,
+        bankAccountNumber: true,
+        bankAccountHolder: true,
+        identificationNumber: true,
+      },
+    });
+
+    const approvedByUser = new Map<string, number>();
+    for (const a of approvedAgg) {
+      approvedByUser.set(a.userId, a._sum.amount?.toNumber() ?? 0);
+    }
+
+    type Eligible = {
+      userId: string;
+      userName: string | null;
+      userEmail: string | null;
+      bankName: string | null;
+      bankId: string;
+      accountType: string | null;
+      accountNumber: string | null;
+      accountHolder: string | null;
+      identificationNumber: string | null;
+      approvedAmount: number;
+      existingPendingPayoutIds: string[];
+      existingPendingAmount: number;
+      totalAmount: number;
+    };
+    type Excluded = {
+      userId: string;
+      userName: string | null;
+      userEmail: string | null;
+      amount: number;
+      reason: string;
+    };
+
+    const eligible: Eligible[] = [];
+    const excluded: Excluded[] = [];
+
+    for (const u of users) {
+      const approvedAmount = approvedByUser.get(u.id) ?? 0;
+      const pendingInfo = pendingPayoutByUser.get(u.id) || { ids: [], total: 0 };
+      const totalAmount = approvedAmount + pendingInfo.total;
+      if (totalAmount <= 0) continue;
+
       const missing: string[] = [];
-      if (!u?.bankName) missing.push('banco');
-      if (!u?.bankAccountNumber) missing.push('cuenta');
-      if (!u?.bankAccountType) missing.push('tipo cuenta');
-      if (!u?.bankAccountHolder) missing.push('titular');
-      if (!u?.identificationNumber) missing.push('cédula');
-      if (!u?.email) missing.push('email');
+      if (!u.bankName) missing.push('banco');
+      if (!u.bankAccountNumber) missing.push('cuenta');
+      if (!u.bankAccountType) missing.push('tipo cuenta');
+      if (!u.bankAccountHolder) missing.push('titular');
+      if (!u.identificationNumber) missing.push('cédula');
+      if (!u.email) missing.push('email');
       if (missing.length > 0) {
-        excluded.push({ payout: p, reason: `Faltan datos: ${missing.join(', ')}` });
+        excluded.push({
+          userId: u.id,
+          userName: u.name,
+          userEmail: u.email,
+          amount: totalAmount,
+          reason: `Faltan datos bancarios: ${missing.join(', ')}`,
+        });
         continue;
       }
-      // Map to Wompi bank
+
       let bankId: string | null = null;
       try {
-        bankId = await this.wompi.resolveBankId(u.bankName);
+        bankId = await this.wompi.resolveBankId(u.bankName!);
       } catch (err: any) {
-        excluded.push({ payout: p, reason: `Error consultando bancos Wompi: ${err.message}` });
+        excluded.push({
+          userId: u.id,
+          userName: u.name,
+          userEmail: u.email,
+          amount: totalAmount,
+          reason: `Error consultando bancos Wompi: ${err.message}`,
+        });
         continue;
       }
       if (!bankId) {
-        excluded.push({ payout: p, reason: `Banco "${u.bankName}" no se pudo mapear a Wompi` });
+        excluded.push({
+          userId: u.id,
+          userName: u.name,
+          userEmail: u.email,
+          amount: totalAmount,
+          reason: `Banco "${u.bankName}" no se pudo mapear a Wompi`,
+        });
         continue;
       }
-      eligible.push({ payout: p, bankId });
+
+      eligible.push({
+        userId: u.id,
+        userName: u.name,
+        userEmail: u.email,
+        bankName: u.bankName,
+        bankId,
+        accountType: u.bankAccountType,
+        accountNumber: u.bankAccountNumber,
+        accountHolder: u.bankAccountHolder,
+        identificationNumber: u.identificationNumber,
+        approvedAmount,
+        existingPendingPayoutIds: pendingInfo.ids,
+        existingPendingAmount: pendingInfo.total,
+        totalAmount,
+      });
     }
 
-    const totalEligible = eligible.reduce(
-      (acc, e) => acc + e.payout.amount.toNumber(),
-      0,
-    );
+    const totalEligible = eligible.reduce((acc, e) => acc + e.totalAmount, 0);
 
     return {
-      eligible: eligible.map((e) => ({
-        id: e.payout.id,
-        userId: e.payout.userId,
-        userName: e.payout.user?.name,
-        userEmail: e.payout.user?.email,
-        amount: e.payout.amount.toNumber(),
-        bankName: e.payout.user?.bankName,
-        bankId: e.bankId,
-        accountType: e.payout.user?.bankAccountType,
-        accountNumber: e.payout.user?.bankAccountNumber,
-        accountHolder: e.payout.user?.bankAccountHolder,
-        identificationNumber: e.payout.user?.identificationNumber,
-      })),
-      excluded: excluded.map((x) => ({
-        id: x.payout.id,
-        userId: x.payout.userId,
-        userName: x.payout.user?.name,
-        userEmail: x.payout.user?.email,
-        amount: x.payout.amount.toNumber(),
-        reason: x.reason,
-      })),
+      eligible,
+      excluded,
       totalEligible,
       totalEligibleCount: eligible.length,
       totalExcludedCount: excluded.length,
@@ -497,14 +576,17 @@ export class PayoutsService {
   }
 
   /**
-   * Create a Wompi payout batch for all eligible PENDING SellerPayouts and
-   * mark them as PROCESSING with the Wompi batch + transaction ids.
+   * Creates a single Wompi batch with one transaction per eligible seller.
+   * For each eligible seller:
+   *   - Reuses their existing PENDING payouts (consolidated into one), OR
+   *   - Creates a new SellerPayout for unpaid APPROVED commissions
+   * Then marks the resulting payout as PROCESSING with Wompi metadata.
    */
   async payAllPendingViaWompi() {
     const preview = await this.previewPendingForWompi();
     if (preview.eligible.length === 0) {
       throw new BadRequestException(
-        'No hay payouts pendientes elegibles para pagar con Wompi',
+        'No hay vendedores elegibles para pagar con Wompi (sin comisiones aprobadas o sin datos bancarios)',
       );
     }
 
@@ -523,7 +605,78 @@ export class PayoutsService {
     };
 
     const batchRef = `dph-${Date.now()}`;
-    const transactions = preview.eligible.map((e) => ({
+
+    // For each eligible seller, ensure ONE consolidated SellerPayout exists.
+    // Strategy:
+    //  - If seller has existing PENDING payouts, keep the first and merge others into it
+    //  - If seller has APPROVED unlinked commissions, link them and bump the payout amount
+    //  - If seller has no PENDING payout but has APPROVED commissions, create one
+    type Prepared = {
+      payoutId: string;
+      eligible: typeof preview.eligible[number];
+    };
+    const prepared: Prepared[] = [];
+
+    for (const e of preview.eligible) {
+      let payoutId: string | null = null;
+
+      await this.prisma.$transaction(async (tx) => {
+        // Reuse first existing pending payout (or create one)
+        if (e.existingPendingPayoutIds.length > 0) {
+          payoutId = e.existingPendingPayoutIds[0];
+          // Cancel-merge any extras into the first by transferring their commissions
+          const extras = e.existingPendingPayoutIds.slice(1);
+          if (extras.length > 0) {
+            await tx.commission.updateMany({
+              where: { payoutId: { in: extras } },
+              data: { payoutId },
+            });
+            await tx.sellerPayout.deleteMany({
+              where: { id: { in: extras } },
+            });
+          }
+        } else {
+          const created = await tx.sellerPayout.create({
+            data: {
+              userId: e.userId,
+              amount: new Prisma.Decimal(0),
+              method: 'WOMPI',
+              status: PayoutStatus.PENDING,
+            },
+          });
+          payoutId = created.id;
+        }
+
+        // Link any APPROVED unlinked commissions
+        if (e.approvedAmount > 0) {
+          await tx.commission.updateMany({
+            where: {
+              userId: e.userId,
+              status: CommissionStatus.APPROVED,
+              payoutId: null,
+            },
+            data: { payoutId },
+          });
+        }
+
+        // Recompute payout amount from linked commissions (source of truth)
+        const linkedAgg = await tx.commission.aggregate({
+          where: { payoutId },
+          _sum: { amount: true },
+        });
+        const total = linkedAgg._sum.amount?.toNumber() ?? e.totalAmount;
+
+        await tx.sellerPayout.update({
+          where: { id: payoutId! },
+          data: { amount: new Prisma.Decimal(total) },
+        });
+      });
+
+      if (payoutId) prepared.push({ payoutId, eligible: e });
+    }
+
+    // Build Wompi transactions
+    const transactions = prepared.map(({ payoutId, eligible: e }) => ({
       legalIdType: detectLegalIdType(e.identificationNumber || ''),
       legalId: (e.identificationNumber || '').replace(/\D/g, ''),
       bankId: e.bankId,
@@ -531,8 +684,8 @@ export class PayoutsService {
       accountNumber: (e.accountNumber || '').replace(/\D/g, ''),
       name: e.accountHolder || e.userName || '',
       email: e.userEmail || '',
-      amount: Math.round(e.amount * 100), // COP cents
-      reference: `payout-${e.id}`,
+      amount: Math.round(e.totalAmount * 100), // COP cents
+      reference: `payout-${payoutId}`,
     }));
 
     const idempotencyKey = `dph-batch-${batchRef}`;
@@ -559,7 +712,6 @@ export class PayoutsService {
     const txnList: Array<any> =
       response?.transactions || response?.data?.transactions || [];
 
-    // Map Wompi transactions back to our payouts via the reference field
     const txnByRef = new Map<string, any>();
     for (const t of txnList) {
       const ref = t?.reference || t?.transactionReference;
@@ -567,10 +719,10 @@ export class PayoutsService {
     }
 
     await this.prisma.$transaction(
-      preview.eligible.map((e) => {
-        const txn = txnByRef.get(`payout-${e.id}`);
+      prepared.map(({ payoutId }) => {
+        const txn = txnByRef.get(`payout-${payoutId}`);
         return this.prisma.sellerPayout.update({
-          where: { id: e.id },
+          where: { id: payoutId },
           data: {
             status: PayoutStatus.PROCESSING,
             method: 'WOMPI',
@@ -592,10 +744,10 @@ export class PayoutsService {
       batchId,
       batchReference: batchRef,
       response,
-      processedPayouts: preview.eligible.map((e) => e.id),
+      processedPayouts: prepared.map((p) => p.payoutId),
       excluded: preview.excluded,
       totalAmount: preview.totalEligible,
-      totalCount: preview.eligible.length,
+      totalCount: prepared.length,
     };
   }
 }

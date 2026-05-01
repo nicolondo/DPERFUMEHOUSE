@@ -504,14 +504,14 @@ export default function PayoutsPage() {
                       </thead>
                       <tbody>
                         {wompiPreview.eligible.map((e: any) => (
-                          <tr key={e.id} className="border-t border-glass-border">
+                          <tr key={e.userId} className="border-t border-glass-border">
                             <td className="px-3 py-2 text-white">{e.userName}</td>
                             <td className="px-3 py-2 text-white/70">{e.bankName}</td>
                             <td className="px-3 py-2 text-white/70 font-mono text-xs">
                               {e.accountType} ···{(e.accountNumber || '').slice(-4)}
                             </td>
                             <td className="px-3 py-2 text-right font-medium text-white">
-                              {formatCurrency(e.amount)}
+                              {formatCurrency(e.totalAmount)}
                             </td>
                           </tr>
                         ))}
@@ -531,7 +531,7 @@ export default function PayoutsPage() {
                     <table className="w-full text-sm">
                       <tbody>
                         {wompiPreview.excluded.map((x: any) => (
-                          <tr key={x.id} className="border-t border-glass-border">
+                          <tr key={x.userId} className="border-t border-glass-border">
                             <td className="px-3 py-2 text-white">{x.userName}</td>
                             <td className="px-3 py-2 text-right text-white/60">
                               {formatCurrency(x.amount)}
