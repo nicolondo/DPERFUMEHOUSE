@@ -88,6 +88,7 @@ const editSchema = z.object({
   bankAccountType: z.string().optional().or(z.literal('')),
   bankAccountNumber: z.string().optional().or(z.literal('')),
   bankAccountHolder: z.string().optional().or(z.literal('')),
+  identificationNumber: z.string().optional().or(z.literal('')),
   usdtWalletTrc20: z.string().optional().or(z.literal('')),
   commissionScaleEnabled: z.boolean().optional(),
   commissionScaleUseGlobal: z.boolean().optional(),
@@ -502,7 +503,7 @@ export default function UserDetailPage() {
       )}
 
       {/* Bank / Payment Info */}
-      {(user.bankName || user.bankAccountNumber || user.usdtWalletTrc20 || user.bankCertificateUrl) && (
+      {(user.bankName || user.bankAccountNumber || user.identificationNumber || user.usdtWalletTrc20 || user.bankCertificateUrl) && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -532,6 +533,12 @@ export default function UserDetailPage() {
               <div>
                 <p className="text-xs font-medium text-white/50">Titular</p>
                 <p className="text-sm text-white">{user.bankAccountHolder}</p>
+              </div>
+            )}
+            {user.identificationNumber && (
+              <div>
+                <p className="text-xs font-medium text-white/50">Identificación / Cédula</p>
+                <p className="text-sm text-white">{user.identificationNumber}</p>
               </div>
             )}
             {user.usdtWalletTrc20 && (
@@ -735,6 +742,7 @@ function EditUserModal({
       bankAccountType: user.bankAccountType || '',
       bankAccountNumber: user.bankAccountNumber || '',
       bankAccountHolder: user.bankAccountHolder || '',
+      identificationNumber: user.identificationNumber || '',
       usdtWalletTrc20: user.usdtWalletTrc20 || '',
       commissionScaleEnabled: user.commissionScaleEnabled ?? false,
       commissionScaleUseGlobal: user.commissionScaleUseGlobal ?? true,
@@ -869,6 +877,7 @@ function EditUserModal({
     if (!payload.bankAccountType) payload.bankAccountType = null;
     if (!payload.bankAccountNumber) payload.bankAccountNumber = null;
     if (!payload.bankAccountHolder) payload.bankAccountHolder = null;
+    if (!payload.identificationNumber) payload.identificationNumber = null;
     if (!payload.usdtWalletTrc20) payload.usdtWalletTrc20 = null;
     mutation.mutate(payload);
   };
@@ -1105,6 +1114,10 @@ function EditUserModal({
             <Input {...form.register('bankAccountHolder')} placeholder="Nombre completo" />
           </FormField>
         </div>
+
+        <FormField label="Identificación / Cédula del Titular">
+          <Input {...form.register('identificationNumber')} placeholder="1020304050" />
+        </FormField>
 
         {/* USDT */}
         <div className="space-y-1 pt-2">

@@ -470,6 +470,7 @@ export class UsersService {
           bankAccountNumber: dto.bankAccountNumber,
           bankAccountHolder: dto.bankAccountHolder,
           bankCertificateUrl: dto.bankCertificateUrl,
+          identificationNumber: dto.identificationNumber,
           usdtWalletTrc20: dto.usdtWalletTrc20,
           sellerCode: dto.sellerCode !== undefined ? dto.sellerCode || null : undefined,
         },
