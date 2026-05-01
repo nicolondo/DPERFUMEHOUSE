@@ -514,17 +514,20 @@ export class UsersService {
   async updateBankInfo(userId: string, dto: UpdateBankInfoDto) {
     await this.findOne(userId);
 
+    // Only update fields that were explicitly provided to avoid clobbering
+    // values previously set (e.g. by the AI certificate analyzer).
+    const data: Record<string, unknown> = {};
+    if (dto.bankName !== undefined) data.bankName = dto.bankName;
+    if (dto.bankAccountType !== undefined) data.bankAccountType = dto.bankAccountType;
+    if (dto.bankAccountNumber !== undefined) data.bankAccountNumber = dto.bankAccountNumber;
+    if (dto.bankAccountHolder !== undefined) data.bankAccountHolder = dto.bankAccountHolder;
+    if (dto.bankCertificateUrl !== undefined) data.bankCertificateUrl = dto.bankCertificateUrl;
+    if (dto.identificationNumber !== undefined) data.identificationNumber = dto.identificationNumber;
+    if (dto.usdtWalletTrc20 !== undefined) data.usdtWalletTrc20 = dto.usdtWalletTrc20;
+
     const user = await this.prisma.user.update({
       where: { id: userId },
-      data: {
-        bankName: dto.bankName,
-        bankAccountType: dto.bankAccountType,
-        bankAccountNumber: dto.bankAccountNumber,
-        bankAccountHolder: dto.bankAccountHolder,
-        bankCertificateUrl: dto.bankCertificateUrl,
-        identificationNumber: dto.identificationNumber,
-        usdtWalletTrc20: dto.usdtWalletTrc20,
-      },
+      data,
       select: USER_SELECT,
     });
 

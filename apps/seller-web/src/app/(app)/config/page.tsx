@@ -41,6 +41,7 @@ export default function ConfigPage() {
     bankAccountType: '',
     bankAccountNumber: '',
     bankAccountHolder: '',
+    identificationNumber: '',
   });
 
   const [walletForm, setWalletForm] = useState({
@@ -98,6 +99,7 @@ export default function ConfigPage() {
           bankAccountType: s?.bankAccountType || '',
           bankAccountNumber: s?.bankAccountNumber || '',
           bankAccountHolder: s?.bankAccountHolder || '',
+          identificationNumber: s?.identificationNumber || '',
         });
         setWalletForm({
           usdtWallet: s?.usdtWalletTrc20 || '',
@@ -126,6 +128,7 @@ export default function ConfigPage() {
         bankAccountType: result.bankAccountType || '',
         bankAccountNumber: result.bankAccountNumber || '',
         bankAccountHolder: result.bankAccountHolder || '',
+        identificationNumber: result.documentNumber || '',
       });
     } catch (e: any) {
       alert(e.response?.data?.message || 'Error al analizar la certificacion');
@@ -334,6 +337,12 @@ export default function ConfigPage() {
                     <p className="text-xs text-white/30">Titular</p>
                     <p className="text-sm font-medium text-white">
                       {bankData.bankAccountHolder || '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-white/30">Identificación / Cédula</p>
+                    <p className="text-sm font-medium text-white font-mono">
+                      {bankData.identificationNumber || '-'}
                     </p>
                   </div>
                 </div>
