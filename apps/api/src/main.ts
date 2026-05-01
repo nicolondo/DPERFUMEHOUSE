@@ -49,8 +49,12 @@ async function bootstrap() {
     }),
   );
 
+  // Serve uploads under both prefixes since reverse-proxy forwards /api/* to this app
   app.useStaticAssets(path.join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',
+  });
+  app.useStaticAssets(path.join(process.cwd(), 'uploads'), {
+    prefix: '/api/uploads/',
   });
 
   app.setGlobalPrefix('api');
