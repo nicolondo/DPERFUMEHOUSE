@@ -884,10 +884,23 @@ function EditUserModal({
 
   return (
     <Modal open onClose={onClose} title="Editar Vendedor" size="lg">
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+      <form onSubmit={form.handleSubmit(onSubmit, (errs) => console.error('[edit user] validation errors', errs))} className="space-y-5">
         {mutation.isError && (
           <div className="rounded-lg bg-status-danger-muted p-3 text-sm text-status-danger">
             {(mutation.error as any)?.response?.data?.message || 'Error al actualizar'}
+          </div>
+        )}
+
+        {Object.keys(form.formState.errors).length > 0 && (
+          <div className="rounded-lg bg-status-danger-muted p-3 text-sm text-status-danger">
+            <p className="font-semibold">Por favor corrige los siguientes campos:</p>
+            <ul className="ml-4 mt-1 list-disc">
+              {Object.entries(form.formState.errors).map(([key, err]: any) => (
+                <li key={key}>
+                  {key}: {err?.message || 'invalido'}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
