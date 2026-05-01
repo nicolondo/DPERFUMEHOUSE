@@ -117,6 +117,11 @@ export class UpdateUserDto {
   @IsOptional()
   bankCertificateUrl?: string | null;
 
+  @ApiPropertyOptional({ description: 'Identification number (cedula/NIT) of the bank account holder' })
+  @IsString()
+  @IsOptional()
+  identificationNumber?: string | null;
+
   @ApiPropertyOptional({ description: 'USDT TRC20 wallet address' })
   @IsString()
   @IsOptional()
