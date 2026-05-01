@@ -91,17 +91,30 @@ export class DashboardService {
       _count: { id: true },
     });
 
-    // Pending balance = sum of APPROVED commissions (not yet paid out)
-    // PAID commissions are already accounted for — they were moved to PAID when the payout was processed
-    const totalCommissionsAgg = await this.prisma.commission.aggregate({
-      where: {
-        userId,
-        status: CommissionStatus.APPROVED,
-      },
-      _sum: { amount: true },
-    });
+    // Pending balance = total non-reversed commissions − payouts already in flight (PENDING/PROCESSING/COMPLETED)
+    // Matches the formula used by commissions.getSellerSummary().availableForPayout
+    const [totalCommissionsAgg, payoutsAgg] = await Promise.all([
+      this.prisma.commission.aggregate({
+        where: {
+          userId,
+          status: { not: CommissionStatus.REVERSED },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.sellerPayout.aggregate({
+        where: {
+          userId,
+          status: { in: ['PENDING', 'PROCESSING', 'COMPLETED'] },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
 
-    const pendingBalance = totalCommissionsAgg._sum.amount?.toNumber() ?? 0;
+    const pendingBalance = Math.max(
+      0,
+      (totalCommissionsAgg._sum.amount?.toNumber() ?? 0) -
+        (payoutsAgg._sum.amount?.toNumber() ?? 0),
+    );
 
     // Recent payments (last 10 payouts)
     const recentPayments = await this.prisma.sellerPayout.findMany({
