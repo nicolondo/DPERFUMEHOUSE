@@ -27,6 +27,7 @@ import { ProposalsModule } from './proposals/proposals.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { SellerProductLinksModule } from './seller-product-links/seller-product-links.module';
 import { DiscountsModule } from './discounts/discounts.module';
+import { WompiModule } from './wompi/wompi.module';
 
 @Module({
   imports: [
@@ -85,6 +86,7 @@ import { DiscountsModule } from './discounts/discounts.module';
     NotificationsModule,
     SellerProductLinksModule,
     DiscountsModule,
+    WompiModule,
   ],
 })
 export class AppModule {}

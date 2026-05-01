@@ -7,6 +7,7 @@ import {
 import { PayoutStatus, CommissionStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OdooService } from '../odoo/odoo.service';
+import { WompiService } from '../wompi/wompi.service';
 import { PAGINATION } from '@dperfumehouse/config';
 import { PaginatedResponse } from '@dperfumehouse/types';
 
@@ -31,6 +32,7 @@ export class PayoutsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly odooService: OdooService,
+    private readonly wompi: WompiService,
   ) {}
 
   /**
@@ -399,5 +401,201 @@ export class PayoutsService {
 
     this.logger.log(`Payout ${payoutId} retroactively synced to Odoo: ${odooResult.moveName} (#${odooResult.moveId})`);
     return { odooMoveId: odooResult.moveId, odooMoveName: odooResult.moveName, alreadySynced: false };
+  }
+
+  // ========================================================================
+  // Wompi Third-Party Payments — Pay all pending payouts in a single batch
+  // ========================================================================
+
+  /**
+   * Build the eligible/excluded breakdown for the Wompi batch from PENDING
+   * SellerPayouts. A payout is eligible only if the seller has complete bank
+   * data and the bank can be mapped to a Wompi bankId.
+   */
+  async previewPendingForWompi() {
+    const pending = await this.prisma.sellerPayout.findMany({
+      where: { status: PayoutStatus.PENDING },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            bankName: true,
+            bankAccountType: true,
+            bankAccountNumber: true,
+            bankAccountHolder: true,
+            identificationNumber: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const eligible: Array<{ payout: any; bankId: string }> = [];
+    const excluded: Array<{ payout: any; reason: string }> = [];
+
+    for (const p of pending) {
+      const u = p.user;
+      const missing: string[] = [];
+      if (!u?.bankName) missing.push('banco');
+      if (!u?.bankAccountNumber) missing.push('cuenta');
+      if (!u?.bankAccountType) missing.push('tipo cuenta');
+      if (!u?.bankAccountHolder) missing.push('titular');
+      if (!u?.identificationNumber) missing.push('cédula');
+      if (!u?.email) missing.push('email');
+      if (missing.length > 0) {
+        excluded.push({ payout: p, reason: `Faltan datos: ${missing.join(', ')}` });
+        continue;
+      }
+      // Map to Wompi bank
+      let bankId: string | null = null;
+      try {
+        bankId = await this.wompi.resolveBankId(u.bankName);
+      } catch (err: any) {
+        excluded.push({ payout: p, reason: `Error consultando bancos Wompi: ${err.message}` });
+        continue;
+      }
+      if (!bankId) {
+        excluded.push({ payout: p, reason: `Banco "${u.bankName}" no se pudo mapear a Wompi` });
+        continue;
+      }
+      eligible.push({ payout: p, bankId });
+    }
+
+    const totalEligible = eligible.reduce(
+      (acc, e) => acc + e.payout.amount.toNumber(),
+      0,
+    );
+
+    return {
+      eligible: eligible.map((e) => ({
+        id: e.payout.id,
+        userId: e.payout.userId,
+        userName: e.payout.user?.name,
+        userEmail: e.payout.user?.email,
+        amount: e.payout.amount.toNumber(),
+        bankName: e.payout.user?.bankName,
+        bankId: e.bankId,
+        accountType: e.payout.user?.bankAccountType,
+        accountNumber: e.payout.user?.bankAccountNumber,
+        accountHolder: e.payout.user?.bankAccountHolder,
+        identificationNumber: e.payout.user?.identificationNumber,
+      })),
+      excluded: excluded.map((x) => ({
+        id: x.payout.id,
+        userId: x.payout.userId,
+        userName: x.payout.user?.name,
+        userEmail: x.payout.user?.email,
+        amount: x.payout.amount.toNumber(),
+        reason: x.reason,
+      })),
+      totalEligible,
+      totalEligibleCount: eligible.length,
+      totalExcludedCount: excluded.length,
+    };
+  }
+
+  /**
+   * Create a Wompi payout batch for all eligible PENDING SellerPayouts and
+   * mark them as PROCESSING with the Wompi batch + transaction ids.
+   */
+  async payAllPendingViaWompi() {
+    const preview = await this.previewPendingForWompi();
+    if (preview.eligible.length === 0) {
+      throw new BadRequestException(
+        'No hay payouts pendientes elegibles para pagar con Wompi',
+      );
+    }
+
+    const accountId = await this.wompi.getAccountId();
+
+    const normalizeAccountType = (t: string): 'AHORROS' | 'CORRIENTE' => {
+      const v = (t || '').toLowerCase();
+      if (v.includes('corr') || v.includes('check')) return 'CORRIENTE';
+      return 'AHORROS';
+    };
+
+    const detectLegalIdType = (id: string): 'CC' | 'NIT' | 'CE' => {
+      const digits = (id || '').replace(/\D/g, '');
+      if (digits.length >= 9 && digits.length <= 10) return 'NIT';
+      return 'CC';
+    };
+
+    const batchRef = `dph-${Date.now()}`;
+    const transactions = preview.eligible.map((e) => ({
+      legalIdType: detectLegalIdType(e.identificationNumber || ''),
+      legalId: (e.identificationNumber || '').replace(/\D/g, ''),
+      bankId: e.bankId,
+      accountType: normalizeAccountType(e.accountType || ''),
+      accountNumber: (e.accountNumber || '').replace(/\D/g, ''),
+      name: e.accountHolder || e.userName || '',
+      email: e.userEmail || '',
+      amount: Math.round(e.amount * 100), // COP cents
+      reference: `payout-${e.id}`,
+    }));
+
+    const idempotencyKey = `dph-batch-${batchRef}`;
+
+    let response: any;
+    try {
+      response = await this.wompi.createBatch(
+        {
+          reference: batchRef,
+          accountId,
+          paymentType: 'OTHER',
+          transactions,
+        },
+        idempotencyKey,
+      );
+    } catch (err: any) {
+      this.logger.error(
+        `Wompi batch creation failed: ${JSON.stringify(err?.response ?? err?.message)}`,
+      );
+      throw err;
+    }
+
+    const batchId: string | undefined = response?.id || response?.data?.id;
+    const txnList: Array<any> =
+      response?.transactions || response?.data?.transactions || [];
+
+    // Map Wompi transactions back to our payouts via the reference field
+    const txnByRef = new Map<string, any>();
+    for (const t of txnList) {
+      const ref = t?.reference || t?.transactionReference;
+      if (ref) txnByRef.set(ref, t);
+    }
+
+    await this.prisma.$transaction(
+      preview.eligible.map((e) => {
+        const txn = txnByRef.get(`payout-${e.id}`);
+        return this.prisma.sellerPayout.update({
+          where: { id: e.id },
+          data: {
+            status: PayoutStatus.PROCESSING,
+            method: 'WOMPI',
+            wompiBatchId: batchId ?? null,
+            wompiTransactionId: txn?.id ?? null,
+            wompiStatus: txn?.status ?? 'PENDING',
+            reference: batchRef,
+            processedAt: new Date(),
+          },
+        });
+      }),
+    );
+
+    this.logger.log(
+      `Wompi batch ${batchId} created with ${transactions.length} transactions (${preview.totalEligible} COP total)`,
+    );
+
+    return {
+      batchId,
+      batchReference: batchRef,
+      response,
+      processedPayouts: preview.eligible.map((e) => e.id),
+      excluded: preview.excluded,
+      totalAmount: preview.totalEligible,
+      totalCount: preview.eligible.length,
+    };
   }
 }

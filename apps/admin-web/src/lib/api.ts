@@ -321,6 +321,16 @@ export async function syncPayoutOdoo(id: string) {
   return unwrap(data);
 }
 
+export async function fetchWompiPayoutPreview() {
+  const { data } = await api.get('/payouts/wompi/preview');
+  return unwrap(data);
+}
+
+export async function payPendingViaWompi() {
+  const { data } = await api.post('/payouts/wompi/pay-pending');
+  return unwrap(data);
+}
+
 export async function fetchCustomers(params?: {
   page?: number;
   pageSize?: number;

@@ -11,6 +11,8 @@ import {
   syncPayoutOdoo,
   fetchSellers,
   fetchCommissionSummary,
+  fetchWompiPayoutPreview,
+  payPendingViaWompi,
 } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { DataTable, type Column } from '@/components/ui/data-table';
@@ -20,7 +22,7 @@ import { Input, Select } from '@/components/ui/input';
 import { FormField } from '@/components/ui/form-field';
 import { Modal } from '@/components/ui/modal';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { Plus, Play, CheckCircle, RefreshCw } from 'lucide-react';
+import { Plus, Play, CheckCircle, RefreshCw, Banknote, AlertTriangle } from 'lucide-react';
 
 const payoutStatusMap: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'danger' | 'info' }> = {
   PENDING: { label: 'Pendiente', variant: 'warning' },
@@ -41,6 +43,7 @@ export default function PayoutsPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [wompiModalOpen, setWompiModalOpen] = useState(false);
   const [processTarget, setProcessTarget] = useState<any>(null);
   const [completeTarget, setCompleteTarget] = useState<any>(null);
   const [completeRef, setCompleteRef] = useState('');
@@ -101,6 +104,20 @@ export default function PayoutsPage() {
     mutationFn: (id: string) => syncPayoutOdoo(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payouts'] });
+    },
+  });
+
+  const { data: wompiPreview, isLoading: wompiPreviewLoading, refetch: refetchWompiPreview } = useQuery({
+    queryKey: ['wompi-payout-preview'],
+    queryFn: fetchWompiPayoutPreview,
+    enabled: wompiModalOpen,
+  });
+
+  const wompiPayMutation = useMutation({
+    mutationFn: () => payPendingViaWompi(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payouts'] });
+      setWompiModalOpen(false);
     },
   });
 
@@ -216,9 +233,18 @@ export default function PayoutsPage() {
           <h1 className="page-title">Pagos a Vendedores</h1>
           <p className="page-description">Gestion de pagos y desembolsos</p>
         </div>
-        <Button icon={<Plus className="h-4 w-4" />} onClick={() => setCreateModalOpen(true)}>
-          Crear Pago
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            icon={<Banknote className="h-4 w-4" />}
+            onClick={() => { setWompiModalOpen(true); refetchWompiPreview(); }}
+          >
+            Pagar pendientes con Wompi
+          </Button>
+          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setCreateModalOpen(true)}>
+            Crear Pago
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -425,6 +451,130 @@ export default function PayoutsPage() {
               Completar
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Wompi Pay Pending Modal */}
+      <Modal
+        open={wompiModalOpen}
+        onClose={() => setWompiModalOpen(false)}
+        title="Pagar pendientes con Wompi"
+        size="lg"
+      >
+        <div className="space-y-4">
+          {wompiPreviewLoading && (
+            <p className="text-sm text-white/60">Cargando preview...</p>
+          )}
+
+          {!wompiPreviewLoading && wompiPreview && (
+            <>
+              <div className="rounded-xl border border-glass-border bg-glass-50 p-4 grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-xs text-white/50">Elegibles</p>
+                  <p className="text-2xl font-bold text-status-success">
+                    {wompiPreview.totalEligibleCount}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/50">Excluidos</p>
+                  <p className="text-2xl font-bold text-status-warning">
+                    {wompiPreview.totalExcludedCount}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-white/50">Total a pagar</p>
+                  <p className="text-2xl font-bold text-white">
+                    {formatCurrency(wompiPreview.totalEligible || 0)}
+                  </p>
+                </div>
+              </div>
+
+              {wompiPreview.eligible?.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-white mb-2">Vendedores a pagar</p>
+                  <div className="max-h-64 overflow-y-auto rounded-lg border border-glass-border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-glass-50 text-white/60">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Vendedor</th>
+                          <th className="px-3 py-2 text-left">Banco</th>
+                          <th className="px-3 py-2 text-left">Cuenta</th>
+                          <th className="px-3 py-2 text-right">Monto</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {wompiPreview.eligible.map((e: any) => (
+                          <tr key={e.id} className="border-t border-glass-border">
+                            <td className="px-3 py-2 text-white">{e.userName}</td>
+                            <td className="px-3 py-2 text-white/70">{e.bankName}</td>
+                            <td className="px-3 py-2 text-white/70 font-mono text-xs">
+                              {e.accountType} ···{(e.accountNumber || '').slice(-4)}
+                            </td>
+                            <td className="px-3 py-2 text-right font-medium text-white">
+                              {formatCurrency(e.amount)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {wompiPreview.excluded?.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-status-warning mb-2 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    Excluidos del pago
+                  </p>
+                  <div className="max-h-40 overflow-y-auto rounded-lg border border-glass-border">
+                    <table className="w-full text-sm">
+                      <tbody>
+                        {wompiPreview.excluded.map((x: any) => (
+                          <tr key={x.id} className="border-t border-glass-border">
+                            <td className="px-3 py-2 text-white">{x.userName}</td>
+                            <td className="px-3 py-2 text-right text-white/60">
+                              {formatCurrency(x.amount)}
+                            </td>
+                            <td className="px-3 py-2 text-status-warning text-xs">{x.reason}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {wompiPayMutation.isError && (
+                <p className="text-sm text-status-danger">
+                  {(wompiPayMutation.error as any)?.response?.data?.message ||
+                   (wompiPayMutation.error as any)?.message ||
+                   'Error creando lote en Wompi'}
+                </p>
+              )}
+
+              {wompiPayMutation.isSuccess && wompiPayMutation.data && (
+                <p className="text-sm text-status-success">
+                  ✓ Lote Wompi creado: {(wompiPayMutation.data as any).batchId} —{' '}
+                  {(wompiPayMutation.data as any).totalCount} pagos por{' '}
+                  {formatCurrency((wompiPayMutation.data as any).totalAmount)}
+                </p>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <Button variant="secondary" onClick={() => setWompiModalOpen(false)}>
+                  Cerrar
+                </Button>
+                <Button
+                  onClick={() => wompiPayMutation.mutate()}
+                  loading={wompiPayMutation.isPending}
+                  disabled={!wompiPreview.totalEligibleCount}
+                >
+                  Confirmar y enviar lote ({wompiPreview.totalEligibleCount})
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
     </div>

@@ -87,4 +87,20 @@ export class PayoutsController {
     const result = await this.payoutsService.syncOdoo(id);
     return { success: true, data: result };
   }
+
+  @Get('wompi/preview')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Preview Wompi batch (eligible/excluded) for all PENDING payouts (admin only)' })
+  async wompiPreview() {
+    const data = await this.payoutsService.previewPendingForWompi();
+    return { success: true, data };
+  }
+
+  @Post('wompi/pay-pending')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Create Wompi batch and pay all eligible PENDING payouts (admin only)' })
+  async wompiPayPending() {
+    const data = await this.payoutsService.payAllPendingViaWompi();
+    return { success: true, data };
+  }
 }
