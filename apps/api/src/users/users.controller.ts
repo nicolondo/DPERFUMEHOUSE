@@ -151,6 +151,7 @@ export class UsersController {
       bankAccountType: result.bankAccountType,
       bankAccountNumber: result.bankAccountNumber,
       bankAccountHolder: result.bankAccountHolder,
+      identificationNumber: result.documentNumber,
       bankCertificateUrl,
     });
 

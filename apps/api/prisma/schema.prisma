@@ -122,6 +122,7 @@ model User {
   bankAccountNumber    String?      @map("bank_account_number")
   bankAccountHolder    String?      @map("bank_account_holder")
   bankCertificateUrl   String?      @map("bank_certificate_url")
+  identificationNumber String?      @map("identification_number")
   usdtWalletTrc20      String?      @map("usdt_wallet_trc20")
   canManageSellers     Boolean      @default(false) @map("can_manage_sellers")
   sellerCode           String?      @unique @map("seller_code")

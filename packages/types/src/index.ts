@@ -91,6 +91,8 @@ export interface UserProfile {
   bankAccountType?: string;
   bankAccountNumber?: string;
   bankAccountHolder?: string;
+  bankCertificateUrl?: string;
+  identificationNumber?: string;
   usdtWalletTrc20?: string;
   isActive: boolean;
 }

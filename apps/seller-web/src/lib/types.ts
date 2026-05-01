@@ -25,6 +25,7 @@ export interface Seller {
   bankAccountNumber?: string;
   bankAccountHolder?: string;
   bankCertificateUrl?: string;
+  identificationNumber?: string;
   usdtWallet?: string;
   isActive: boolean;
   createdAt: string;
