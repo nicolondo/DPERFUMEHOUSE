@@ -355,7 +355,7 @@ export default function QuestionnairePage() {
       setError('Por favor ingresa un correo electrónico válido');
       return;
     }
-    setError(null);
+    setError('');
     setSubmitting(true);
     try {
       const body = {
