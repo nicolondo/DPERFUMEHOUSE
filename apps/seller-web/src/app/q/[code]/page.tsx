@@ -347,13 +347,20 @@ export default function QuestionnairePage() {
     if (step > 0) setStep((s) => s - 1);
   };
 
+  const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+
   const submit = async () => {
     if (!contact.name.trim() || !contact.phone.trim()) return;
+    if (!isValidEmail(contact.email)) {
+      setError('Por favor ingresa un correo electrónico válido');
+      return;
+    }
+    setError(null);
     setSubmitting(true);
     try {
       const body = {
         clientName: contact.name,
-        clientEmail: contact.email || undefined,
+        clientEmail: contact.email.trim(),
         clientPhone: contact.phone,
         clientCity: answers.city,
         answers,
@@ -611,7 +618,8 @@ export default function QuestionnairePage() {
                 type="email"
                 value={contact.email}
                 onChange={(e) => setContact((c) => ({ ...c, email: e.target.value }))}
-                placeholder="Tu email (opcional)"
+                placeholder="Tu email *"
+                required
                 className="w-full px-5 py-4 rounded-2xl bg-[#1a1510]/60 border border-[#8B7355]/20 text-white placeholder:text-white/25 focus:outline-none focus:border-[#8B7355]/60"
               />
               <input
@@ -651,7 +659,7 @@ export default function QuestionnairePage() {
               </button>
               <button
                 onClick={submit}
-                disabled={!contact.name.trim() || !contact.phone.trim() || submitting}
+                disabled={!contact.name.trim() || !contact.phone.trim() || !isValidEmail(contact.email) || submitting}
                 className="flex-1 px-6 py-4 rounded-full bg-gradient-to-r from-[#8B7355] to-[#6B5740] text-white font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:from-[#9B8365] hover:to-[#7B6750] transition-all active:scale-95"
               >
                 {submitting ? (

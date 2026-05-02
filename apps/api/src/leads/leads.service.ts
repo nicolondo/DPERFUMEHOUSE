@@ -45,6 +45,17 @@ export class LeadsService {
   }
 
   async submitQuestionnaire(sellerCode: string, dto: SubmitQuestionnaireDto, leadId?: string) {
+    // For public questionnaire submissions (no existing lead), require a valid email so
+    // downstream customer creation and Wompi POS payments don't fail later.
+    if (!leadId) {
+      const email = (dto.clientEmail || '').trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!email || !emailRegex.test(email)) {
+        throw new BadRequestException('Se requiere un correo electrónico válido');
+      }
+      dto.clientEmail = email;
+    }
+
     // Find seller
     const seller = await this.prisma.user.findFirst({
       where: { sellerCode, isActive: true },
