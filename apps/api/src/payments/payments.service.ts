@@ -714,8 +714,12 @@ export class PaymentsService {
         );
     }
 
-    const customerEmail =
+    const rawEmail =
       body.customerEmail || order.customer?.email || '';
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const customerEmail = emailRegex.test(rawEmail)
+      ? rawEmail
+      : 'pos@dperfumehouse.com';
 
     const customerData =
       body.paymentMethod === 'PSE'
