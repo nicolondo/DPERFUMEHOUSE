@@ -1292,6 +1292,29 @@ export class OrdersService {
 
     this.logger.log(`Order ${order.orderNumber} manually marked as DELIVERED (entrega en persona)`);
 
+    // Trigger Odoo delivery creation/validation if missing
+    if (order.odooSaleOrderId && !order.odooDeliveryId) {
+      try {
+        let deliveryId = await this.odooService.createDelivery(order.odooSaleOrderId);
+        if (!deliveryId) {
+          deliveryId = await this.odooService.createPickingManually(order.odooSaleOrderId);
+          if (deliveryId) {
+            try {
+              await this.odooService.validateDelivery(deliveryId);
+            } catch (valErr: any) {
+              this.logger.warn(`Could not validate manually created picking ${deliveryId}: ${valErr.message}`);
+            }
+          }
+        }
+        if (deliveryId) {
+          await this.prisma.order.update({ where: { id: orderId }, data: { odooDeliveryId: deliveryId } });
+          this.logger.log(`Created Odoo delivery ${deliveryId} for order ${order.orderNumber} on manual delivery`);
+        }
+      } catch (err: any) {
+        this.logger.warn(`Could not create Odoo delivery for ${order.orderNumber}: ${err.message}`);
+      }
+    }
+
     // Send email to customer about delivery
     if (order.customer.email) {
       await this.emailQueue.add(

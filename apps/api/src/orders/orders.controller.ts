@@ -131,11 +131,14 @@ export class OrdersController {
 
   @Post('backfill-odoo-delivery')
   @HttpCode(HttpStatus.OK)
-  async backfillOdooDelivery(@CurrentUser() user: CurrentUserPayload) {
+  async backfillOdooDelivery(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body?: { orderId?: string },
+  ) {
     if (user.role !== 'ADMIN') {
       throw new ForbiddenException('Only admins can backfill deliveries');
     }
-    return this.ordersService.backfillOdooDelivery();
+    return this.ordersService.backfillOdooDelivery(body?.orderId);
   }
 
   @Post(':id/link-odoo')
