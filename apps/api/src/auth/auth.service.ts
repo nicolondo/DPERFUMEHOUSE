@@ -25,6 +25,17 @@ export class AuthService {
     private readonly emailService: EmailService,
   ) {}
 
+  private generateSellerCode(name: string): string {
+    const slug = (name || 'seller')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '')
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 20) || 'seller';
+    return `${slug}-${crypto.randomBytes(2).toString('hex')}`;
+  }
+
   async validateUser(email: string, password: string) {
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -170,6 +181,7 @@ export class AuthService {
         pendingApproval: true,
         commissionScaleEnabled: true,
         commissionScaleUseGlobal: true,
+        sellerCode: this.generateSellerCode(dto.name),
       },
       select: {
         id: true,
@@ -406,6 +418,7 @@ export class AuthService {
         pendingApproval: true,
         commissionScaleEnabled: true,
         commissionScaleUseGlobal: true,
+        sellerCode: this.generateSellerCode(name || email.split('@')[0]),
       },
       select: {
         id: true,
@@ -523,6 +536,7 @@ export class AuthService {
         pendingApproval: true,
         commissionScaleEnabled: true,
         commissionScaleUseGlobal: true,
+        sellerCode: this.generateSellerCode(dto.name || email.split('@')[0]),
       },
       select: {
         id: true,

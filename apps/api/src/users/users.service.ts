@@ -79,6 +79,21 @@ export class UsersService {
     return [...new Set(categories.map((c) => c.trim()).filter(Boolean))];
   }
 
+  private isSellerRole(role?: UserRole | null): boolean {
+    return role === 'SELLER_L1' || role === 'SELLER_L2';
+  }
+
+  private generateSellerCode(name: string): string {
+    const slug = (name || 'seller')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '')
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 20) || 'seller';
+    return `${slug}-${crypto.randomBytes(2).toString('hex')}`;
+  }
+
   private async getDefaultCommissionRates(): Promise<{ l1: number; l2: number }> {
     const l1Str = await this.settingsService.get('commission_l1_rate');
     const l2Str = await this.settingsService.get('commission_l2_rate');
@@ -221,8 +236,8 @@ export class UsersService {
         canManageSellers: dto.canManageSellers,
         odooCompanyId: dto.odooCompanyId,
         ...(sendInvite ? { resetToken: hashedInviteToken, resetTokenExpiry: inviteTokenExpiry } : {}),
-        sellerCode: (dto.role === 'SELLER_L1' || dto.role === 'SELLER_L2')
-          ? `${dto.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '').slice(0, 20)}-${crypto.randomBytes(2).toString('hex')}`
+        sellerCode: this.isSellerRole(dto.role)
+          ? this.generateSellerCode(dto.name)
           : undefined,
         allowedCategories: categoriesForNewUser.length > 0
           ? {
@@ -362,6 +377,8 @@ export class UsersService {
         name: true,
         pendingApproval: true,
         isActive: true,
+        role: true,
+        sellerCode: true,
       },
     });
 
@@ -472,7 +489,24 @@ export class UsersService {
           bankCertificateUrl: dto.bankCertificateUrl,
           identificationNumber: dto.identificationNumber,
           usdtWalletTrc20: dto.usdtWalletTrc20,
-          sellerCode: dto.sellerCode !== undefined ? dto.sellerCode || null : undefined,
+          sellerCode: (() => {
+            const effectiveRole = (dto.role ?? previousState?.role) as UserRole | undefined;
+            const isSeller = this.isSellerRole(effectiveRole);
+            // Explicit value provided in DTO
+            if (dto.sellerCode !== undefined) {
+              const trimmed = (dto.sellerCode || '').trim();
+              if (trimmed) return trimmed;
+              // Empty string -> if seller, regenerate; otherwise null
+              return isSeller
+                ? this.generateSellerCode(dto.name ?? previousState?.name ?? 'seller')
+                : null;
+            }
+            // No explicit value: ensure sellers always have a code
+            if (isSeller && !previousState?.sellerCode) {
+              return this.generateSellerCode(dto.name ?? previousState?.name ?? 'seller');
+            }
+            return undefined;
+          })(),
         },
         select: USER_SELECT,
       });
@@ -703,7 +737,7 @@ export class UsersService {
         commissionScaleUseGlobal: true,
         resetToken: hashedToken,
         resetTokenExpiry: tokenExpiry,
-        sellerCode: `${dto.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '').slice(0, 20)}-${crypto.randomBytes(2).toString('hex')}`,
+        sellerCode: this.generateSellerCode(dto.name),
         allowedCategories: defaultCategory
           ? {
               create: [{ categoryName: defaultCategory }],
