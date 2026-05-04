@@ -1060,6 +1060,11 @@ function PaymentSettings() {
   const [wompiEventsSecret, setWompiEventsSecret] = useState('');
   const [wompiIntegritySecret, setWompiIntegritySecret] = useState('');
   const [wompiEnvironment, setWompiEnvironment] = useState('sandbox');
+  // Monabit
+  const [monabitEnvironment, setMonabitEnvironment] = useState('sandbox');
+  const [monabitMerchantId, setMonabitMerchantId] = useState('');
+  const [monabitApiKeyTest, setMonabitApiKeyTest] = useState('');
+  const [monabitApiKeyProd, setMonabitApiKeyProd] = useState('');
   // Shared
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [wompiTestResult, setWompiTestResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -1067,6 +1072,7 @@ function PaymentSettings() {
   const [logPage, setLogPage] = useState(1);
   const [myxExpanded, setMyxExpanded] = useState(true);
   const [wompiExpanded, setWompiExpanded] = useState(true);
+  const [monabitExpanded, setMonabitExpanded] = useState(true);
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings', 'payments'],
@@ -1093,6 +1099,11 @@ function PaymentSettings() {
       setWompiEventsSecret((map.get('wompi_events_secret') as string) || '');
       setWompiIntegritySecret((map.get('wompi_integrity_secret') as string) || '');
       setWompiEnvironment((map.get('wompi_environment') as string) || 'sandbox');
+      // Monabit
+      setMonabitEnvironment((map.get('monabit_environment') as string) || 'sandbox');
+      setMonabitMerchantId((map.get('monabit_merchant_id') as string) || '');
+      setMonabitApiKeyTest((map.get('monabit_api_key_test') as string) || '');
+      setMonabitApiKeyProd((map.get('monabit_api_key_prod') as string) || '');
     }
   }, [settings]);
 
@@ -1110,6 +1121,11 @@ function PaymentSettings() {
         { key: 'wompi_events_secret', value: wompiEventsSecret },
         { key: 'wompi_integrity_secret', value: wompiIntegritySecret },
         { key: 'wompi_environment', value: wompiEnvironment },
+        // Monabit
+        { key: 'monabit_environment', value: monabitEnvironment },
+        { key: 'monabit_merchant_id', value: monabitMerchantId },
+        { key: 'monabit_api_key_test', value: monabitApiKeyTest },
+        { key: 'monabit_api_key_prod', value: monabitApiKeyProd },
       ]),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings', 'payments'] });
@@ -1204,6 +1220,19 @@ function PaymentSettings() {
             >
               <div className="font-semibold text-white">Wompi</div>
               <div className="text-sm text-white/50">Plataforma de pagos Bancolombia</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveProvider('monabit')}
+              className={cn(
+                'flex-1 rounded-lg border-2 p-4 text-left transition-all',
+                activeProvider === 'monabit'
+                  ? 'border-accent-gold bg-accent-gold/10'
+                  : 'border-white/10 bg-glass-50 hover:border-white/20'
+              )}
+            >
+              <div className="font-semibold text-white">Monabit</div>
+              <div className="text-sm text-white/50">Pasarela cripto Monabit</div>
             </button>
           </div>
         </div>
@@ -1381,6 +1410,89 @@ function PaymentSettings() {
             >
               Probar Conexion Wompi
             </Button>
+          </div>
+        )}
+      </Card>
+
+      {/* Monabit Configuration */}
+      <Card>
+        <CardHeader>
+          <button
+            type="button"
+            onClick={() => setMonabitExpanded(!monabitExpanded)}
+            className="flex w-full items-center justify-between"
+          >
+            <CardTitle className="flex items-center gap-2">
+              Monabit
+              {activeProvider === 'monabit' && (
+                <Badge variant="success">Activo</Badge>
+              )}
+            </CardTitle>
+            <span className="text-white/50">{monabitExpanded ? '▲' : '▼'}</span>
+          </button>
+        </CardHeader>
+        {monabitExpanded && (
+          <div className="space-y-4">
+            <FormField label="Ambiente">
+              <Select
+                value={monabitEnvironment}
+                onChange={(e) => setMonabitEnvironment(e.target.value)}
+              >
+                <option value="sandbox">Sandbox (Pruebas)</option>
+                <option value="production">Produccion</option>
+              </Select>
+            </FormField>
+            <FormField label="Merchant ID">
+              <Input
+                value={monabitMerchantId}
+                onChange={(e) => setMonabitMerchantId(e.target.value)}
+                placeholder="8wzLX98jV6843094Z7gtwu"
+              />
+            </FormField>
+            <FormField label="API Key (Pruebas)" hint="Se usa cuando Ambiente = Sandbox">
+              <Input
+                type="password"
+                value={monabitApiKeyTest}
+                onChange={(e) => setMonabitApiKeyTest(e.target.value)}
+                placeholder="API key de testing"
+              />
+            </FormField>
+            <FormField label="API Key (Produccion)" hint="Se usa cuando Ambiente = Produccion">
+              <Input
+                type="password"
+                value={monabitApiKeyProd}
+                onChange={(e) => setMonabitApiKeyProd(e.target.value)}
+                placeholder="API key de produccion"
+              />
+            </FormField>
+            <FormField label="Webhook URL" hint="Configura esta URL en Monabit Dashboard → Settings → Developer → Webhook URL">
+              <div className="flex gap-2">
+                <Input
+                  value={
+                    typeof window !== 'undefined'
+                      ? `${window.location.origin.replace('admin', 'api').replace(':3001', ':4000')}/api/payments/monabit-webhook`
+                      : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'}/payments/monabit-webhook`
+                  }
+                  readOnly
+                  className="bg-glass-50"
+                />
+                <Button
+                  variant="outline"
+                  size="md"
+                  onClick={() =>
+                    handleCopy(
+                      typeof window !== 'undefined'
+                        ? `${window.location.origin.replace('admin', 'api').replace(':3001', ':4000')}/api/payments/monabit-webhook`
+                        : '',
+                      'monabit-webhook',
+                    )
+                  }
+                  icon={copied === 'monabit-webhook' ? <CheckCircle className="h-4 w-4 text-status-success" /> : <Copy className="h-4 w-4" />}
+                >
+                  {copied === 'monabit-webhook' ? 'Copiado' : 'Copiar'}
+                </Button>
+              </div>
+            </FormField>
           </div>
         )}
       </Card>

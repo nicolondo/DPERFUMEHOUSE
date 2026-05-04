@@ -4,6 +4,7 @@ import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { MyxSpendService } from './myxspend.service';
 import { WompiService } from './wompi.service';
+import { MonabitService } from './monabit.service';
 import { PaymentProviderFactory } from './payment-provider.factory';
 import { PaymentsProcessor } from './payments.processor';
 import { OdooModule } from '../odoo/odoo.module';
@@ -24,6 +25,7 @@ import { EmailModule } from '../email/email.module';
     PaymentsService,
     MyxSpendService,
     WompiService,
+    MonabitService,
     PaymentProviderFactory,
     PaymentsProcessor,
   ],

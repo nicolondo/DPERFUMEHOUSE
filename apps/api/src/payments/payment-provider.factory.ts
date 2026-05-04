@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PaymentProvider } from './payment.interface';
 import { MyxSpendService } from './myxspend.service';
 import { WompiService } from './wompi.service';
+import { MonabitService } from './monabit.service';
 import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
@@ -11,6 +12,7 @@ export class PaymentProviderFactory {
   constructor(
     private readonly myxSpendService: MyxSpendService,
     private readonly wompiService: WompiService,
+    private readonly monabitService: MonabitService,
     private readonly settingsService: SettingsService,
   ) {}
 
@@ -35,6 +37,8 @@ export class PaymentProviderFactory {
     switch (name) {
       case 'wompi':
         return this.wompiService;
+      case 'monabit':
+        return this.monabitService;
       case 'myxspend':
       default:
         return this.myxSpendService;
@@ -46,5 +50,12 @@ export class PaymentProviderFactory {
    */
   getWompiService(): WompiService {
     return this.wompiService;
+  }
+
+  /**
+   * Get the Monabit service directly.
+   */
+  getMonabitService(): MonabitService {
+    return this.monabitService;
   }
 }

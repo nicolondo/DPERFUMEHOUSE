@@ -319,6 +319,118 @@ export class PaymentsService {
   }
 
   /**
+   * Handle Monabit webhook event (POST).
+   * Payload: { collection_id: string, status: 'paid' | 'expired' }
+   */
+  async handleMonabitWebhook(body: { collection_id?: string; status?: string }): Promise<void> {
+    const { collection_id, status } = body || {};
+
+    this.logger.log(
+      `Received Monabit webhook: collection=${collection_id}, status=${status}`,
+    );
+
+    if (!collection_id || !status) {
+      this.logger.warn('Monabit webhook missing collection_id or status');
+      return;
+    }
+
+    const paymentLink = await this.prisma.paymentLink.findFirst({
+      where: { provider: 'monabit', externalId: collection_id },
+      include: { order: true },
+    });
+
+    if (!paymentLink) {
+      this.logger.error(
+        `Monabit payment link not found for collection_id ${collection_id}`,
+      );
+      return;
+    }
+
+    await this.prisma.paymentEvent.create({
+      data: {
+        paymentLinkId: paymentLink.id,
+        eventType: 'monabit.webhook',
+        status,
+        amount: Number(paymentLink.amount),
+        currency: paymentLink.currency,
+        rawPayload: body as any,
+        processedAt: new Date(),
+      },
+    });
+
+    const normalized = status.toLowerCase();
+
+    if (normalized === 'paid' || normalized === 'completed' || normalized === 'success') {
+      if (paymentLink.order.status === 'PAID' || paymentLink.order.paymentStatus === 'COMPLETED') {
+        this.logger.warn(
+          `Monabit webhook: order ${paymentLink.order.orderNumber} already PAID, skipping`,
+        );
+        return;
+      }
+
+      await this.prisma.paymentLink.update({
+        where: { id: paymentLink.id },
+        data: { status: 'COMPLETED', paymentMethodType: 'MONABIT' },
+      });
+
+      await this.prisma.order.update({
+        where: { id: paymentLink.orderId },
+        data: { status: 'PAID', paymentStatus: 'COMPLETED' },
+      });
+
+      await this.paymentQueue.add(
+        'payment-confirmed',
+        {
+          orderId: paymentLink.orderId,
+          amount: Number(paymentLink.amount),
+          currency: paymentLink.currency,
+          paidAt: new Date().toISOString(),
+        },
+        {
+          removeOnComplete: 10,
+          removeOnFail: 20,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5000 },
+        },
+      );
+
+      this.notificationsService
+        .notifyPaymentReceived(
+          paymentLink.order.sellerId,
+          paymentLink.order.orderNumber,
+          `$${Number(paymentLink.order.total).toLocaleString('es-CO')}`,
+        )
+        .catch((err) => this.logger.error(`Push notify failed: ${err.message}`));
+
+      this.logger.log(
+        `Monabit payment PAID for order ${paymentLink.order.orderNumber}`,
+      );
+    } else if (normalized === 'expired' || normalized === 'cancelled' || normalized === 'failed') {
+      if (paymentLink.order.status === 'PAID' || paymentLink.order.paymentStatus === 'COMPLETED') {
+        this.logger.warn(
+          `Ignoring late ${status} Monabit webhook for already-PAID order ${paymentLink.order.orderNumber}`,
+        );
+        return;
+      }
+      await this.prisma.paymentLink.update({
+        where: { id: paymentLink.id },
+        data: { status: 'FAILED' },
+      });
+      await this.prisma.order.update({
+        where: { id: paymentLink.orderId },
+        data: { paymentStatus: 'FAILED' },
+      });
+      this.logger.warn(
+        `Monabit payment ${status} for order ${paymentLink.order.orderNumber}`,
+      );
+    } else {
+      this.logger.log(
+        `Monabit unhandled status "${status}" for order ${paymentLink.order.orderNumber}`,
+      );
+    }
+  }
+
+  /**
    * Handle Wompi webhook event (POST).
    * Wompi sends transaction.updated events when payment status changes.
    */

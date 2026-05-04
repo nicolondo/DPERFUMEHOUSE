@@ -188,4 +188,20 @@ export class PaymentsController {
 
     return { received: true };
   }
+
+  /**
+   * Monabit webhook - POST request with JSON body:
+   * { collection_id: string, status: 'paid' | 'expired' }
+   */
+  @Post('monabit-webhook')
+  @HttpCode(HttpStatus.OK)
+  async handleMonabitWebhook(@Body() body: any) {
+    this.logger.log(
+      `Received Monabit webhook: collection=${body?.collection_id}, status=${body?.status}`,
+    );
+
+    await this.paymentsService.handleMonabitWebhook(body);
+
+    return { received: true };
+  }
 }

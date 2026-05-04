@@ -85,8 +85,13 @@ async function main() {
     { key: 'wompi_events_secret', value: '', isSecret: true, group: 'payments', description: 'Wompi events secret for webhook verification' },
     { key: 'wompi_integrity_secret', value: '', isSecret: true, group: 'payments', description: 'Wompi integrity secret for payment signatures' },
     { key: 'wompi_environment', value: 'sandbox', group: 'payments', description: 'Wompi environment (sandbox or production)' },
+    // Monabit
+    { key: 'monabit_merchant_id', value: '8wzLX98jV6843094Z7gtwu', group: 'payments', description: 'Monabit Merchant ID' },
+    { key: 'monabit_api_key_test', value: '', isSecret: true, group: 'payments', description: 'Monabit testing API key' },
+    { key: 'monabit_api_key_prod', value: '', isSecret: true, group: 'payments', description: 'Monabit production API key' },
+    { key: 'monabit_environment', value: 'sandbox', group: 'payments', description: 'Monabit environment (sandbox or production)' },
     // Payment provider
-    { key: 'active_payment_provider', value: 'myxspend', group: 'payments', description: 'Active payment provider (myxspend or wompi)' },
+    { key: 'active_payment_provider', value: 'myxspend', group: 'payments', description: 'Active payment provider (myxspend, wompi or monabit)' },
     { key: 'cash_payment_enabled', value: 'true', group: 'payments', description: 'Enable cash payments (non-Wompi)' },
     // Commissions
     { key: 'commission_l1_rate', value: '10', group: 'commissions', description: 'Default L1 seller commission rate (%)' },
