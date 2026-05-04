@@ -60,7 +60,7 @@ interface OrderPublic {
   total: string;
   customer: { name: string; email?: string | null; phone?: string | null; documentType?: string | null; documentNumber?: string | null };
   seller: { name: string; phone: string };
-  paymentLink: { url: string; status: string } | null;
+  paymentLink: { url: string; status: string; provider?: string; providerUrl?: string | null } | null;
   items: Array<{
     quantity: number;
     unitPrice: string;
@@ -236,6 +236,19 @@ export default function PayPage() {
         if (!orderRes.ok) throw new Error('No se pudo cargar el pedido.');
         const orderData: OrderPublic = await orderRes.json();
         setOrder(orderData);
+
+        // If the active payment link belongs to a provider with its own
+        // hosted checkout (e.g. Monabit), redirect there instead of
+        // rendering the Wompi widget.
+        if (
+          orderData.paymentLink?.provider &&
+          orderData.paymentLink.provider !== 'wompi' &&
+          orderData.paymentLink.providerUrl &&
+          orderData.paymentStatus !== 'COMPLETED'
+        ) {
+          window.location.href = orderData.paymentLink.providerUrl;
+          return;
+        }
 
         if (widgetRes.ok) {
           const wData: WidgetConfig = await widgetRes.json();

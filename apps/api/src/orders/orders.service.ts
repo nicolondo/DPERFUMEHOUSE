@@ -248,13 +248,20 @@ export class OrdersService {
           },
         },
         paymentLink: {
-          select: { url: true, status: true },
+          select: { url: true, status: true, provider: true, metadata: true },
         },
       },
     });
 
     if (!order) {
       throw new NotFoundException('Pedido no encontrado');
+    }
+
+    // Expose providerUrl for non-Wompi providers (e.g. Monabit) so the pay
+    // page can redirect directly instead of rendering the Wompi widget.
+    if (order.paymentLink && order.paymentLink.metadata && typeof order.paymentLink.metadata === 'object') {
+      const meta = order.paymentLink.metadata as Record<string, any>;
+      (order.paymentLink as any).providerUrl = meta.providerUrl || null;
     }
 
     return order;
