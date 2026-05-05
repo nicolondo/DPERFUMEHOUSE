@@ -63,6 +63,7 @@ export class PaymentsService {
       where: { id: orderId },
       include: {
         customer: true,
+        address: true,
         items: { include: { variant: true } },
       },
     });
@@ -99,6 +100,12 @@ export class PaymentsService {
     const successUrl = this.successUrl.replace('{{orderId}}', order.id) + `&order=${order.orderNumber}`;
     const failureUrl = this.failureUrl.replace('{{orderId}}', order.id) + `&order=${order.orderNumber}`;
 
+    // Build address string from order address if available
+    const addr = (order as any).address;
+    const addressStr = addr
+      ? [addr.street, addr.detail, addr.city, addr.state].filter(Boolean).join(', ')
+      : undefined;
+
     const result = await provider.createPaymentLink({
       orderId: order.id,
       amount: Number(order.total),
@@ -107,6 +114,8 @@ export class PaymentsService {
       customerFirstName: firstName,
       customerLastName: lastName,
       customerPhone: order.customer.phone || undefined,
+      customerDocumentNumber: order.customer.documentNumber || undefined,
+      customerAddress: addressStr,
       successUrl,
       failureUrl,
     });

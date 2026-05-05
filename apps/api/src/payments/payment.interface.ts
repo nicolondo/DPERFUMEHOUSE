@@ -16,6 +16,8 @@ export interface CreatePaymentLinkData {
   customerFirstName: string;
   customerLastName: string;
   customerPhone?: string;
+  customerDocumentNumber?: string;
+  customerAddress?: string;
   successUrl: string;
   failureUrl: string;
 }
