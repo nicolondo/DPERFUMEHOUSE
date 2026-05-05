@@ -132,7 +132,7 @@ export function MonabitCheckoutModal({
         {/* Hide Monabit branding logo — pointer-events:none so clicks still reach iframe */}
         <div
           className="absolute pointer-events-none"
-          style={{ top: 10, right: 'max(calc(50% - 275px), 8px)', width: 210, height: 85, background: '#fff', zIndex: 20 }}
+          style={{ top: 95, right: 'max(calc(50% - 220px), 8px)', width: 185, height: 75, background: '#fff', zIndex: 20 }}
         />
       </div>
 
