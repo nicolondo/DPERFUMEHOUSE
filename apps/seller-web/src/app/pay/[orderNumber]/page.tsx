@@ -543,8 +543,10 @@ export default function PayPage() {
     );
   }
 
-  const orderNum = order!.orderNumber.replace(/^PH-/, '');
-  const shipping = Number(order!.shipping);
+  if (!order) return null;
+
+  const orderNum = order.orderNumber.replace(/^PH-/, '');
+  const shipping = Number(order.shipping);
 
   return (
     <div className="min-h-screen bg-[#0a0703]" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
