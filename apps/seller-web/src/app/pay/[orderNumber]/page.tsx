@@ -543,7 +543,7 @@ export default function PayPage() {
           {/* Hide Monabit branding logo — pointer-events:none so clicks still reach iframe */}
           <div
             className="absolute pointer-events-none"
-            style={{ top: 130, right: 'max(calc(50% - 258px), 12px)', width: 140, height: 50, background: '#fff', zIndex: 10 }}
+            style={{ top: 10, right: 'max(calc(50% - 275px), 8px)', width: 210, height: 85, background: '#fff', zIndex: 10 }}
           />
         </div>
       </div>
