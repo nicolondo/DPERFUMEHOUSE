@@ -204,4 +204,18 @@ export class PaymentsController {
 
     return { received: true };
   }
+
+  /**
+   * Client-side fallback to confirm a Monabit payment after redirect.
+   * Called by seller-web when customer returns from Monabit checkout with collection_id.
+   * Idempotent: safe to call multiple times for the same collection.
+   */
+  @Post('monabit-verify')
+  @HttpCode(HttpStatus.OK)
+  async verifyMonabitPayment(@Body('collection_id') collection_id: string) {
+    if (!collection_id) {
+      return { confirmed: false, status: 'missing_collection_id' };
+    }
+    return this.paymentsService.verifyMonabitPayment(collection_id);
+  }
 }
