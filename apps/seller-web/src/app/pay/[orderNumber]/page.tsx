@@ -173,6 +173,7 @@ export default function PayPage() {
   const [error, setError] = useState('');
   const [order, setOrder] = useState<OrderPublic | null>(null);
   const [monabitUrl, setMonabitUrl] = useState<string | null>(null);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
   const [widgetConfig, setWidgetConfig] = useState<WidgetConfig | null>(null);
   const [publicData, setPublicData] = useState<PublicData | null>(null);
   const [publicDataLoading, setPublicDataLoading] = useState(true);
@@ -539,12 +540,26 @@ export default function PayPage() {
             title="Pago"
             className="absolute inset-0 w-full h-full border-none"
             allow="payment"
+            onLoad={() => setIframeLoaded(true)}
           />
           {/* Hide Monabit branding logo — pointer-events:none so clicks still reach iframe */}
           <div
             className="absolute pointer-events-none"
             style={{ top: 10, right: 'max(calc(50% - 275px), 8px)', width: 210, height: 85, background: '#fff', zIndex: 10 }}
           />
+          {/* Dark-to-transparent loading overlay — fades out once iframe is ready */}
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+            style={{
+              background: '#0a0703',
+              opacity: iframeLoaded ? 0 : 1,
+              transition: 'opacity 0.5s ease',
+              zIndex: 5,
+            }}
+          >
+            <div style={{ width: 36, height: 36, border: '3px solid #3d2b1a', borderTopColor: '#c9a96e', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          </div>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
     );
