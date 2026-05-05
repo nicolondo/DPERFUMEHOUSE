@@ -9,3 +9,4 @@ export { BancolombiaCollectForm } from './BancolombiaCollectForm';
 export { DaviplataForm } from './DaviplataForm';
 export { PaymentPolling } from './PaymentPolling';
 export { DirectPaymentModal } from './DirectPaymentModal';
+export { MonabitCheckoutModal } from './MonabitCheckoutModal';

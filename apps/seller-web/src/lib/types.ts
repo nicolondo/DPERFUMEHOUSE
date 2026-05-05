@@ -137,6 +137,7 @@ export interface Order {
     url: string;
     status: string;
     provider?: string;
+    externalId?: string;
     providerUrl?: string | null;
     metadata?: Record<string, any>;
   };

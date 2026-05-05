@@ -248,7 +248,7 @@ export class OrdersService {
           },
         },
         paymentLink: {
-          select: { url: true, status: true, provider: true, metadata: true },
+          select: { url: true, status: true, provider: true, externalId: true, metadata: true },
         },
       },
     });

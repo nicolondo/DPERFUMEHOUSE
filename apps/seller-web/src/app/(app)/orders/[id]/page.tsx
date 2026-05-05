@@ -21,7 +21,7 @@ import { Badge, OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/bad
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { PaymentLinkModal } from '@/components/ui/payment-link-modal';
-import { DirectPaymentModal } from '@/components/payments';
+import { DirectPaymentModal, MonabitCheckoutModal } from '@/components/payments';
 import { PageSpinner } from '@/components/ui/spinner';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
@@ -81,6 +81,7 @@ export default function OrderDetailPage() {
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const [isPaymentLinkModalOpen, setIsPaymentLinkModalOpen] = useState(false);
   const [isDirectPayModalOpen, setIsDirectPayModalOpen] = useState(false);
+  const [isMonabitModalOpen, setIsMonabitModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   const deleteMutation = useMutation({
@@ -459,7 +460,7 @@ export default function OrderDetailPage() {
                     const provider = order.paymentLink?.provider;
                     const providerUrl = order.paymentLink?.providerUrl;
                     if (provider && provider !== 'wompi' && providerUrl) {
-                      window.location.href = providerUrl;
+                      setIsMonabitModalOpen(true);
                     } else {
                       setIsDirectPayModalOpen(true);
                     }
@@ -674,7 +675,7 @@ export default function OrderDetailPage() {
         </div>
       </Modal>
 
-      {/* Direct Payment Modal */}
+      {/* Direct Payment Modal (Wompi) */}
       {!isCash && !isPaid && !isCancelled && (
         <DirectPaymentModal
           isOpen={isDirectPayModalOpen}
@@ -686,6 +687,21 @@ export default function OrderDetailPage() {
           customerDocumentNumber={order.customer?.documentNumber}
           customerPhone={order.customer?.phone}
           onSuccess={() => { setIsDirectPayModalOpen(false); window.location.reload(); }}
+        />
+      )}
+
+      {/* Monabit Checkout Modal (iframe) */}
+      {!isCash && !isPaid && !isCancelled &&
+        order.paymentLink?.provider !== 'wompi' &&
+        order.paymentLink?.providerUrl &&
+        order.paymentLink?.externalId && (
+        <MonabitCheckoutModal
+          isOpen={isMonabitModalOpen}
+          onClose={() => setIsMonabitModalOpen(false)}
+          onSuccess={() => { setIsMonabitModalOpen(false); refetchOrder(); }}
+          providerUrl={order.paymentLink.providerUrl}
+          collectionId={order.paymentLink.externalId}
+          orderNumber={order.orderNumber}
         />
       )}
     </div>
