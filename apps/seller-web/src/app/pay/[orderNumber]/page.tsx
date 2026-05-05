@@ -533,12 +533,19 @@ export default function PayPage() {
           </svg>
         </div>
         {/* Iframe */}
-        <iframe
-          src={monabitUrl}
-          title="Pago"
-          className="flex-1 w-full border-none"
-          allow="payment"
-        />
+        <div className="relative flex-1">
+          <iframe
+            src={monabitUrl}
+            title="Pago"
+            className="absolute inset-0 w-full h-full border-none"
+            allow="payment"
+          />
+          {/* Hide Monabit branding logo — pointer-events:none so clicks still reach iframe */}
+          <div
+            className="absolute pointer-events-none"
+            style={{ top: 130, right: 'max(calc(50% - 258px), 12px)', width: 140, height: 50, background: '#fff', zIndex: 10 }}
+          />
+        </div>
       </div>
     );
   }
