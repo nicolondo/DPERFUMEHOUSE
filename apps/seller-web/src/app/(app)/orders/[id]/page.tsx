@@ -455,7 +455,15 @@ export default function OrderDetailPage() {
                 </Button>
                 <Button
                   fullWidth
-                  onClick={() => setIsDirectPayModalOpen(true)}
+                  onClick={() => {
+                    const provider = order.paymentLink?.provider;
+                    const providerUrl = order.paymentLink?.providerUrl;
+                    if (provider && provider !== 'wompi' && providerUrl) {
+                      window.location.href = providerUrl;
+                    } else {
+                      setIsDirectPayModalOpen(true);
+                    }
+                  }}
                   leftIcon={<CreditCard className="h-4 w-4" />}
                 >
                   Cobrar ahora

@@ -133,7 +133,13 @@ export interface Order {
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   paymentMethod?: string;
-  paymentLink?: string;
+  paymentLink?: {
+    url: string;
+    status: string;
+    provider?: string;
+    providerUrl?: string | null;
+    metadata?: Record<string, any>;
+  };
   notes?: string;
   createdAt: string;
   updatedAt: string;
