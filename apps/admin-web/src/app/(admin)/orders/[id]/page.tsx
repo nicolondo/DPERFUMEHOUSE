@@ -540,7 +540,7 @@ export default function OrderDetailPage() {
                 </p>
                 {order.address.phone && (
                   <p className="text-xs text-white/50 mt-1">
-                    Tel: {order.address.phoneCode || '+57'} {order.address.phone}
+                    Tel: {order.address.phone.startsWith('+') ? order.address.phone : `${order.address.phoneCode || '+57'} ${order.address.phone}`}
                   </p>
                 )}
                 {order.address.notes && (
