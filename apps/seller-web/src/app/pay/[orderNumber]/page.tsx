@@ -172,6 +172,7 @@ export default function PayPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [order, setOrder] = useState<OrderPublic | null>(null);
+  const [monabitUrl, setMonabitUrl] = useState<string | null>(null);
   const [widgetConfig, setWidgetConfig] = useState<WidgetConfig | null>(null);
   const [publicData, setPublicData] = useState<PublicData | null>(null);
   const [publicDataLoading, setPublicDataLoading] = useState(true);
@@ -238,15 +239,16 @@ export default function PayPage() {
         setOrder(orderData);
 
         // If the active payment link belongs to a provider with its own
-        // hosted checkout (e.g. Monabit), redirect there instead of
-        // rendering the Wompi widget.
+        // hosted checkout (e.g. Monabit), embed it in an iframe instead of
+        // redirecting the customer away from our platform.
         if (
           orderData.paymentLink?.provider &&
           orderData.paymentLink.provider !== 'wompi' &&
           orderData.paymentLink.providerUrl &&
           orderData.paymentStatus !== 'COMPLETED'
         ) {
-          window.location.href = orderData.paymentLink.providerUrl;
+          setMonabitUrl(orderData.paymentLink.providerUrl);
+          setLoading(false);
           return;
         }
 
@@ -515,10 +517,34 @@ export default function PayPage() {
     );
   }
 
-  if (!order) return null;
+  if (!order && !monabitUrl) return null;
 
-  const orderNum = order.orderNumber.replace(/^PH-/, '');
-  const shipping = Number(order.shipping);
+  /* ---- Monabit hosted checkout (iframe) ---- */
+  if (monabitUrl) {
+    return (
+      <div className="fixed inset-0 flex flex-col bg-[#0a0703]" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 bg-[#16110a] border-b border-[#2e1f0e] flex-shrink-0">
+          <img src="/icons/logo-dperfumehouse.svg" alt="D Perfume House" style={{ height: 28 }} className="opacity-90" />
+          <div className="flex-1" />
+          <span className="text-xs text-[#6b4f35]">Pago seguro</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#6b4f35" strokeWidth={1.5} className="w-4 h-4">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+          </svg>
+        </div>
+        {/* Iframe */}
+        <iframe
+          src={monabitUrl}
+          title="Pago"
+          className="flex-1 w-full border-none"
+          allow="payment"
+        />
+      </div>
+    );
+  }
+
+  const orderNum = order!.orderNumber.replace(/^PH-/, '');
+  const shipping = Number(order!.shipping);
 
   return (
     <div className="min-h-screen bg-[#0a0703]" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>

@@ -124,20 +124,9 @@ export class MonabitService implements PaymentProvider {
       `Monabit collection created for order ${data.orderId}: ${result.data.collection_id}`,
     );
 
-    // Append customer data as query params to pre-fill the hosted checkout form
-    let checkoutUrl = result.data.payment_url;
-    try {
-      const url = new URL(checkoutUrl);
-      if (data.customerFirstName) url.searchParams.set('first_name', data.customerFirstName);
-      if (data.customerLastName) url.searchParams.set('last_name', data.customerLastName);
-      if (data.customerEmail) url.searchParams.set('email', data.customerEmail);
-      if (data.customerPhone) url.searchParams.set('phone', data.customerPhone);
-      if (data.customerDocumentNumber) url.searchParams.set('identification', data.customerDocumentNumber);
-      if (data.customerAddress) url.searchParams.set('address', data.customerAddress);
-      checkoutUrl = url.toString();
-    } catch {
-      // If URL parsing fails, use original URL
-    }
+    // Use the clean Monabit checkout URL (only collection_id) — extra query
+    // params like first_name/address can break the Monabit Angular router.
+    const checkoutUrl = result.data.payment_url;
 
     return {
       externalId: result.data.collection_id,
