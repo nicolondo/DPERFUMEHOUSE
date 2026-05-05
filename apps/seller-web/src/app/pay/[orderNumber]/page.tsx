@@ -542,14 +542,7 @@ export default function PayPage() {
             allow="payment"
             onLoad={() => setIframeLoaded(true)}
           />
-          {/* Hide Monabit branding logo — only visible after iframe loads so it doesn't show on dark background */}
-          {iframeLoaded && (
-            <div
-              className="absolute pointer-events-none"
-              style={{ top: 95, right: 'max(calc(50% - 220px), 8px)', width: 185, height: 75, background: '#fff', zIndex: 10 }}
-            />
-          )}
-          {/* Dark-to-transparent loading overlay — fades out once iframe is ready */}
+          {/* Dark-to-transparent loading overlay — fades out once iframe is ready */}}
           <div
             className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
             style={{

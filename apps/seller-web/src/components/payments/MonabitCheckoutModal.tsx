@@ -129,11 +129,6 @@ export function MonabitCheckoutModal({
           onLoad={() => setIframeLoaded(true)}
           allow="payment"
         />
-        {/* Hide Monabit branding logo — pointer-events:none so clicks still reach iframe */}
-        <div
-          className="absolute pointer-events-none"
-          style={{ top: 95, right: 'max(calc(50% - 220px), 8px)', width: 185, height: 75, background: '#fff', zIndex: 20 }}
-        />
       </div>
 
       {/* Footer hint */}
