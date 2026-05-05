@@ -460,8 +460,7 @@ export class PaymentsService {
     const monabitService = this.providerFactory.getMonabitService();
     let monabitStatus: string;
     try {
-      const result = await monabitService.getPaymentStatus(collection_id);
-      monabitStatus = (result?.data?.status as string) || (result?.status as string) || '';
+      monabitStatus = await monabitService.getPaymentStatus(collection_id);
       this.logger.log(
         `verifyMonabitPayment: Monabit status="${monabitStatus}" for collection=${collection_id}`,
       );
