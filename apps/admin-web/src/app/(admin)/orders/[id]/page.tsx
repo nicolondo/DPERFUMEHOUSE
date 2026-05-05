@@ -12,7 +12,7 @@ import { Modal } from '@/components/ui/modal';
 import { PageSpinner } from '@/components/ui/spinner';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { formatCurrency, formatDate, formatDateTime, formatPercent } from '@/lib/utils';
-import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Package, CreditCard, Clock, FileText, CheckCircle, Truck, MapPin, Printer, ExternalLink, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Package, CreditCard, Clock, FileText, CheckCircle, Truck, MapPin, Printer, ExternalLink, RefreshCw, Copy, Check } from 'lucide-react';
 
 const orderStatusVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
   DRAFT: 'default',
@@ -72,6 +72,15 @@ export default function OrderDetailPage() {
 
   const [deliverModalOpen, setDeliverModalOpen] = useState(false);
   const [deliveryNotes, setDeliveryNotes] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  function copyPaymentLink() {
+    const sellerUrl = process.env.NEXT_PUBLIC_SELLER_URL || 'https://pos.dperfumehouse.com';
+    const url = `${sellerUrl}/pay/${order?.orderNumber}`;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  }
 
   // Shipping state
   const [shippingRates, setShippingRates] = useState<any[]>([]);
@@ -379,6 +388,22 @@ export default function OrderDetailPage() {
                   ? order.paymentLink.paymentMethodType
                   : 'En línea'}
               </p>
+            )}
+            {order.paymentStatus !== 'COMPLETED' && order.orderNumber && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs text-white/40 truncate max-w-[220px]">
+                  {`${process.env.NEXT_PUBLIC_SELLER_URL || 'https://pos.dperfumehouse.com'}/pay/${order.orderNumber}`}
+                </span>
+                <button
+                  onClick={copyPaymentLink}
+                  title="Copiar link de pago"
+                  className="flex items-center gap-1 rounded px-2 py-0.5 text-xs transition-colors"
+                  style={{ background: copiedLink ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)', color: copiedLink ? '#4ade80' : '#a78bfa' }}
+                >
+                  {copiedLink ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  {copiedLink ? '¡Copiado!' : 'Copiar link'}
+                </button>
+              </div>
             )}
           </div>
           <div className="flex flex-col items-end gap-2">
