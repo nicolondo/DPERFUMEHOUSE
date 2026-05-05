@@ -542,7 +542,7 @@ export default function PayPage() {
             allow="payment"
             onLoad={() => setIframeLoaded(true)}
           />
-          {/* Dark-to-transparent loading overlay — fades out once iframe is ready */}}
+          {/* Dark-to-transparent loading overlay — fades out once iframe is ready */}
           <div
             className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
             style={{
