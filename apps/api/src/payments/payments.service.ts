@@ -431,6 +431,54 @@ export class PaymentsService {
   }
 
   /**
+   * Client-side fallback: verify Monabit payment status and confirm order.
+   * Called when the customer returns from Monabit checkout via redirect_url.
+   * Monabit testnet does not fire webhooks automatically, so this provides idempotent confirmation.
+   */
+  async verifyMonabitPayment(collection_id: string): Promise<{ confirmed: boolean; status: string }> {
+    this.logger.log(`verifyMonabitPayment: checking collection_id=${collection_id}`);
+
+    const paymentLink = await this.prisma.paymentLink.findFirst({
+      where: { provider: 'monabit', externalId: collection_id },
+      include: { order: true },
+    });
+
+    if (!paymentLink) {
+      this.logger.error(`verifyMonabitPayment: no paymentLink found for collection_id=${collection_id}`);
+      throw new NotFoundException(`Payment link not found for collection ${collection_id}`);
+    }
+
+    // Already confirmed — skip Monabit API call, return idempotent result
+    if (
+      paymentLink.order.status === 'PAID' ||
+      paymentLink.order.paymentStatus === 'COMPLETED'
+    ) {
+      this.logger.log(`verifyMonabitPayment: order ${paymentLink.order.orderNumber} already PAID`);
+      return { confirmed: true, status: 'paid' };
+    }
+
+    const monabitService = this.providerFactory.getMonabitService();
+    let monabitStatus: string;
+    try {
+      const result = await monabitService.getPaymentStatus(collection_id);
+      monabitStatus = (result?.data?.status as string) || (result?.status as string) || '';
+      this.logger.log(
+        `verifyMonabitPayment: Monabit status="${monabitStatus}" for collection=${collection_id}`,
+      );
+    } catch (err) {
+      this.logger.error(`verifyMonabitPayment: Monabit API error: ${(err as Error).message}`);
+      throw err;
+    }
+
+    await this.handleMonabitWebhook({ collection_id, status: monabitStatus });
+
+    const normalized = monabitStatus.toLowerCase();
+    const confirmed =
+      normalized === 'paid' || normalized === 'completed' || normalized === 'success';
+    return { confirmed, status: monabitStatus };
+  }
+
+  /**
    * Handle Wompi webhook event (POST).
    * Wompi sends transaction.updated events when payment status changes.
    */

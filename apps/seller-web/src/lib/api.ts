@@ -140,4 +140,11 @@ export async function deleteOrder(orderId: string): Promise<{ success: boolean; 
   return data;
 }
 
+export async function verifyMonabitPayment(
+  collection_id: string,
+): Promise<{ confirmed: boolean; status: string }> {
+  const { data } = await api.post('/payments/monabit-verify', { collection_id });
+  return data;
+}
+
 export default api;

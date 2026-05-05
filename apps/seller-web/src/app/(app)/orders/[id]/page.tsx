@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   MapPin,
   User,
@@ -27,7 +27,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { useOrder, useProcessOrder, useUpdateOrderAddress } from '@/hooks/use-orders';
 import { useMutation } from '@tanstack/react-query';
-import { deleteOrder } from '@/lib/api';
+import { deleteOrder, verifyMonabitPayment } from '@/lib/api';
 import { useCustomer } from '@/hooks/use-customers';
 import { formatCurrency, formatDate, formatDateTime, getInitials, formatPhone } from '@/lib/utils';
 import type { OrderStatus } from '@/lib/types';
@@ -76,6 +76,7 @@ const STATUS_ORDER_ONLINE: Record<string, number> = {
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const [isPaymentLinkModalOpen, setIsPaymentLinkModalOpen] = useState(false);
@@ -86,7 +87,7 @@ export default function OrderDetailPage() {
     mutationFn: () => deleteOrder(id),
     onSuccess: () => router.replace('/orders'),
   });
-  const { data: order, isLoading } = useOrder(id);
+  const { data: order, isLoading, refetch: refetchOrder } = useOrder(id);
   const processOrder = useProcessOrder();
   const updateOrderAddress = useUpdateOrderAddress();
   const { data: customer } = useCustomer(order?.customerId);
@@ -97,6 +98,27 @@ export default function OrderDetailPage() {
       setSelectedAddressId(order.addressId);
     }
   }, [order?.addressId]);
+
+  // Monabit fallback: when Monabit redirects back with ?payment=success&collection_id=...
+  // verify payment status and confirm order automatically.
+  useEffect(() => {
+    const collectionId = searchParams.get('collection_id');
+    const paymentParam = searchParams.get('payment');
+    if (!collectionId || paymentParam !== 'success') return;
+    if (!order) return;
+    if (order.status === 'PAID' || order.paymentStatus === 'COMPLETED') return;
+
+    verifyMonabitPayment(collectionId)
+      .then(({ confirmed }) => {
+        if (confirmed) {
+          refetchOrder();
+        }
+      })
+      .catch(() => {
+        // Silently ignore — webhook may still arrive or seller can refresh manually
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, order?.id]);
 
   const handleShare = async () => {
     if (!order?.paymentLink?.url) return;
