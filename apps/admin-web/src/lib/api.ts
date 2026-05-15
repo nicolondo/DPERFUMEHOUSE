@@ -452,6 +452,11 @@ export async function enrichFragranceProfile(id: string) {
   return unwrap(data);
 }
 
+export async function fetchFragellaSearch(q: string) {
+  const { data } = await api.get('/fragrance-profiles/fragella-search', { params: { q } });
+  return unwrap(data);
+}
+
 export async function fetchFragellaFields(equivalencia: string) {
   const { data } = await api.get('/fragrance-profiles/fragella-fields', { params: { equivalencia } });
   return unwrap(data);

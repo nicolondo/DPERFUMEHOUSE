@@ -240,6 +240,10 @@ export class FragranceProfilesService {
     return this.anthropicService.extractFromPyramidImage(base64, mimeType);
   }
 
+  async searchFragella(query: string) {
+    return this.fragellaService.search(query);
+  }
+
   async getFragellaFields(equivalencia: string) {
     const profile = await this.fragellaService.getProfile(equivalencia);
     if (!profile) return null;

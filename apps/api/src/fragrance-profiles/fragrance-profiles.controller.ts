@@ -34,6 +34,11 @@ export class FragranceProfilesController {
     return this.service.getVariantsWithProfileStatus(search);
   }
 
+  @Get('fragella-search')
+  async searchFragella(@Query('q') q: string) {
+    return this.service.searchFragella(q);
+  }
+
   @Get('fragella-fields')
   async getFragellaFields(@Query('equivalencia') equivalencia: string) {
     return this.service.getFragellaFields(equivalencia);

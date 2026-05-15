@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -14,6 +14,7 @@ import {
   enrichFragranceProfile,
   bulkImportFragranceProfiles,
   fetchFragellaFields,
+  fetchFragellaSearch,
 } from '@/lib/api';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,7 @@ import { Input, Select, Textarea } from '@/components/ui/input';
 import { SearchInput } from '@/components/ui/search-input';
 import { FormField } from '@/components/ui/form-field';
 import { Modal } from '@/components/ui/modal';
-import { Plus, Sparkles, Upload, FlaskConical, Pencil, Search } from 'lucide-react';
+import { Plus, Sparkles, Upload, FlaskConical, Pencil } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
 const profileSchema = z.object({
@@ -65,8 +66,47 @@ export default function FragrancesPage() {
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [bulkData, setBulkData] = useState('');
   const [tab, setTab] = useState<'profiles' | 'variants'>('profiles');
+
+  // Fragella autocomplete state
+  const [fragellaResults, setFragellaResults] = useState<Array<{id: string; name: string; brand: string; image: string | null; year: string; gender: string}>>([]);
+  const [fragellaSearchLoading, setFragellaSearchLoading] = useState(false);
+  const [showFragellaDropdown, setShowFragellaDropdown] = useState(false);
+  const [selectedFragrance, setSelectedFragrance] = useState<string | null>(null);
   const [fragellaLoading, setFragellaLoading] = useState(false);
   const [fragellaError, setFragellaError] = useState('');
+  const fragellaDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetFragellaState = () => {
+    setFragellaResults([]);
+    setShowFragellaDropdown(false);
+    setSelectedFragrance(null);
+    setFragellaError('');
+  };
+
+  const searchFragellaAutocomplete = async (query: string) => {
+    if (query.trim().length < 3) {
+      setFragellaResults([]);
+      setShowFragellaDropdown(false);
+      return;
+    }
+    setFragellaSearchLoading(true);
+    try {
+      const results = await fetchFragellaSearch(query);
+      setFragellaResults(results || []);
+      setShowFragellaDropdown((results || []).length > 0);
+    } catch {
+      setFragellaResults([]);
+    } finally {
+      setFragellaSearchLoading(false);
+    }
+  };
+
+  const handleEquivalenciaInput = (value: string) => {
+    setSelectedFragrance(null);
+    setFragellaError('');
+    if (fragellaDebounceRef.current) clearTimeout(fragellaDebounceRef.current);
+    fragellaDebounceRef.current = setTimeout(() => searchFragellaAutocomplete(value), 350);
+  };
 
   const lookupFragella = async (form: any) => {
     const equivalencia = form.getValues('equivalencia');
@@ -355,27 +395,65 @@ export default function FragrancesPage() {
       </div>
 
       <FormField label="Equivalencia" error={form.formState.errors.equivalencia?.message}>
-        <div className="flex gap-2">
-          <Input
-            {...form.register('equivalencia')}
-            placeholder="Ej: Oud Maracujá Maison Crivelli"
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); lookupFragella(form); } }}
-            className="flex-1"
-          />
+        <div className="relative">
+          <div className="relative">
+            <Input
+              {...form.register('equivalencia')}
+              placeholder="Ej: Oud Maracujá Maison Crivelli"
+              autoComplete="off"
+              onChange={(e) => {
+                form.setValue('equivalencia', e.target.value, { shouldDirty: true });
+                handleEquivalenciaInput(e.target.value);
+              }}
+              onBlur={() => setTimeout(() => setShowFragellaDropdown(false), 150)}
+            />
+            {fragellaSearchLoading && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-white/30">Buscando...</span>
+            )}
+          </div>
+          {showFragellaDropdown && fragellaResults.length > 0 && (
+            <div className="absolute z-50 w-full mt-1 bg-[#1c1c1c] border border-white/10 rounded-lg shadow-2xl overflow-hidden">
+              {fragellaResults.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  className="w-full text-left px-4 py-2.5 hover:bg-white/5 flex items-center gap-3 transition-colors border-b border-white/5 last:border-0"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    const label = `${r.name} ${r.brand}`.trim();
+                    form.setValue('equivalencia', label, { shouldDirty: true });
+                    setSelectedFragrance(label);
+                    setShowFragellaDropdown(false);
+                    setFragellaResults([]);
+                  }}
+                >
+                  {r.image && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={r.image} alt="" className="h-9 w-9 rounded object-cover flex-shrink-0 opacity-80" />
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm text-white font-medium truncate">{r.name}</p>
+                    <p className="text-xs text-white/40 truncate">{r.brand}{r.year ? ` · ${r.year}` : ''}{r.gender ? ` · ${r.gender}` : ''}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {selectedFragrance && (
           <Button
             type="button"
             variant="secondary"
             size="sm"
             loading={fragellaLoading}
             onClick={() => lookupFragella(form)}
-            icon={<Search className="h-3.5 w-3.5" />}
-            title="Buscar en Fragella y rellenar con AI"
+            icon={<Sparkles className="h-3.5 w-3.5" />}
+            className="mt-2 w-full justify-center"
           >
-            Fragella
+            {fragellaLoading ? 'Enriqueciendo con AI...' : `Llenar con AI · ${selectedFragrance}`}
           </Button>
-        </div>
+        )}
         {fragellaError && <p className="text-xs text-status-danger mt-1">{fragellaError}</p>}
-        {fragellaLoading && <p className="text-xs text-white/40 mt-1">Buscando en Fragella + enriqueciendo con AI...</p>}
       </FormField>
 
       <FormField label="Notas Destacadas" error={form.formState.errors.notasDestacadas?.message}>
@@ -421,7 +499,7 @@ export default function FragrancesPage() {
       )}
 
       <div className="flex justify-end gap-3">
-        <Button type="button" variant="ghost" onClick={() => { setShowCreate(false); setEditingProfile(null); }}>
+        <Button type="button" variant="ghost" onClick={() => { setShowCreate(false); setEditingProfile(null); resetFragellaState(); }}>
           Cancelar
         </Button>
         <Button type="submit" loading={mutation.isPending}>
@@ -498,12 +576,12 @@ export default function FragrancesPage() {
       )}
 
       {/* Create Modal */}
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Crear Perfil de Fragancia" size="lg">
+      <Modal open={showCreate} onClose={() => { setShowCreate(false); resetFragellaState(); }} title="Crear Perfil de Fragancia" size="lg">
         {renderProfileForm(createForm, handleCreate, createMutation)}
       </Modal>
 
       {/* Edit Modal */}
-      <Modal open={!!editingProfile} onClose={() => setEditingProfile(null)} title="Editar Perfil de Fragancia" size="lg">
+      <Modal open={!!editingProfile} onClose={() => { setEditingProfile(null); resetFragellaState(); }} title="Editar Perfil de Fragancia" size="lg">
         {renderProfileForm(editForm, handleEdit, updateMutation)}
       </Modal>
 
