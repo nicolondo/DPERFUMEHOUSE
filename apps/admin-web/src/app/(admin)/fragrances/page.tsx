@@ -13,6 +13,7 @@ import {
   updateFragranceProfile,
   enrichFragranceProfile,
   bulkImportFragranceProfiles,
+  fetchFragellaFields,
 } from '@/lib/api';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ import { Input, Select, Textarea } from '@/components/ui/input';
 import { SearchInput } from '@/components/ui/search-input';
 import { FormField } from '@/components/ui/form-field';
 import { Modal } from '@/components/ui/modal';
-import { Plus, Sparkles, Upload, FlaskConical, Pencil } from 'lucide-react';
+import { Plus, Sparkles, Upload, FlaskConical, Pencil, Search } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
 const profileSchema = z.object({
@@ -64,6 +65,48 @@ export default function FragrancesPage() {
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [bulkData, setBulkData] = useState('');
   const [tab, setTab] = useState<'profiles' | 'variants'>('profiles');
+  const [fragellaLoading, setFragellaLoading] = useState(false);
+  const [fragellaError, setFragellaError] = useState('');
+
+  const lookupFragella = async (form: any) => {
+    const equivalencia = form.getValues('equivalencia');
+    if (!equivalencia?.trim()) return;
+    setFragellaLoading(true);
+    setFragellaError('');
+    try {
+      const fields = await fetchFragellaFields(equivalencia.trim());
+      if (!fields) {
+        setFragellaError('No se encontró la fragancia en Fragella');
+        return;
+      }
+      // Auto-fill all returned fields (only overwrite if the value is non-empty)
+      const mapping: Record<string, string> = {
+        familiaOlfativa: 'familiaOlfativa',
+        subfamilia: 'subfamilia',
+        intensidad: 'intensidad',
+        genero: 'genero',
+        contextoIdeal: 'contextoIdeal',
+        climaIdeal: 'climaIdeal',
+        perfilPersonalidad: 'perfilPersonalidad',
+        notasDestacadas: 'notasDestacadas',
+        descripcionDetallada: 'descripcionDetallada',
+        duracionEstimada: 'duracionEstimada',
+        frasePositionamiento: 'frasePositionamiento',
+        tagsNegativos: 'tagsNegativos',
+        notasAdicionales: 'notasAdicionales',
+      };
+      for (const [apiKey, formKey] of Object.entries(mapping)) {
+        if (fields[apiKey] !== undefined && fields[apiKey] !== null && fields[apiKey] !== '') {
+          const val = Array.isArray(fields[apiKey]) ? fields[apiKey].join(', ') : fields[apiKey];
+          form.setValue(formKey as any, val, { shouldDirty: true });
+        }
+      }
+    } catch {
+      setFragellaError('Error al consultar Fragella');
+    } finally {
+      setFragellaLoading(false);
+    }
+  };
 
   // Profiles list
   const { data: profilesData, isLoading: profilesLoading } = useQuery({
@@ -312,7 +355,27 @@ export default function FragrancesPage() {
       </div>
 
       <FormField label="Equivalencia" error={form.formState.errors.equivalencia?.message}>
-        <Input {...form.register('equivalencia')} placeholder="Ej: Oud Maracujá Maison Crivelli" />
+        <div className="flex gap-2">
+          <Input
+            {...form.register('equivalencia')}
+            placeholder="Ej: Oud Maracujá Maison Crivelli"
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); lookupFragella(form); } }}
+            className="flex-1"
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            loading={fragellaLoading}
+            onClick={() => lookupFragella(form)}
+            icon={<Search className="h-3.5 w-3.5" />}
+            title="Buscar en Fragella y rellenar con AI"
+          >
+            Fragella
+          </Button>
+        </div>
+        {fragellaError && <p className="text-xs text-status-danger mt-1">{fragellaError}</p>}
+        {fragellaLoading && <p className="text-xs text-white/40 mt-1">Buscando en Fragella + enriqueciendo con AI...</p>}
       </FormField>
 
       <FormField label="Notas Destacadas" error={form.formState.errors.notasDestacadas?.message}>
